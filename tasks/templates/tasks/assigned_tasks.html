@@ -1,0 +1,140 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h2 class="mb-4">Assigned Tasks</h2>
+
+{% if task_list %}
+<table class="table table-bordered align-middle">
+    <thead class="table-light">
+        <tr>
+            <th>Task</th>
+            <th>Assigned To</th>
+            <th>Status</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+
+    <tbody>
+        {% for item in task_list %}
+        <tr>
+            <!-- Task info -->
+            <td>
+                <strong>{{ item.task.title }}</strong><br>
+                <small class="text-muted">
+                    {{ item.task.description|default:"-" }}
+                </small>
+            </td>
+
+            <!-- Assigned users (ALL staff on this task) -->
+            <td>
+                {% for ut in item.usertasks %}
+                    {% if ut.assigned_to == user %}
+                        <strong>Me ({{ ut.assigned_to.email }})</strong>
+                    {% else %}
+                        {{ ut.assigned_to.email }}
+                    {% endif %}
+                    {% if not forloop.last %}, {% endif %}
+                {% endfor %}
+            </td>
+
+            <!-- Status -->
+            <td>
+                {% if user.role == 'manager' %}
+                    <span class="badge
+                        {% if item.computed_status == 'completed' %}bg-success
+                        {% elif item.computed_status == 'in_progress' %}bg-warning
+                        {% elif item.computed_status == 'rejected' %}bg-danger
+                        {% else %}bg-secondary{% endif %}
+                    ">
+                        {{ item.computed_status|capfirst }}
+                    </span>
+                {% else %}
+                    <span class="badge
+                        {% if item.own_usertask.status == 'completed' %}bg-success
+                        {% elif item.own_usertask.status == 'in_progress' %}bg-warning
+                        {% elif item.own_usertask.status == 'rejected' %}bg-danger
+                        {% else %}bg-secondary{% endif %}
+                    ">
+                        {{ item.own_usertask.status|capfirst }}
+                    </span>
+                {% endif %}
+            </td>
+
+            <!-- Actions -->
+            <td class="d-flex gap-1 flex-wrap">
+                {% if user.role == 'manager' %}
+    {% if item.computed_status != 'completed' %}
+        <a href="{% url 'edit_task' item.task.id %}" class="btn btn-sm btn-warning">
+            Edit
+        </a>
+    {% endif %}
+
+
+                    <a href="#"
+                       class="btn btn-sm btn-danger delete-task-btn"
+                       data-task-id="{{ item.task.id }}">
+                        Delete
+                    </a>
+
+                    {% if item.computed_status == 'completed' %}
+                        <a href="{% url 'review_task' item.task.id %}"
+                           class="btn btn-sm btn-success">
+                            Review
+                        </a>
+                    {% endif %}
+
+                {% else %}
+                    {% with ut=item.own_usertask %}
+                        {% if ut.status == 'pending' %}
+                            <a href="{% url 'start_task' ut.id %}"
+                               class="btn btn-sm btn-primary">
+                                Start
+                            </a>
+                        {% endif %}
+
+                        <a href="{% url 'task_detail' item.task.id %}"
+                           class="btn btn-sm btn-outline-secondary">
+                            View
+                        </a>
+
+                        {% if ut.status == 'rejected' %}
+                            <a href="{% url 'start_task' ut.id %}"
+                               class="btn btn-sm btn-primary">
+                                Start Again
+                            </a>
+                        {% endif %}
+                    {% endwith %}
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+{% else %}
+<div class="alert alert-info">
+    No assigned tasks found.
+</div>
+{% endif %}
+
+<script>
+  $(document).on('click', '.delete-task-btn', function (e) {
+    e.preventDefault();
+
+    const taskId = $(this).data('task-id');
+
+    if (!confirm('Delete this task permanently? This will remove all assignments.')) {
+        return;
+    }
+
+    $.post(
+      "{% url 'delete_task_cascade' 0 %}".replace('0', taskId),
+      { csrfmiddlewaretoken: '{{ csrf_token }}' },
+      function () {
+        window.location.reload();
+      }
+    );
+  });
+</script>
+
+{% endblock %}

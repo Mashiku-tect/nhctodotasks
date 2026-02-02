@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+
+            <h2 class="text-center text-primary mb-4">Create New Task</h2>
+
+            <form id="taskForm" novalidate>
+                {% csrf_token %}
+
+                <!-- Task Title -->
+                <div class="mb-3">
+                    <label class="form-label">Task Title *</label>
+                    <input type="text" name="title" class="form-control" placeholder="Enter task title" required>
+                    <div class="invalid-feedback">Please provide a task title.</div>
+                </div>
+
+                <!-- Task Description -->
+                <div class="mb-3">
+                    <label class="form-label">Description</label>
+                    <textarea name="description" class="form-control" placeholder="Optional details" rows="3"></textarea>
+                </div>
+
+                <!-- Due Date -->
+                <div class="mb-3">
+                    <label class="form-label">Due Date *</label>
+                    <input type="date" name="due_date" class="form-control" min="{{ min_date }}" required>
+                    <div class="invalid-feedback">Please select a valid due date.</div>
+                </div>
+
+                <!-- Priority -->
+                <div class="mb-3">
+                    <label class="form-label">Priority *</label>
+                    <select name="priority" class="form-select">
+                        {% for value, label in PRIORITY_CHOICES %}
+                        <option value="{{ value }}" {% if value == 'normal' %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                {% if request.user.role == "manager" %}
+                <!-- Task Ownership -->
+                <div class="mb-3">
+                    <label class="form-label">Task Ownership *</label>
+                    <div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input task-type" type="radio" name="task_type" id="task_type_self" value="self" checked>
+                            <label class="form-check-label" for="task_type_self">My Task</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input task-type" type="radio" name="task_type" id="task_type_assign" value="assign">
+                            <label class="form-check-label" for="task_type_assign">Assign to Staff</label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Assign Staff Section (hidden by default) -->
+                <div class="mb-3 d-none" id="assignSection">
+                    <label class="form-label">Select Staff Members *</label>
+                    <select name="assigned_to[]" class="form-select" multiple size="4">
+                        {% for user in subordinates %}
+                            <option value="{{ user.id }}">{{ user.get_full_name|default:user.email }}</option>
+                        {% empty %}
+                            <option disabled>No staff members available</option>
+                        {% endfor %}
+                    </select>
+                    <div class="invalid-feedback" id="assignError">Please select at least one staff member.</div>
+                    <small class="text-muted">Hold Ctrl/Cmd to select multiple staff members</small>
+                </div>
+                {% endif %}
+
+                <!-- Submit Button -->
+                <div class="d-grid mt-4">
+                    <button type="submit" class="btn btn-primary">Create Task</button>
+                </div>
+
+            </form>
+
+        </div>
+    </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<script>
+$(function() {
+    const today = new Date().toISOString().split('T')[0];
+    $('input[name="due_date"]').attr('min', today);
+
+    // Toggle assign section
+    $('.task-type').on('change', function() {
+        if ($(this).val() === 'assign') {
+            $('#assignSection').removeClass('d-none');
+        } else {
+            $('#assignSection').addClass('d-none');
+        }
+    });
+
+    // Form submit
+    $('#taskForm').on('submit', async function(e) {
+        e.preventDefault();
+        let valid = true;
+
+        // Title validation
+        const title = $('input[name="title"]').val().trim();
+        if (!title) { $('input[name="title"]').addClass('is-invalid'); valid = false; } 
+        else { $('input[name="title"]').removeClass('is-invalid'); }
+
+        // Due date validation
+        const dueDate = $('input[name="due_date"]').val();
+        if (!dueDate || new Date(dueDate) < new Date(today)) {
+            $('input[name="due_date"]').addClass('is-invalid'); valid = false;
+        } else { $('input[name="due_date"]').removeClass('is-invalid'); }
+
+        // Assignment validation if needed
+        const taskType = $('input[name="task_type"]:checked').val();
+        const assigned = $('select[name="assigned_to[]"]').val();
+        if (taskType === 'assign' && (!assigned || assigned.length === 0)) {
+            $('#assignError').show(); valid = false;
+        } else {
+            $('#assignError').hide();
+        }
+
+        if (!valid) return;
+
+        // AJAX submit
+        try {
+            const response = await $.ajax({
+                url: "{% url 'create_task' %}",
+                method: "POST",
+                data: $(this).serialize(),
+                dataType: 'json'
+            });
+
+            await Swal.fire({
+                icon: 'success',
+                title: 'Task Created!',
+                text: response.message || 'Task has been created successfully.',
+                timer: 2000,
+                timerProgressBar: true,
+                showConfirmButton: false,
+                didClose: () => {
+                    if (response.redirect_url) window.location.href = response.redirect_url;
+                }
+            });
+
+        } catch (err) {
+            await Swal.fire({
+                icon: 'error',
+                title: 'Failed',
+                text: err.responseJSON?.error || 'Something went wrong.',
+            });
+        }
+    });
+});
+</script>
+
+{% endblock %}

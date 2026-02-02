@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h2>Edit Task</h2>
+
+<form method="post" class="card shadow-sm border-0 p-4">
+    {% csrf_token %}
+
+    <div class="mb-3">
+        <label class="form-label">Title</label>
+        <input type="text" name="title" class="form-control"
+               value="{{ task.title }}" required>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Description</label>
+        <textarea name="description" class="form-control" rows="4">
+{{ task.description }}</textarea>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Due Date</label>
+        <input type="date" name="due_date" class="form-control"
+               value="{{ task.due_date|date:'Y-m-d' }}" required>
+    </div>
+
+    {% if user.role == 'manager' %}
+    <div class="mb-3">
+        <label class="form-label">Assign to Staff</label>
+        <select name="assigned_to" class="form-select" multiple>
+            {% for staff in subordinates %}
+                <option value="{{ staff.id }}"
+                    {% if staff in current_assignees %}selected{% endif %}>
+                    {{ staff.email }}
+                </option>
+            {% endfor %}
+        </select>
+        <small class="text-muted">
+            Hold Ctrl (or Cmd) to select multiple users
+        </small>
+    </div>
+    {% endif %}
+
+    <div class="d-flex gap-2">
+        <a href="{% url 'task_detail' task.id %}" class="btn btn-secondary">
+            Cancel
+        </a>
+        <button class="btn btn-primary">
+            Save Changes
+        </button>
+    </div>
+</form>
+{% endblock %}
