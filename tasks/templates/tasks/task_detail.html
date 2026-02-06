@@ -105,10 +105,15 @@
       <i class="bi bi-pencil-square"></i> Edit Task
     </a>
     {% endif %}
-
-    <button class="btn btn-outline-danger ms-auto" id="deleteTaskBtn">
-      <i class="bi bi-trash"></i> Delete Task
-    </button>
+      
+  {% if can_delete %}
+  <form method="post" action="{% url 'delete_task' task.id %}">
+      {% csrf_token %}
+      <button class="btn btn-danger">
+          Delete Task
+      </button>
+  </form>
+  {% endif %}
   </div>
 
 </div>
@@ -242,7 +247,6 @@ $(function () {
     );
   });
 
-  // COMPLETE TASK
  // COMPLETE TASK
 $('#completeTaskBtn').click(function () {
 

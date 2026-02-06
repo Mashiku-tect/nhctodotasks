@@ -330,9 +330,34 @@ footer {
         left: 0 !important;
     }
 }
+/* Reports submenu */
+.submenu .nav-link {
+    font-size: 0.9rem;
+    opacity: 0.9;
+    margin: 0.15rem 0.5rem;
+    border-radius: 6px;
+}
+
+.submenu .nav-link i {
+    font-size: 1rem;
+}
+
+.submenu .nav-link:hover {
+    background: rgba(255,255,255,0.08);
+    opacity: 1;
+}
+
+/* Chevron animation */
+.nav-link[aria-expanded="true"] .bi-chevron-down {
+    transform: rotate(180deg);
+}
+
+.bi-chevron-down {
+    transition: transform 0.3s ease;
+}
+
 </style>
 </head>
-
 <body>
 
 <div class="d-flex">
@@ -372,11 +397,36 @@ footer {
         </a>
     </li>
 
-     <li class="nav-item">
-        <a class="nav-link" href="#">
-            <i class="bi bi-bar-chart"></i><span>Reports</span>
+ {% if request.user.role == "manager" %}
+<li class="nav-item">
+    <a class="nav-link d-flex justify-content-between align-items-center"
+       data-bs-toggle="collapse"
+       href="#reportsMenu"
+       role="button"
+       aria-expanded="false">
+        <div>
+            <i class="bi bi-bar-chart"></i>
+            <span>Reports</span>
+        </div>
+        <i class="bi bi-chevron-down small"></i>
+    </a>
+
+    <div class="collapse submenu" id="reportsMenu">
+        <a class="nav-link ps-5" href="{% url 'reports_overdue' %}">
+            <i class="bi bi-exclamation-circle"></i>
+            <span>Overdue Tasks</span>
         </a>
-    </li>
+        <a class="nav-link ps-5" href="{% url 'reports_performance' %}">
+            <i class="bi bi-people"></i>
+            <span>Staff Performance</span>
+        </a>
+        <a class="nav-link ps-5" href="{% url 'reports_due_soon' %}">
+            <i class="bi bi-clock"></i>
+            <span>Due Soon</span>
+        </a>
+    </div>
+</li>
+{% endif %}
 
     {% if request.user.is_superuser %}
 <li class="nav-item mt-3">
@@ -397,9 +447,6 @@ footer {
     </a>
 </li>
 {% endif %}
-
-
-   
 </ul>
 
 </nav>
@@ -415,22 +462,8 @@ footer {
             </button>
             <h5 class="page-title">NHC To Do List</h5>
         </div>
-
         <div class="d-flex align-items-center gap-4">
-           <div class="notification">
-    <i class="bi bi-bell"></i>
-    <span class="badge rounded-pill">3</span>
-
-    <div class="notification-dropdown">
-        <div class="notification-item">New task assigned to you</div>
-        <div class="notification-item">Task "Inspection Report" updated</div>
-        <div class="notification-item">Weekly report generated</div>
-        <div class="notification-item">Reminder: Task due today</div>
-        <div class="notification-item">System maintenance notice</div>
-    </div>
-</div>
-
-
+    
             <form method="post" action="{% url 'logout' %}">
                 {% csrf_token %}
                 <button class="btn-logout">
@@ -450,7 +483,7 @@ footer {
 
 </div>
 </div>
-
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
 <script>
@@ -559,6 +592,8 @@ document.addEventListener('click', (event) => {
         dropdown.style.display = 'none';
     }
 });
+
+
 </script>
 
 </body>

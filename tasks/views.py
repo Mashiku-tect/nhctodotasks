@@ -1,3 +1,4 @@
+import json
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect,get_object_or_404
 from django.contrib import messages
@@ -17,8 +18,11 @@ from collections import defaultdict
 from django.views.decorators.http import require_POST
 from django.db.models import Prefetch
 import os
+from django.utils import timezone
+import pytz
 
-
+tanzania_tz = pytz.timezone('Africa/Dar_es_Salaam')
+today = timezone.now().astimezone(tanzania_tz).date()
 
 
 User = get_user_model()
@@ -189,65 +193,56 @@ def assigned_tasks(request):
         'task_list': task_list
     })
 
-
-
-
-
 #dashboard view
 @login_required
 def dashboard(request):
     user = request.user
-    today = timezone.now().date()
+    today = timezone.localdate()  # Tanzanian date if timezone set
 
-    # ================= KPI CARDS =================
-    # My Open Tasks (assigned to self and not completed)
-    my_open_tasks_count = UserTask.objects.filter(
-        assigned_to=user,
-        assigned_by=user,
-        status='in_progress',
-    ).exclude(status='completed').count()
+    if user.role == "manager":
+        # Tasks assigned to staff in this manager's section
+        section_staff_tasks = UserTask.objects.filter(
+            assigned_to__role='staff',
+            assigned_to__section=user.section
+        )
 
-    # Assigned to Me (tasks assigned by others to this user)
-    assigned_to_me_count = UserTask.objects.filter(
-        assigned_to=user
-    ).exclude(assigned_by=user).count()
+        my_open_tasks_count = section_staff_tasks.exclude(status__in=['completed', 'rejected']).count()
+        overdue_tasks_count = section_staff_tasks.filter(
+            task__due_date__lt=today
+        ).exclude(status__in=['completed', 'rejected']).count()
 
-    # Overdue Tasks (assigned to self, due date past and not completed)
-    overdue_count = UserTask.objects.filter(
-        assigned_to=user,
-        assigned_by=user,
-        task__due_date__lt=today
-    ).exclude(status='completed').count()
+        rejected_tasks_count = section_staff_tasks.filter(status='rejected').count()
 
-    # Completed this week (tasks assigned to self, completed in last 7 days)
-    week_ago = today - timedelta(days=7)
-    completed_this_week_count = UserTask.objects.filter(
-        assigned_to=user,
-        assigned_by=user,
-        status='completed',
-        task__updated_at__date__gte=week_ago
-    ).count()
+        completed_tasks_count = section_staff_tasks.filter(status='completed').count()
 
-    # ================= Tasks Due Soon =================
-    tasks_due_soon = UserTask.objects.filter(
-        assigned_to=user,
-        assigned_by=user,
-        task__due_date__gte=today,
-    ).exclude(status='completed').order_by('task__due_date')[:5]
+    else:
+        # Staff sees only their own tasks
+        my_open_tasks_count = UserTask.objects.filter(
+            assigned_to=user
+        ).exclude(status__in=['completed', 'rejected']).count()
 
-    # ================= Recently Assigned =================
-    recently_assigned = UserTask.objects.filter(
-        assigned_to=user
-    ).exclude(assigned_by=user).order_by('-created_at')[:5]
+        overdue_tasks_count = UserTask.objects.filter(
+            assigned_to=user,
+            task__due_date__lt=today
+        ).exclude(status__in=['completed', 'rejected']).count()
 
-    return render(request, 'tasks/dashboard.html', {
+        rejected_tasks_count = UserTask.objects.filter(
+            assigned_to=user,
+            status='rejected'
+        ).count()
+
+        completed_tasks_count = UserTask.objects.filter(
+            assigned_to=user,
+            status='completed'
+        ).count()
+
+    return render(request, "tasks/dashboard.html", {
         'my_open_tasks_count': my_open_tasks_count,
-        'assigned_to_me_count': assigned_to_me_count,
-        'overdue_count': overdue_count,
-        'completed_this_week_count': completed_this_week_count,
-        'tasks_due_soon': tasks_due_soon,
-        'recently_assigned': recently_assigned,
+        'overdue_tasks_count': overdue_tasks_count,
+        'rejected_tasks_count': rejected_tasks_count,
+        'completed_tasks_count': completed_tasks_count,
     })
+
 
 # view task details function
 @login_required
@@ -294,9 +289,16 @@ def task_detail(request, task_id):
             .select_related('user')
             .prefetch_related('replies')
         )
+        # Only the user who assigned the task can delete it
+    can_delete = UserTask.objects.filter(
+        task=task,
+        assigned_by=request.user
+    ).exists()
+
 
     return render(request, 'tasks/task_detail.html', {
         'task': task,
+        'can_delete': can_delete,
         'task_completed': task_completed,
         'subtasks': subtasks,
         'incomplete_subtasks': incomplete_subtasks,
@@ -432,19 +434,17 @@ def complete_task(request, task_id):
 #delete a task
 @login_required
 def delete_task(request, task_id):
-    if request.method != 'POST':
-        return JsonResponse({'error': 'Invalid request'}, status=400)
-
     task = get_object_or_404(Task, id=task_id)
 
     if not UserTask.objects.filter(
         task=task,
         assigned_by=request.user
     ).exists():
-        return JsonResponse({'error': 'Forbidden'}, status=403)
+        return HttpResponseForbidden("You cannot delete this task.")
 
     task.delete()
-    return JsonResponse({'success': True})
+    messages.success(request, "Task deleted successfully.")
+    return redirect('my_tasks')
 
 
 
@@ -601,7 +601,7 @@ def review_task(request, task_id):
             return redirect('review_task', task_id=task.id)
 
         if action == 'accept':
-            UserTask.objects.filter(task=task, assigned_by=request.user).update(status='accepted')
+            UserTask.objects.filter(task=task).exclude(assigned_by=request.user).update(status='accepted')
             messages.success(request, "Task accepted successfully.")
 
         elif action == 'reject':
@@ -683,3 +683,107 @@ def delete_task_cascade(request, task_id):
 
     task.delete()  # CASCADE deletes all UserTask rows
     return JsonResponse({'success': True})
+
+@login_required
+def overdue_tasks_report(request):
+    if request.user.role != 'manager':
+        return HttpResponseForbidden()
+
+    import pytz
+    tanzania_tz = pytz.timezone('Africa/Dar_es_Salaam')
+    today = timezone.now().astimezone(tanzania_tz).date()
+
+    overdue_tasks = UserTask.objects.select_related('task', 'assigned_to').filter(
+        task__due_date__lt=today,
+        assigned_to__role='staff',
+        assigned_to__section=request.user.section
+    ).exclude(status__in=['completed', 'rejected'])
+
+    return render(request, 'reports/overdue_tasks.html', {'overdue_tasks': overdue_tasks})
+
+@login_required
+def due_soon_report(request):
+    if request.user.role != 'manager':
+        return HttpResponseForbidden()
+
+    import pytz
+    from datetime import timedelta
+    tanzania_tz = pytz.timezone('Africa/Dar_es_Salaam')
+    today = timezone.now().astimezone(tanzania_tz).date()
+
+    days_ahead = 7
+    due_date_limit = today + timedelta(days=days_ahead)
+
+    tasks = UserTask.objects.select_related('task', 'assigned_to').filter(
+        task__due_date__gte=today,
+        task__due_date__lte=due_date_limit,
+        assigned_to__role='staff',
+        assigned_to__section=request.user.section
+    ).exclude(status__in=['completed', 'rejected']).order_by('task__due_date')
+
+    due_soon_tasks = []
+    for ut in tasks:
+        days_left = (ut.task.due_date - today).days
+        due_soon_tasks.append({'user_task': ut, 'days_left': days_left})
+
+    return render(request, 'reports/due_soon_tasks.html', {'due_soon_tasks': due_soon_tasks})
+
+
+@login_required
+def staff_performance_report(request):
+    if request.user.role != 'manager':
+        return HttpResponseForbidden()
+
+    import pytz
+    tanzania_tz = pytz.timezone('Africa/Dar_es_Salaam')
+    today = timezone.now().astimezone(tanzania_tz).date()
+
+    # Get staff in manager's section
+    staff_users = User.objects.filter(
+        role__iexact='staff',
+        section=request.user.section
+    )
+
+    performance_data = []
+
+    for staff in staff_users:
+        # Only tasks assigned by this manager
+        tasks = UserTask.objects.filter(
+            assigned_to=staff,
+            assigned_by=request.user
+        )
+
+        total_tasks = tasks.count()
+        completed_tasks = tasks.filter(status='completed').count()
+        pending_tasks = tasks.filter(status__in=['pending', 'in_progress', 'accepted']).count()
+        overdue_tasks = tasks.filter(
+            task__due_date__lt=today
+        ).exclude(status__in=['completed', 'rejected']).count()
+
+        completion_rate = (completed_tasks / total_tasks * 100) if total_tasks > 0 else 0
+
+        performance_data.append({
+            'staff': staff,
+            'total_tasks': total_tasks,
+            'completed_tasks': completed_tasks,
+            'pending_tasks': pending_tasks,
+            'overdue_tasks': overdue_tasks,
+            'completion_rate': round(completion_rate, 1),
+        })
+
+    # Prepare chart data
+    labels = [
+        f"{item['staff'].email}"
+        for item in performance_data
+    ]
+    completed = [item['completed_tasks'] for item in performance_data]
+    pending = [item['pending_tasks'] for item in performance_data]
+    overdue = [item['overdue_tasks'] for item in performance_data]
+
+    return render(request, 'reports/staff_performance.html', {
+        'performance_data': performance_data,
+        'chart_labels': json.dumps(labels),
+        'chart_completed': json.dumps(completed),
+        'chart_pending': json.dumps(pending),
+        'chart_overdue': json.dumps(overdue),
+    })

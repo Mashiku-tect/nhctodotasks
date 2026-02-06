@@ -7,14 +7,14 @@
             <small class="text-muted">{{ comment.created_at|date:"M d, Y H:i" }}</small>
         </div>
 
-        {% if is_assigned_task %}
-        <div>
-            <!-- Everyone assigned can reply to major comment or any reply -->
-            <button class="btn btn-sm btn-outline-primary" onclick="document.getElementById('reply-form-{{ comment.id }}').classList.toggle('d-none')">
-                Reply
-            </button>
-        </div>
-        {% endif %}
+        {% if is_assigned_task and request.user.role == "manager" %}
+    <div>
+        <button class="btn btn-sm btn-outline-primary"
+            onclick="document.getElementById('reply-form-{{ comment.id }}').classList.toggle('d-none')">
+            Reply
+        </button>
+    </div>
+    {% endif %}
     </div>
 
     {% if is_assigned_task %}

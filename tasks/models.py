@@ -73,7 +73,6 @@ class UserTask(models.Model):
 
 
 #subtasks model
-
 class SubTask(models.Model):
 
     STATUS_CHOICES = [

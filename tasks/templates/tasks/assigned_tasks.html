@@ -1,8 +1,6 @@
 {% extends 'base.html' %}
-
 {% block content %}
 <h2 class="mb-4">Assigned Tasks</h2>
-
 {% if task_list %}
 <table class="table table-bordered align-middle">
     <thead class="table-light">
@@ -68,14 +66,11 @@
             Edit
         </a>
     {% endif %}
-
-
                     <a href="#"
                        class="btn btn-sm btn-danger delete-task-btn"
                        data-task-id="{{ item.task.id }}">
                         Delete
                     </a>
-
                     {% if item.computed_status == 'completed' %}
                         <a href="{% url 'review_task' item.task.id %}"
                            class="btn btn-sm btn-success">
@@ -136,5 +131,4 @@
     );
   });
 </script>
-
 {% endblock %}

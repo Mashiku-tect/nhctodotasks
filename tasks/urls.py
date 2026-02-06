@@ -1,5 +1,6 @@
+from django import views
 from django.urls import path
-from .views import create_task,my_tasks,assigned_tasks,dashboard,task_detail,start_task,complete_subtask,complete_task,edit_task,delete_task,delete_subtask,review_task,reply_comment,ajax_save_subtask,subtask_json,delete_task_cascade
+from .views import create_task, due_soon_report,my_tasks,assigned_tasks,dashboard, overdue_tasks_report, staff_performance_report,task_detail,start_task,complete_subtask,complete_task,edit_task,delete_task,delete_subtask,review_task,reply_comment,ajax_save_subtask,subtask_json,delete_task_cascade
 from django.conf import settings
 from django.conf.urls.static import static
 
@@ -31,7 +32,13 @@ path(
     'tasks/delete-task/<int:task_id>/',
     delete_task_cascade,
     name='delete_task_cascade'
-)
+),
+     path('reports/overdue/',overdue_tasks_report, name='reports_overdue'),
+     # urls.py
+path('reports/due-soon/', due_soon_report, name='reports_due_soon'),
+path('reports/staff-performance/', staff_performance_report, name='reports_performance'),
+
+
 
 
     
