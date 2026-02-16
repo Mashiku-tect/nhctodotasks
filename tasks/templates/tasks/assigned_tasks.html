@@ -1,6 +1,16 @@
 {% extends 'base.html' %}
 {% block content %}
 <h2 class="mb-4">Assigned Tasks</h2>
+<div id="messagesContainer">
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+</div>
 {% if task_list %}
 <table class="table table-bordered align-middle">
     <thead class="table-light">
@@ -65,20 +75,22 @@
         <a href="{% url 'edit_task' item.task.id %}" class="btn btn-sm btn-warning">
             Edit
         </a>
-    {% endif %}
-                    <a href="#"
-                       class="btn btn-sm btn-danger delete-task-btn"
-                       data-task-id="{{ item.task.id }}">
-                        Delete
-                    </a>
-                    {% if item.computed_status == 'completed' %}
-                        <a href="{% url 'review_task' item.task.id %}"
-                           class="btn btn-sm btn-success">
-                            Review
-                        </a>
-                    {% endif %}
+        {% endif %}
 
-                {% else %}
+    <!-- Delete button -->
+    <button class="btn btn-sm btn-danger delete-task-btn" data-task-id="{{ item.task.id }}">
+        Delete
+    </button>
+    {% endif %}
+ 
+                    {% if user.role == 'manager' and item.computed_status == 'completed' %}
+        <a href="{% url 'review_task' item.task.id %}"
+         class="btn btn-sm btn-success">
+          Review
+       </a>
+         {% endif %}
+
+
                     {% with ut=item.own_usertask %}
                         {% if ut.status == 'pending' %}
                             <a href="{% url 'start_task' ut.id %}"
@@ -99,7 +111,7 @@
                             </a>
                         {% endif %}
                     {% endwith %}
-                {% endif %}
+             
             </td>
         </tr>
         {% endfor %}
@@ -107,28 +119,69 @@
 </table>
 
 {% else %}
+
 <div class="alert alert-info">
     No assigned tasks found.
 </div>
 {% endif %}
 
+<!-- Delete Task Modal -->
+<div class="modal fade" id="deleteTaskModal" tabindex="-1" aria-labelledby="deleteTaskModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content border-danger">
+      <div class="modal-header bg-danger text-white">
+        <h5 class="modal-title" id="deleteTaskModalLabel">Confirm Delete</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        Are you sure you want to delete this task? <strong>This action cannot be undone.</strong>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button id="confirmDeleteBtn" type="button" class="btn btn-danger">Yes, Delete</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
-  $(document).on('click', '.delete-task-btn', function (e) {
+$(function() {
+  let selectedTaskId = null;
+
+  // Open modal
+  $(document).on('click', '.delete-task-btn', function(e) {
     e.preventDefault();
+    selectedTaskId = $(this).data('task-id');
+    const deleteModal = new bootstrap.Modal(document.getElementById('deleteTaskModal'));
+    deleteModal.show();
+  });
 
-    const taskId = $(this).data('task-id');
-
-    if (!confirm('Delete this task permanently? This will remove all assignments.')) {
-        return;
-    }
+  // Confirm delete
+  $('#confirmDeleteBtn').click(function() {
+    if (!selectedTaskId) return;
 
     $.post(
-      "{% url 'delete_task_cascade' 0 %}".replace('0', taskId),
+      "{% url 'delete_task_cascade' 0 %}".replace('0', selectedTaskId),
       { csrfmiddlewaretoken: '{{ csrf_token }}' },
-      function () {
-        window.location.reload();
+      function() {
+        // Close modal
+        const modalEl = document.getElementById('deleteTaskModal');
+        bootstrap.Modal.getInstance(modalEl).hide();
+
+        // Remove deleted row
+        $(`.delete-task-btn[data-task-id="${selectedTaskId}"]`).closest('tr').remove();
+
+        // Optional: show success alert
+        $('#messagesContainer').prepend(`
+          <div class="alert alert-success alert-dismissible fade show" role="alert">
+            Task deleted successfully!
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+          </div>
+        `);
       }
     );
   });
+});
 </script>
+
 {% endblock %}

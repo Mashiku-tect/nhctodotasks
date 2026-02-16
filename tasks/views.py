@@ -3,16 +3,11 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect,get_object_or_404
 from django.contrib import messages
 from django.utils.timezone import now
-
 from django.contrib.auth import get_user_model
 from .models import Task, UserTask,SubTask,Comment,TaskAttachment
-
-
 from django.utils import timezone
 from datetime import timedelta
-
 from django.http import HttpResponseForbidden,JsonResponse
-
 from django.db.models import Q
 from collections import defaultdict
 from django.views.decorators.http import require_POST
@@ -66,7 +61,7 @@ def create_task(request):
             )
 
         assigned_users = [user]  # default assignment: self
-
+        messages.success(request, "Task created successfully!")
         redirect_url = '/tasks/mytasks/'  # default redirect for staff or manager self-task
 
         if user.role == 'manager':
@@ -88,6 +83,7 @@ def create_task(request):
                     )
 
                 # If manager is assigning to others, redirect to assigned_tasks
+                
                 redirect_url = '/tasks/assigned/'
 
         task = Task.objects.create(
@@ -245,56 +241,46 @@ def dashboard(request):
 
 
 # view task details function
-@login_required
 def task_detail(request, task_id):
     task = get_object_or_404(Task, id=task_id)
 
-    user_task = UserTask.objects.filter(
-        task=task,
-        assigned_to=request.user
-    ).first()
+    # Only get a UserTask for the current user if they are staff
+    user_task = UserTask.objects.filter(task=task, assigned_to=request.user).first()
 
-    if not user_task:
+    # Managers can view any task
+    if request.user.role != 'manager' and not user_task:
         return HttpResponseForbidden("You are not assigned to this task.")
 
-    is_my_task = (
-        user_task.assigned_by == request.user and
-        user_task.assigned_to == request.user
-    )
+    # Flags for staff users
+    is_my_task = False
+    is_assigned_task = False
+    task_completed = False
+    task_accepted = False
 
-    is_assigned_task = (
-        user_task.assigned_to == request.user and
-        user_task.assigned_by != request.user
-    )
-
-    # ✅ TASK COMPLETION FLAG (from UserTask)
-    task_completed = user_task.status == 'completed'
-    task_accepted=user_task.status=='accepted'
+    if user_task:
+        is_my_task = user_task.assigned_by == request.user and user_task.assigned_to == request.user
+        is_assigned_task = user_task.assigned_to == request.user and user_task.assigned_by != request.user
+        task_completed = user_task.status == 'completed'
+        task_accepted = user_task.status == 'accepted'
 
     # SUBTASKS
     subtasks = task.subtasks.all()
-
-    # ✅ Add completion flag per subtask
     for subtask in subtasks:
         subtask.is_completed = subtask.status == 'completed'
 
-    # ✅ Used to disable "Mark Task Completed"
     incomplete_subtasks = subtasks.exclude(status='completed').exists()
 
+    # COMMENTS (for assigned tasks)
     comments = []
     if is_assigned_task:
         comments = (
-            Comment.objects
-            .filter(task=task, parent__isnull=True)
+            Comment.objects.filter(task=task, parent__isnull=True)
             .select_related('user')
             .prefetch_related('replies')
         )
-        # Only the user who assigned the task can delete it
-    can_delete = UserTask.objects.filter(
-        task=task,
-        assigned_by=request.user
-    ).exists()
 
+    # Only users who assigned the task can delete
+    can_delete = UserTask.objects.filter(task=task, assigned_by=request.user).exists()
 
     return render(request, 'tasks/task_detail.html', {
         'task': task,
@@ -305,7 +291,7 @@ def task_detail(request, task_id):
         'is_my_task': is_my_task,
         'is_assigned_task': is_assigned_task,
         'comments': comments,
-        'task_accepted':task_accepted,
+        'task_accepted': task_accepted,
     })
 
 
@@ -601,6 +587,7 @@ def review_task(request, task_id):
             return redirect('review_task', task_id=task.id)
 
         if action == 'accept':
+            # UserTask.objects.filter(task=task, assigned_by=request.user).update(status='accepted')
             UserTask.objects.filter(task=task).exclude(assigned_by=request.user).update(status='accepted')
             messages.success(request, "Task accepted successfully.")
 

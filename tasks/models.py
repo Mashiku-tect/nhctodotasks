@@ -27,17 +27,14 @@ class Task(models.Model):
     def __str__(self):
         return self.title
 
-
-
 class UserTask(models.Model):
-
     STATUS_CHOICES = [
         ('pending', 'Pending'),
         ('in_progress', 'In Progress'),
         ('completed', 'Completed'),
         ('overdue', 'Overdue'),
-          ('rejected', 'Rejected'),
-          ('accepted', 'Accepted'),
+        ('rejected', 'Rejected'),
+        ('accepted', 'Accepted'),
     ]
 
     task = models.ForeignKey(
@@ -45,6 +42,8 @@ class UserTask(models.Model):
         on_delete=models.CASCADE,
         related_name='user_tasks'
     )
+    review_status = models.CharField(max_length=20, default='pending')
+
 
     status = models.CharField(
         max_length=20,
