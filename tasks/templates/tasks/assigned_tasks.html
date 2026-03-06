@@ -18,6 +18,7 @@
             <th>Task</th>
             <th>Assigned To</th>
             <th>Status</th>
+            <th>Review</th>
             <th>Actions</th>
         </tr>
     </thead>
@@ -68,6 +69,23 @@
                 {% endif %}
             </td>
 
+            <!-- Review Status -->
+                <td>
+        {% if item.own_usertask %}
+    {% if item.own_usertask.review_status == 'accepted' %}
+        <span class="badge bg-success">Accepted</span>
+    {% elif item.own_usertask.review_status == 'rejected' %}
+        <span class="badge bg-danger">Rejected</span>
+    {% else %}
+        <span class="badge bg-secondary">Pending</span>
+    {% endif %}
+{% else %}
+    <span class="badge bg-info">
+        {{ item.usertasks.0.review_status|capfirst }}
+    </span>
+{% endif %}
+    </td>
+
             <!-- Actions -->
             <td class="d-flex gap-1 flex-wrap">
                 {% if user.role == 'manager' %}
@@ -85,10 +103,10 @@
  
                     {% if user.role == 'manager' and item.computed_status == 'completed' %}
         <a href="{% url 'review_task' item.task.id %}"
-         class="btn btn-sm btn-success">
-          Review
-       </a>
-         {% endif %}
+       class="btn btn-sm btn-success">
+        Review
+    </a>
+{% endif %}
 
 
                     {% with ut=item.own_usertask %}
@@ -103,13 +121,12 @@
                            class="btn btn-sm btn-outline-secondary">
                             View
                         </a>
-
-                        {% if ut.status == 'rejected' %}
-                            <a href="{% url 'start_task' ut.id %}"
-                               class="btn btn-sm btn-primary">
-                                Start Again
-                            </a>
-                        {% endif %}
+                    {% if ut.status == 'completed' and ut.review_status == 'rejected' %}
+                        <a href="{% url 'start_task' ut.id %}"
+                        class="btn btn-sm btn-primary">
+                            Start Again
+                        </a>
+                    {% endif %}
                     {% endwith %}
              
             </td>

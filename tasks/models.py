@@ -36,13 +36,22 @@ class UserTask(models.Model):
         ('rejected', 'Rejected'),
         ('accepted', 'Accepted'),
     ]
+    
 
     task = models.ForeignKey(
         Task,
         on_delete=models.CASCADE,
         related_name='user_tasks'
     )
-    review_status = models.CharField(max_length=20, default='pending')
+    review_status = models.CharField(
+    max_length=20,
+    choices=[
+        ('pending', 'Pending'),
+        ('accepted', 'Accepted'),
+        ('rejected', 'Rejected')
+    ],
+    default='pending'
+)
 
 
     status = models.CharField(

@@ -2,16 +2,13 @@ import json
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect,get_object_or_404
 from django.contrib import messages
-from django.utils.timezone import now
 from django.contrib.auth import get_user_model
 from .models import Task, UserTask,SubTask,Comment,TaskAttachment
 from django.utils import timezone
-from datetime import timedelta
 from django.http import HttpResponseForbidden,JsonResponse
 from django.db.models import Q
 from collections import defaultdict
 from django.views.decorators.http import require_POST
-from django.db.models import Prefetch
 import os
 from django.utils import timezone
 import pytz
@@ -207,7 +204,10 @@ def dashboard(request):
             task__due_date__lt=today
         ).exclude(status__in=['completed', 'rejected']).count()
 
-        rejected_tasks_count = section_staff_tasks.filter(status='rejected').count()
+        rejected_tasks_count = UserTask.objects.filter(
+            assigned_by=request.user,
+            review_status='rejected'
+        ).count()
 
         completed_tasks_count = section_staff_tasks.filter(status='completed').count()
 
@@ -223,9 +223,9 @@ def dashboard(request):
         ).exclude(status__in=['completed', 'rejected']).count()
 
         rejected_tasks_count = UserTask.objects.filter(
-            assigned_to=user,
-            status='rejected'
-        ).count()
+        assigned_to=request.user,
+        review_status='rejected'
+         ).count()
 
         completed_tasks_count = UserTask.objects.filter(
             assigned_to=user,
@@ -319,6 +319,7 @@ def subtask_json(request, subtask_id):
 def start_task(request, usertask_id):
     ut = get_object_or_404(UserTask, id=usertask_id, assigned_to=request.user)
     ut.status = 'in_progress'
+    ut.review_status = 'pending'   # reset review status
     ut.save()
 
     # Conditional redirect
@@ -586,13 +587,13 @@ def review_task(request, task_id):
             messages.error(request, "Rejection reason is required.")
             return redirect('review_task', task_id=task.id)
 
-        if action == 'accept':
+        elif action == 'accept':
             # UserTask.objects.filter(task=task, assigned_by=request.user).update(status='accepted')
-            UserTask.objects.filter(task=task).exclude(assigned_by=request.user).update(status='accepted')
+            UserTask.objects.filter(task=task).update(review_status='accepted')
             messages.success(request, "Task accepted successfully.")
 
         elif action == 'reject':
-            UserTask.objects.filter(task=task, assigned_by=request.user).update(status='rejected')
+            UserTask.objects.filter(task=task, assigned_by=request.user).update(review_status='rejected', status='pending')
             Comment.objects.create(
                 user=request.user,
                 task=task,
