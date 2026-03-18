@@ -71,20 +71,26 @@
 
             <!-- Review Status -->
                 <td>
-        {% if item.own_usertask %}
-    {% if item.own_usertask.review_status == 'accepted' %}
-        <span class="badge bg-success">Accepted</span>
-    {% elif item.own_usertask.review_status == 'rejected' %}
-        <span class="badge bg-danger">Rejected</span>
-    {% else %}
-        <span class="badge bg-secondary">Pending</span>
-    {% endif %}
-{% else %}
-    <span class="badge bg-info">
-        {{ item.usertasks.0.review_status|capfirst }}
-    </span>
-{% endif %}
-    </td>
+                {% if user.role == 'manager' %}
+                    {% with ut=item.usertasks.0 %}
+                        {% if ut.review_status == 'accepted' %}
+                            <span class="badge bg-success">Accepted</span>
+                        {% elif ut.review_status == 'rejected' %}
+                            <span class="badge bg-danger">Rejected</span>
+                        {% else %}
+                            <span class="badge bg-secondary">Pending</span>
+                        {% endif %}
+                    {% endwith %}
+                {% else %}
+                    {% if item.own_usertask.review_status == 'accepted' %}
+                        <span class="badge bg-success">Accepted</span>
+                    {% elif item.own_usertask.review_status == 'rejected' %}
+                        <span class="badge bg-danger">Rejected</span>
+                    {% else %}
+                        <span class="badge bg-secondary">Pending</span>
+                    {% endif %}
+                {% endif %}
+            </td>
 
             <!-- Actions -->
             <td class="d-flex gap-1 flex-wrap">

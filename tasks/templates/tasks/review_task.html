@@ -4,7 +4,16 @@
 <div class="container">
 
     <h2 class="mb-3">Review Task</h2>
-
+    <div id="messagesContainer">
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+</div>
     <!-- TASK DETAILS -->
     <div class="card mb-4">
         <div class="card-body">
