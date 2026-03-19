@@ -37,14 +37,6 @@ path(
      # urls.py
 path('reports/due-soon/', due_soon_report, name='reports_due_soon'),
 path('reports/staff-performance/', staff_performance_report, name='reports_performance'),
-
-
-
-
-    
-
-
-
 ]
 
 

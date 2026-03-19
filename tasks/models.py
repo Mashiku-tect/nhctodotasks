@@ -15,6 +15,7 @@ class Task(models.Model):
 
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True)
+    attachment = models.FileField(upload_to='task_files/', blank=True, null=True)
     due_date = models.DateField()
     priority = models.CharField(
         max_length=10,

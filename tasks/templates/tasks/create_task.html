@@ -1,37 +1,57 @@
 {% extends "base.html" %}
+
 {% block content %}
+<nav aria-label="breadcrumb" class="py-2 bg-light border-bottom">
+    <ol class="breadcrumb mb-0 px-3">
+<li class="breadcrumb-item"><a href="{% url 'dashboard' %}">Dashboard</a></li>
+<li class="breadcrumb-item"><a href="{% url 'my_tasks' %}">My Tasks</a></li>
+<li class="breadcrumb-item"><a href="{% url 'assigned_tasks' %}">Assigned Tasks</a></li>
+<li class="breadcrumb-item active text-muted" aria-current="page">
+    Create Task
+</li>
+      </ol>
+  </nav>
 
 <div class="container py-4">
     <div class="row justify-content-center">
         <div class="col-md-6">
-
+     <div class="card shadow-sm border-1">
+        <div class="card-body">
             <h2 class="text-center text-primary mb-4">Create New Task</h2>
-            <form id="taskForm" novalidate>
+            <form id="taskForm" enctype="multipart/form-data" novalidate>
+                {% csrf_token %}
                 {% csrf_token %}
 
                 <!-- Task Title -->
                 <div class="mb-3">
-                    <label class="form-label">Task Title *</label>
+                    <label class="form-label">Task Title <span class="text-danger">*</span></label>
                     <input type="text" name="title" class="form-control" placeholder="Enter task title" required>
                     <div class="invalid-feedback">Please provide a task title.</div>
                 </div>
 
                 <!-- Task Description -->
                 <div class="mb-3">
-                    <label class="form-label">Description</label>
+                     <label class="form-label">Task Description <span class="text-danger">*</span></label>
                     <textarea name="description" class="form-control" placeholder="Optional details" rows="3"></textarea>
                 </div>
 
+                <!-- File Attachment -->
+            <div class="mb-3">
+                <label class="form-label">Attach File</label>
+                <input type="file" name="attachment" class="form-control">
+                <small class="text-muted">Optional (PDF, image, doc, etc.)</small>
+            </div>
+
                 <!-- Due Date -->
                 <div class="mb-3">
-                    <label class="form-label">Due Date *</label>
+                     <label class="form-label">Task Due Date <span class="text-danger">*</span></label>
                     <input type="date" name="due_date" class="form-control" min="{{ min_date }}" required>
                     <div class="invalid-feedback">Please select a valid due date.</div>
                 </div>
 
                 <!-- Priority -->
                 <div class="mb-3">
-                    <label class="form-label">Priority *</label>
+                   <label class="form-label">Task Priority <span class="text-danger">*</span></label>
                     <select name="priority" class="form-select">
                         {% for value, label in PRIORITY_CHOICES %}
                         <option value="{{ value }}" {% if value == 'normal' %}selected{% endif %}>{{ label }}</option>
@@ -42,7 +62,7 @@
                 {% if request.user.role == "manager" %}
                 <!-- Task Ownership -->
                 <div class="mb-3">
-                    <label class="form-label">Task Ownership *</label>
+                    <label class="form-label">Task Ownership <span class="text-danger">*</span></label>
                     <div>
                         <div class="form-check form-check-inline">
                             <input class="form-check-input task-type" type="radio" name="task_type" id="task_type_self" value="self" checked>
@@ -77,6 +97,9 @@
 
             </form>
 
+        </div>
+
+    </div>
         </div>
     </div>
 </div>
@@ -116,7 +139,7 @@ $(function() {
         } else { $('input[name="due_date"]').removeClass('is-invalid'); }
 
         // Assignment validation if needed
-        const taskType = $('input[name="task_type"]:checked').val();
+        const taskType = $('input[name="task_type"]:checked').val() || 'self';
         const assigned = $('select[name="assigned_to[]"]').val();
         if (taskType === 'assign' && (!assigned || assigned.length === 0)) {
             $('#assignError').show(); valid = false;
@@ -126,12 +149,17 @@ $(function() {
 
         if (!valid) return;
 
-        // AJAX submit
+        // Use FormData to include files
+        const form = document.getElementById('taskForm');
+        const formData = new FormData(form);
+
         try {
             const response = await $.ajax({
                 url: "{% url 'create_task' %}",
                 method: "POST",
-                data: $(this).serialize(),
+                data: formData,
+                processData: false,  // important for file upload
+                contentType: false,  // important for file upload
                 dataType: 'json'
             });
 
@@ -143,6 +171,7 @@ $(function() {
                 timerProgressBar: true,
                 showConfirmButton: false,
                 didClose: () => {
+                    document.getElementById('taskForm').reset(); // reset form after success
                     if (response.redirect_url) window.location.href = response.redirect_url;
                 }
             });

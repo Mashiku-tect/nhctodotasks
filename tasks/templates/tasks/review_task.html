@@ -1,155 +1,131 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div class="container">
+<nav aria-label="breadcrumb" class="py-2 bg-light border-bottom">
+    <ol class="breadcrumb mb-0 px-3">
+        <li class="breadcrumb-item"><a href="{% url 'dashboard' %}">Dashboard</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'create_task' %}">Create Task</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'assigned_tasks' %}">Assigned Tasks</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'my_tasks' %}">My Tasks</a></li>
+        <li class="breadcrumb-item active text-muted">Review Task</li>
+    </ol>
+</nav>
 
-    <h2 class="mb-3">Review Task</h2>
-    <div id="messagesContainer">
-    {% if messages %}
-        {% for message in messages %}
-            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
-                {{ message }}
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            </div>
-        {% endfor %}
-    {% endif %}
-</div>
-    <!-- TASK DETAILS -->
-    <div class="card mb-4">
-        <div class="card-body">
-            <h4>{{ task.title }}</h4>
-            <p class="text-muted">{{ task.description }}</p>
-        </div>
-    </div>
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-md-7">
 
-    <!-- ASSIGNED STAFF -->
-    <div class="card mb-4">
-        <div class="card-header fw-bold">Assigned Staff</div>
-        <div class="card-body">
-            {% if assigned_staff %}
-                <ul class="mb-0">
-                    {% for user in assigned_staff %}
-                        <li>{{ user.email }}</li>
-                    {% endfor %}
-                </ul>
-            {% else %}
-                <p class="text-muted mb-0">No staff assigned.</p>
-            {% endif %}
-        </div>
-    </div>
+            <div class="card shadow-sm border-1">
+                <div class="card-body">
 
-    <!-- ATTACHMENTS -->
-    <div class="card mb-4">
-        <div class="card-header fw-bold">Attachments</div>
-        <div class="card-body">
-            {% if attachments %}
-                <ul>
-                    {% for file in attachments %}
-                        <li>
-                            <a href="{{ file.file.url }}" target="_blank">
-                                {{ file.file.name|slice:"18:" }}
-                            </a>
-                            <small class="text-muted">
-                                (uploaded by {{ file.uploaded_by.email }})
-                            </small>
-                        </li>
-                    {% endfor %}
-                </ul>
-            {% else %}
-                <p class="text-muted mb-0">No attachments uploaded.</p>
-            {% endif %}
-        </div>
-    </div>
+                    <h2 class="text-center text-primary mb-4">Review Task</h2>
 
- <!-- COMMENTS SECTION -->
-<div class="card mb-4">
-    <div class="card-header fw-bold">Comments</div>
-    <div class="card-body">
-        {% if major_comments %}
-            <ul class="list-unstyled">
-                {% for comment in major_comments %}
-                    <li class="mb-3">
-                        <div class="border p-2 rounded">
-                            <strong>{{ comment.user.email }}</strong> 
-                            <small class="text-muted">{{ comment.created_at|date:"Y-m-d H:i" }}</small>
-                            <p>{{ comment.comment }}</p>
+                    <!-- Messages -->
+                    {% if messages %}
+                        {% for message in messages %}
+                            <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+                                {{ message }}
+                                <button class="btn-close" data-bs-dismiss="alert"></button>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
 
-                            <!-- Replies -->
-                            {% if comment.replies.all %}
-                                <ul class="list-unstyled ps-4">
+                    <!-- TASK DETAILS -->
+                    <div class="mb-4">
+                        <h5 class="fw-bold">{{ task.title }}</h5>
+                        <p class="text-muted mb-0">{{ task.description }}</p>
+                    </div>
+
+                    <!-- ASSIGNED STAFF -->
+                    <div class="mb-4">
+                        <h6 class="fw-bold">Assigned Staff</h6>
+                        {% if assigned_staff %}
+                            <ul class="mb-0">
+                                {% for user in assigned_staff %}
+                                    <li>{{ user.email }}</li>
+                                {% endfor %}
+                            </ul>
+                        {% else %}
+                            <p class="text-muted">No staff assigned.</p>
+                        {% endif %}
+                    </div>
+
+                    <!-- ATTACHMENTS -->
+                    <div class="mb-4">
+                        <h6 class="fw-bold">Attachments</h6>
+                        {% if attachments %}
+                            <ul>
+                                {% for file in attachments %}
+                                    <li>
+                                        <a href="{{ file.file.url }}" target="_blank">
+                                            {{ file.file.name|slice:"18:" }}
+                                        </a>
+                                        <small class="text-muted">
+                                            ({{ file.uploaded_by.email }})
+                                        </small>
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        {% else %}
+                            <p class="text-muted">No attachments.</p>
+                        {% endif %}
+                    </div>
+
+                    <!-- COMMENTS -->
+                    <div class="mb-4">
+                        <h6 class="fw-bold">Comments</h6>
+                        {% if major_comments %}
+                            {% for comment in major_comments %}
+                                <div class="border rounded p-2 mb-2">
+                                    <strong>{{ comment.user.email }}</strong>
+                                    <small class="text-muted">{{ comment.created_at|date:"Y-m-d H:i" }}</small>
+                                    <p class="mb-1">{{ comment.comment }}</p>
+
                                     {% for reply in comment.replies.all %}
-                                        <li class="mb-2 border-start ps-2">
+                                        <div class="ms-3 border-start ps-2 mt-1">
                                             <strong>{{ reply.user.email }}</strong>
                                             <small class="text-muted">{{ reply.created_at|date:"Y-m-d H:i" }}</small>
-                                            <p>{{ reply.comment }}</p>
-                                            <!-- Reply button removed -->
-                                        </li>
+                                            <p class="mb-0">{{ reply.comment }}</p>
+                                        </div>
                                     {% endfor %}
-                                </ul>
-                            {% endif %}
+                                </div>
+                            {% endfor %}
+                        {% else %}
+                            <p class="text-muted">No comments yet.</p>
+                        {% endif %}
+                    </div>
 
-                            <!-- Major comment reply button removed -->
-                            <!-- Reply form container removed -->
+                    <!-- REVIEW FORM -->
+                    <form method="post">
+                        {% csrf_token %}
 
+                        <div class="mb-3">
+                            <label class="form-label">Rejection Reason</label>
+                            <textarea name="reason" class="form-control" rows="3"
+                                      placeholder="Required if rejecting"></textarea>
                         </div>
-                    </li>
-                {% endfor %}
-            </ul>
-        {% else %}
-            <p class="text-muted">No comments yet.</p>
-        {% endif %}
-    </div>
-</div>
 
+                        <div class="d-flex justify-content-between">
+                            <a href="{% url 'assigned_tasks' %}" class="btn btn-outline-secondary">
+                                Cancel
+                            </a>
 
+                            <div class="d-flex gap-2">
+                                <button name="action" value="accept" class="btn btn-success">
+                                    Accept
+                                </button>
+                                <button name="action" value="reject" class="btn btn-danger">
+                                    Reject
+                                </button>
+                            </div>
+                        </div>
+                    </form>
 
-
-    <!-- REVIEW ACTIONS -->
-    <div class="card">
-        <div class="card-header fw-bold">Review Decision</div>
-        <div class="card-body">
-
-            <form method="post">
-                {% csrf_token %}
-
-                <div class="mb-3">
-                    <label class="form-label">Rejection Reason (required if rejecting)</label>
-                    <textarea
-                        name="reason"
-                        class="form-control"
-                        rows="3"
-                        placeholder="Provide reason if rejecting"
-                    ></textarea>
                 </div>
-
-                <div class="d-flex gap-2">
-                    <button
-                        name="action"
-                        value="accept"
-                        class="btn btn-success">
-                        Accept Task
-                    </button>
-
-                    <button
-                        name="action"
-                        value="reject"
-                        class="btn btn-danger">
-                         Reject Task
-                    </button>
-
-                    <a href="{% url 'assigned_tasks' %}" class="btn btn-secondary">
-                        Cancel
-                    </a>
-                </div>
-            </form>
+            </div>
 
         </div>
     </div>
-
 </div>
-
-
-
-
 
 {% endblock %}

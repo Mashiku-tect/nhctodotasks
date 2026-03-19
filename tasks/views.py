@@ -12,6 +12,7 @@ from django.views.decorators.http import require_POST
 import os
 from django.utils import timezone
 import pytz
+from django.core.paginator import Paginator
 
 tanzania_tz = pytz.timezone('Africa/Dar_es_Salaam')
 today = timezone.now().astimezone(tanzania_tz).date()
@@ -48,6 +49,7 @@ def create_task(request):
     if request.method == 'POST':
         title = request.POST.get('title', '').strip()
         description = request.POST.get('description', '')
+        attachment = request.FILES.get("attachment")
         due_date = request.POST.get('due_date')
         priority = request.POST.get('priority', 'normal')
 
@@ -87,7 +89,8 @@ def create_task(request):
             title=title,
             description=description,
             due_date=due_date,
-            priority=priority
+            priority=priority,
+            attachment=attachment
         )
 
         UserTask.objects.bulk_create([
@@ -119,42 +122,43 @@ def create_task(request):
 @login_required
 def my_tasks(request):
     user = request.user
+    query = request.GET.get('q', '')
 
-    # Fetch UserTask entries where the user assigned the task to themselves
     my_usertasks = UserTask.objects.filter(
         assigned_by=user,
-        assigned_to=user
+        assigned_to=user,
+        task__title__icontains=query
     ).select_related('task').order_by('-created_at')
 
-    # Extract the tasks from the usertasks
-    tasks = [ut.task for ut in my_usertasks]
+    tasks_list = [ut.task for ut in my_usertasks]
+
+    # ✅ CHANGE HERE (10 per page)
+    paginator = Paginator(tasks_list, 10)
+
+    page_number = request.GET.get('page')
+    tasks = paginator.get_page(page_number)
 
     return render(request, 'tasks/my_tasks.html', {
         'tasks': tasks
     })
 
-
-# get assigned tasks for staff and managers
 @login_required
 def assigned_tasks(request):
     user = request.user
 
     if user.role == 'staff':
-        # Tasks assigned TO the user, but NOT by themselves
         visible_qs = (
             UserTask.objects
             .select_related('task', 'assigned_by', 'assigned_to')
             .filter(assigned_to=user)
-            .exclude(assigned_by=user)  # 🚫 remove self-assigned
+            .exclude(assigned_by=user)
         )
-
     else:  # manager
-        # Tasks assigned BY the user, but NOT to themselves
         visible_qs = (
             UserTask.objects
             .select_related('task', 'assigned_by', 'assigned_to')
             .filter(assigned_by=user)
-            .exclude(assigned_to=user)  # 🚫 remove self-assigned
+            .exclude(assigned_to=user)
         )
 
     grouped_tasks = defaultdict(list)
@@ -163,16 +167,12 @@ def assigned_tasks(request):
 
     task_list = []
     for task in grouped_tasks.keys():
-        # Fetch ALL assignments for this task
         all_usertasks = (
             task.user_tasks
             .select_related('assigned_to', 'assigned_by')
-            .exclude(
-                Q(assigned_to=user) & Q(assigned_by=user)
-            )  # 🚫 exclude self-assigned from list
+            .exclude(Q(assigned_to=user) & Q(assigned_by=user))
         )
 
-        # Staff's own assignment (safe)
         own_usertask = all_usertasks.filter(assigned_to=user).first()
 
         task_list.append({
@@ -182,8 +182,14 @@ def assigned_tasks(request):
             "computed_status": compute_task_status(all_usertasks),
         })
 
+    # ✅ PAGINATION HERE
+    paginator = Paginator(task_list, 10)  # 10 per page
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
     return render(request, 'tasks/assigned_tasks.html', {
-        'task_list': task_list
+        'task_list': page_obj,   # 👈 use paginated data
+        'page_obj': page_obj
     })
 
 #dashboard view

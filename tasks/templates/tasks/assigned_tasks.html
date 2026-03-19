@@ -1,6 +1,30 @@
 {% extends 'base.html' %}
+
 {% block content %}
-<h2 class="mb-4">Assigned Tasks</h2>
+ <nav aria-label="breadcrumb" class="py-2 bg-light border-bottom">
+    <ol class="breadcrumb mb-0 px-3">
+<li class="breadcrumb-item"><a href="{% url 'dashboard' %}">Dashboard</a></li>
+<li class="breadcrumb-item"><a href="{% url 'create_task' %}">Create Tasks</a></li>
+<li class="breadcrumb-item"><a href="{% url 'my_tasks' %}">My Tasks</a></li>
+<li class="breadcrumb-item active text-muted" aria-current="page">
+    Assigned Tasks
+</li>
+      </ol>
+  </nav>
+
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <!-- Left side: Title -->
+        <h2 class="h4 mb-0">Assigned Tasks</h2>
+
+        <!-- Right side: Search form -->
+        <form method="GET" class="d-flex" role="search">
+            <input type="text" name="q" value="{{ request.GET.q }}" placeholder="Search by title"
+                   class="form-control form-control-sm me-2" style="min-width: 200px;">
+            <button type="submit" class="btn btn-primary btn-sm">Search</button>
+        </form>
+    </div>
+</div>
 <div id="messagesContainer">
     {% if messages %}
         {% for message in messages %}
@@ -15,10 +39,12 @@
 <table class="table table-bordered align-middle">
     <thead class="table-light">
         <tr>
+            <th>S/N</th>
             <th>Task</th>
             <th>Assigned To</th>
             <th>Status</th>
             <th>Review</th>
+            <th>Attachment</th>
             <th>Actions</th>
         </tr>
     </thead>
@@ -26,6 +52,7 @@
     <tbody>
         {% for item in task_list %}
         <tr>
+            <td>{{ page_obj.start_index|add:forloop.counter0 }}</td>
             <!-- Task info -->
             <td>
                 <strong>{{ item.task.title }}</strong><br>
@@ -92,6 +119,16 @@
                 {% endif %}
             </td>
 
+            <!-- Attachment -->
+                <td>
+                    {% if item.task.attachment %}
+                        <a href="{{ item.task.attachment.url }}" target="_blank">
+                            {{ item.task.attachment.name|cut:"task_files/" }}
+                        </a>
+                    {% else %}
+                        -
+                    {% endif %}
+                    </td>
             <!-- Actions -->
             <td class="d-flex gap-1 flex-wrap">
                 {% if user.role == 'manager' %}
@@ -105,15 +142,14 @@
     <button class="btn btn-sm btn-danger delete-task-btn" data-task-id="{{ item.task.id }}">
         Delete
     </button>
-    {% endif %}
- 
-                    {% if user.role == 'manager' and item.computed_status == 'completed' %}
-        <a href="{% url 'review_task' item.task.id %}"
-       class="btn btn-sm btn-success">
-        Review
-    </a>
-{% endif %}
-
+            {% endif %}
+        
+                            {% if user.role == 'manager' and item.computed_status == 'completed' %}
+                <a href="{% url 'review_task' item.task.id %}"
+            class="btn btn-sm btn-success">
+                Review
+            </a>
+        {% endif %}
 
                     {% with ut=item.own_usertask %}
                         {% if ut.status == 'pending' %}
@@ -140,8 +176,32 @@
         {% endfor %}
     </tbody>
 </table>
-
 {% else %}
+<!-- ✅ ALWAYS SHOW PAGINATION -->
+<nav>
+    <ul class="pagination justify-content-center">
+        {% if page_obj.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?page=1">First</a>
+            </li>
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Previous</a>
+            </li>
+        {% endif %}
+
+        <li class="page-item active">
+            <span class="page-link">
+                Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+            </span>
+        </li>
+
+        {% if page_obj.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.next_page_number }}">Next</a>
+            </li>
+        {% endif %}
+    </ul>
+</nav>
 
 <div class="alert alert-info">
     No assigned tasks found.
