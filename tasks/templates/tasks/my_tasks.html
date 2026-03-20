@@ -76,10 +76,13 @@
                     {% endif %}
                 </td>
             <td class="d-flex gap-2">
-                <a href="{% url 'task_detail' task.id %}" class="btn btn-sm btn-primary">
-                    <i class="bi bi-eye"></i> View
+                <a href="{% url 'task_detail' task.id %}" 
+                class="btn btn-sm btn-info" 
+                data-bs-toggle="tooltip" 
+                data-bs-placement="top" 
+                title="View Task Details">
+                    <i class="bi bi-card-text"></i>
                 </a>
-
                 {% with task.user_tasks.all.0 as ut %}
                 {% if ut.status == 'pending' %}
                 <a href="{% url 'start_task' ut.id %}" class="btn btn-sm btn-warning">

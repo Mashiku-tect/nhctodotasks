@@ -13,6 +13,7 @@ import os
 from django.utils import timezone
 import pytz
 from django.core.paginator import Paginator
+from datetime import date
 
 tanzania_tz = pytz.timezone('Africa/Dar_es_Salaam')
 today = timezone.now().astimezone(tanzania_tz).date()
@@ -142,10 +143,16 @@ def my_tasks(request):
         'tasks': tasks
     })
 
+
 @login_required
 def assigned_tasks(request):
     user = request.user
+    status_filter = request.GET.get('status')
+    review_filter = request.GET.get('review')
+    due_filter = request.GET.get('due')
+    search_query = request.GET.get('q')
 
+    # ✅ 1. FIRST define queryset
     if user.role == 'staff':
         visible_qs = (
             UserTask.objects
@@ -153,13 +160,26 @@ def assigned_tasks(request):
             .filter(assigned_to=user)
             .exclude(assigned_by=user)
         )
-    else:  # manager
+    else:
         visible_qs = (
             UserTask.objects
             .select_related('task', 'assigned_by', 'assigned_to')
             .filter(assigned_by=user)
             .exclude(assigned_to=user)
         )
+
+    # ✅ 2. THEN apply filters
+    from datetime import date
+
+    if search_query:
+        visible_qs = visible_qs.filter(task__title__icontains=search_query)
+
+    if due_filter == 'today':
+        visible_qs = visible_qs.filter(task__due_date=date.today())
+    elif due_filter == 'overdue':
+        visible_qs = visible_qs.filter(task__due_date__lt=date.today())
+    elif due_filter == 'upcoming':
+        visible_qs = visible_qs.filter(task__due_date__gt=date.today())
 
     grouped_tasks = defaultdict(list)
     for ut in visible_qs:
@@ -174,22 +194,84 @@ def assigned_tasks(request):
         )
 
         own_usertask = all_usertasks.filter(assigned_to=user).first()
+        computed_status = compute_task_status(all_usertasks)
 
-        task_list.append({
+        # Days left & overdue
+        days_left = (task.due_date - date.today()).days
+        is_overdue = False
+        reassign_needed = False
+        if days_left < 0 and computed_status in ['pending', 'in_progress']:
+            is_overdue = True
+            reassign_needed = True  # flag for manager to reassign
+            days_left = 0
+
+        # Deadline progress
+        start_date = task.created_at.date()
+        end_date = task.due_date
+        total_days = (end_date - start_date).days
+        days_passed = (date.today() - start_date).days
+        deadline_progress = min(max(int((days_passed / total_days) * 100), 0), 100) if total_days > 0 else 100
+
+        task_dict = {
             "task": task,
             "usertasks": all_usertasks,
             "own_usertask": own_usertask,
-            "computed_status": compute_task_status(all_usertasks),
-        })
+            "computed_status": computed_status,
+            "days_left": days_left,
+            "is_overdue": is_overdue,
+            "reassign_needed": reassign_needed,
+            "deadline_progress": deadline_progress
+        }
 
-    # ✅ PAGINATION HERE
-    paginator = Paginator(task_list, 10)  # 10 per page
+        task_list.append(task_dict)
+
+    # Pagination
+    paginator = Paginator(task_list, 8)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
 
     return render(request, 'tasks/assigned_tasks.html', {
-        'task_list': page_obj,   # 👈 use paginated data
+        'task_list': page_obj,
         'page_obj': page_obj
+    })
+
+@login_required
+def reassign_task(request, task_id):
+    task = Task.objects.get(id=task_id)
+
+    if request.user.role != 'manager':
+        return redirect('assigned_tasks')
+
+    if request.method == 'POST':
+        new_user_id = request.POST.get('assigned_to')
+        new_user = User.objects.get(id=new_user_id)
+
+        # Find existing usertask for this task
+        existing_usertask = UserTask.objects.filter(task=task, assigned_to__in=[new_user, request.user]).first()
+
+        if existing_usertask:
+            # Update existing usertask
+            existing_usertask.assigned_to = new_user
+            existing_usertask.status = 'pending'
+            existing_usertask.review_status = 'pending'
+            existing_usertask.save()
+        else:
+            # Create new assignment
+            UserTask.objects.create(
+                task=task,
+                assigned_by=request.user,
+                assigned_to=new_user,
+                status='pending',
+                review_status='pending'
+            )
+
+        return redirect('assigned_tasks')
+
+    # GET request: show manager a dropdown to select user
+    staff_users = User.objects.filter(role='staff')
+    return render(request, 'tasks/reassign_task.html', {
+        'task': task,
+        'staff_users': staff_users
     })
 
 #dashboard view
@@ -445,6 +527,7 @@ def delete_task(request, task_id):
 @login_required
 def edit_task(request, task_id):
     task = get_object_or_404(Task, id=task_id)
+    task.priority = request.POST.get('priority')
 
     # ✅ Permission: must be the assigner (my task OR manager-assigned task)
     if not UserTask.objects.filter(
@@ -505,6 +588,7 @@ def edit_task(request, task_id):
         'task': task,
         'subordinates': subordinates,
         'current_assignees': current_assignees,
+        'PRIORITY_CHOICES': Task.PRIORITY_CHOICES,
     })
 
 
@@ -781,3 +865,4 @@ def staff_performance_report(request):
         'chart_pending': json.dumps(pending),
         'chart_overdue': json.dumps(overdue),
     })
+
