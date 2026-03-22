@@ -46,38 +46,43 @@
                                 </div>
                             </div>
 
-                            <!-- Section -->
-                            <div class="col-md-6">
-                                <label for="section" class="form-label fw-semibold">Section</label>
-                                <div class="input-group">
-                                    <span class="input-group-text"><i class="bi bi-building"></i></span>
-                                    <select class="form-select" id="section" name="section" required>
-                                        <option value="" selected disabled>Select section</option>
-                                        {% for value, label in section_choices %}
-                                            <option value="{{ value }}">{{ label }}</option>
-                                        {% endfor %}
-                                    </select>
-                                    <div class="invalid-feedback">
-                                        Please select a section.
-                                    </div>
-                                </div>
-                            </div>
+                            <!-- SECTION -->
+<div class="col-md-6">
+    <label class="form-label fw-semibold">Section</label>
 
-                            <!-- Role -->
-                            <div class="col-md-6">
-                                <label for="role" class="form-label fw-semibold">Role</label>
-                                <div class="input-group">
-                                    <span class="input-group-text"><i class="bi bi-person-badge"></i></span>
-                                    <select class="form-select" id="role" name="role" required>
-                                        <option value="" selected disabled>Select role</option>
-                                        <option value="manager">Manager</option>
-                                        <option value="staff">Staff</option>
-                                    </select>
-                                    <div class="invalid-feedback">
-                                        Please select a role.
-                                    </div>
-                                </div>
-                            </div>
+    {% if request.user.role == 'manager' %}
+        <!-- LOCKED -->
+        <input type="text" class="form-control" 
+               value="{{ request.user.get_section_display }}" readonly>
+
+        <input type="hidden" name="section" value="{{ request.user.section }}">
+    {% else %}
+        <select class="form-select" name="section" required>
+            <option value="" disabled selected>Select section</option>
+            {% for value, label in section_choices %}
+                <option value="{{ value }}">{{ label }}</option>
+            {% endfor %}
+        </select>
+    {% endif %}
+</div>
+
+
+<!-- ROLE -->
+<div class="col-md-6">
+    <label class="form-label fw-semibold">Role</label>
+
+    {% if request.user.role == 'manager' %}
+        <!-- LOCKED -->
+        <input type="text" class="form-control" value="Staff" readonly>
+        <input type="hidden" name="role" value="staff">
+    {% else %}
+        <select class="form-select" name="role" required>
+            <option value="" disabled selected>Select role</option>
+            <option value="manager">Manager</option>
+            <option value="staff">Staff</option>
+        </select>
+    {% endif %}
+</div>
 
                             <!-- Password 1 -->
                             <div class="col-md-6">

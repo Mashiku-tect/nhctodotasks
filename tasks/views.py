@@ -118,99 +118,159 @@ def create_task(request):
         }
     )
 
+from django.contrib.auth.decorators import login_required
+from django.shortcuts import render
+from django.core.paginator import Paginator
+from datetime import date
 
-#get users Mytasks(his/her own tasks)
+from .models import UserTask
+
+
 @login_required
 def my_tasks(request):
     user = request.user
-    query = request.GET.get('q', '')
 
-    my_usertasks = UserTask.objects.filter(
+    # Get filter values
+    status_filter  = request.GET.get('status')
+    review_filter  = request.GET.get('review')
+    due_filter     = request.GET.get('due')
+    search_query   = request.GET.get('q', '').strip()
+
+    # Base queryset: only tasks user created AND assigned to themselves
+    qs = UserTask.objects.filter(
         assigned_by=user,
-        assigned_to=user,
-        task__title__icontains=query
-    ).select_related('task').order_by('-created_at')
+        assigned_to=user
+    ).select_related('task')
 
-    tasks_list = [ut.task for ut in my_usertasks]
+    # Apply search
+    if search_query:
+        qs = qs.filter(task__title__icontains=search_query)
 
-    # ✅ CHANGE HERE (10 per page)
+    # Apply due date filter
+    today = date.today()
+    if due_filter == 'today':
+        qs = qs.filter(task__due_date=today)
+    elif due_filter == 'overdue':
+        qs = qs.filter(task__due_date__lt=today)
+    elif due_filter == 'upcoming':
+        qs = qs.filter(task__due_date__gt=today)
+
+    # Apply status filter
+    if status_filter in ['pending', 'in_progress', 'completed']:
+        qs = qs.filter(status=status_filter)
+
+    # Apply review filter
+    if review_filter in ['pending', 'accepted', 'rejected']:
+        qs = qs.filter(review_status=review_filter)
+
+    # Order by most recent first
+    qs = qs.order_by('-created_at')
+
+    # Extract unique tasks (since UserTask → Task is 1:1 in this case)
+    tasks_list = [ut.task for ut in qs]
+
+    # Pagination (10 per page)
     paginator = Paginator(tasks_list, 10)
-
     page_number = request.GET.get('page')
-    tasks = paginator.get_page(page_number)
+    page_obj = paginator.get_page(page_number)
 
-    return render(request, 'tasks/my_tasks.html', {
-        'tasks': tasks
-    })
+    context = {
+        'page_obj': page_obj,
+        'tasks': page_obj,  # keep 'tasks' for backward compatibility if needed
+        'current_filters': {
+            'status': status_filter,
+            'review': review_filter,
+            'due': due_filter,
+            'q': search_query,
+        }
+    }
+
+    return render(request, 'tasks/my_tasks.html', context)
+
+
+from django.contrib.auth.decorators import login_required
+from django.shortcuts import render
+from django.db.models import Q
+from collections import defaultdict
+from django.core.paginator import Paginator
+from datetime import date
+import pytz
+from django.utils import timezone
+
+from .models import UserTask, Task
 
 
 @login_required
 def assigned_tasks(request):
     user = request.user
+
     status_filter = request.GET.get('status')
     review_filter = request.GET.get('review')
-    due_filter = request.GET.get('due')
-    search_query = request.GET.get('q')
+    due_filter    = request.GET.get('due')
+    search_query  = request.GET.get('q', '').strip()
 
-    # ✅ 1. FIRST define queryset
+    # Base queryset – tasks visible to current user
     if user.role == 'staff':
-        visible_qs = (
-            UserTask.objects
-            .select_related('task', 'assigned_by', 'assigned_to')
-            .filter(assigned_to=user)
-            .exclude(assigned_by=user)
-        )
-    else:
-        visible_qs = (
-            UserTask.objects
-            .select_related('task', 'assigned_by', 'assigned_to')
-            .filter(assigned_by=user)
-            .exclude(assigned_to=user)
-        )
+        visible_qs = UserTask.objects.filter(
+            assigned_to=user
+        ).exclude(
+            assigned_by=user          # exclude self-created tasks
+        ).select_related('task', 'assigned_by', 'assigned_to')
+    else:  # manager
+        visible_qs = UserTask.objects.filter(
+            assigned_by=user
+        ).exclude(
+            assigned_to=user          # exclude self-tasks
+        ).select_related('task', 'assigned_by', 'assigned_to')
 
-    # ✅ 2. THEN apply filters
-    from datetime import date
-
+    # Apply search
     if search_query:
         visible_qs = visible_qs.filter(task__title__icontains=search_query)
 
+    # Apply due date filter
+    today = date.today()
     if due_filter == 'today':
-        visible_qs = visible_qs.filter(task__due_date=date.today())
+        visible_qs = visible_qs.filter(task__due_date=today)
     elif due_filter == 'overdue':
-        visible_qs = visible_qs.filter(task__due_date__lt=date.today())
+        visible_qs = visible_qs.filter(task__due_date__lt=today)
     elif due_filter == 'upcoming':
-        visible_qs = visible_qs.filter(task__due_date__gt=date.today())
+        visible_qs = visible_qs.filter(task__due_date__gt=today)
 
+    # Apply status filter
+    if status_filter in ['pending', 'in_progress', 'completed']:
+        visible_qs = visible_qs.filter(status=status_filter)
+
+    # Apply review filter
+    if review_filter in ['pending', 'accepted', 'rejected']:
+        visible_qs = visible_qs.filter(review_status=review_filter)
+
+    # ───────────────────────────────────────────────
+    # Grouping and task enrichment (unchanged)
+    # ───────────────────────────────────────────────
     grouped_tasks = defaultdict(list)
     for ut in visible_qs:
         grouped_tasks[ut.task].append(ut)
 
     task_list = []
-    for task in grouped_tasks.keys():
-        all_usertasks = (
-            task.user_tasks
-            .select_related('assigned_to', 'assigned_by')
-            .exclude(Q(assigned_to=user) & Q(assigned_by=user))
-        )
+    for task, usertasks in grouped_tasks.items():
+        all_usertasks = task.user_tasks.select_related('assigned_to', 'assigned_by') \
+                                       .exclude(Q(assigned_to=user) & Q(assigned_by=user))
 
         own_usertask = all_usertasks.filter(assigned_to=user).first()
         computed_status = compute_task_status(all_usertasks)
 
-        # Days left & overdue
-        days_left = (task.due_date - date.today()).days
-        is_overdue = False
-        reassign_needed = False
-        if days_left < 0 and computed_status in ['pending', 'in_progress']:
-            is_overdue = True
-            reassign_needed = True  # flag for manager to reassign
+        days_left = (task.due_date - today).days
+        is_overdue = days_left < 0 and computed_status in ['pending', 'in_progress']
+        reassign_needed = is_overdue
+
+        if is_overdue:
             days_left = 0
 
-        # Deadline progress
         start_date = task.created_at.date()
         end_date = task.due_date
-        total_days = (end_date - start_date).days
-        days_passed = (date.today() - start_date).days
-        deadline_progress = min(max(int((days_passed / total_days) * 100), 0), 100) if total_days > 0 else 100
+        total_days = (end_date - start_date).days or 1  # avoid division by zero
+        days_passed = (today - start_date).days
+        deadline_progress = min(max(int((days_passed / total_days) * 100), 0), 100)
 
         task_dict = {
             "task": task,
@@ -220,20 +280,29 @@ def assigned_tasks(request):
             "days_left": days_left,
             "is_overdue": is_overdue,
             "reassign_needed": reassign_needed,
-            "deadline_progress": deadline_progress
+            "deadline_progress": deadline_progress,
         }
-
         task_list.append(task_dict)
 
-    # Pagination
+    # Optional: sort by due date
+    task_list.sort(key=lambda x: x['task'].due_date)
+
     paginator = Paginator(task_list, 8)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
 
-    return render(request, 'tasks/assigned_tasks.html', {
+    context = {
         'task_list': page_obj,
-        'page_obj': page_obj
-    })
+        'page_obj': page_obj,
+        'current_filters': {
+            'status': status_filter,
+            'review': review_filter,
+            'due': due_filter,
+            'q': search_query,
+        }
+    }
+
+    return render(request, 'tasks/assigned_tasks.html', context)
 
 @login_required
 def reassign_task(request, task_id):
@@ -328,61 +397,179 @@ def dashboard(request):
     })
 
 
-# view task details function
-def task_detail(request, task_id):
+@login_required
+def do_task(request, task_id):
     task = get_object_or_404(Task, id=task_id)
+    user_task = get_object_or_404(UserTask, task=task, assigned_to=request.user)
 
-    # Only get a UserTask for the current user if they are staff
-    user_task = UserTask.objects.filter(task=task, assigned_to=request.user).first()
+    if request.user.role == 'manager':
+        return HttpResponseForbidden("Managers should use task_detail or review_task.")
 
-    # Managers can view any task
-    if request.user.role != 'manager' and not user_task:
+    # Only allow assigned staff to "do" the task
+    if not user_task:
         return HttpResponseForbidden("You are not assigned to this task.")
 
-    # Flags for staff users
-    is_my_task = False
-    is_assigned_task = False
-    task_completed = False
-    task_accepted = False
+    is_assigned_task = user_task.assigned_by != request.user
+    task_completed = user_task.status == 'completed'
 
-    if user_task:
-        is_my_task = user_task.assigned_by == request.user and user_task.assigned_to == request.user
-        is_assigned_task = user_task.assigned_to == request.user and user_task.assigned_by != request.user
-        task_completed = user_task.status == 'completed'
-        task_accepted = user_task.status == 'accepted'
-
-    # SUBTASKS
     subtasks = task.subtasks.all()
-    for subtask in subtasks:
-        subtask.is_completed = subtask.status == 'completed'
-
     incomplete_subtasks = subtasks.exclude(status='completed').exists()
 
-    # COMMENTS (for assigned tasks)
-    comments = []
-    if is_assigned_task:
-        comments = (
-            Comment.objects.filter(task=task, parent__isnull=True)
-            .select_related('user')
-            .prefetch_related('replies')
-        )
-
-    # Only users who assigned the task can delete
-    can_delete = UserTask.objects.filter(task=task, assigned_by=request.user).exists()
-
-    return render(request, 'tasks/task_detail.html', {
+    context = {
         'task': task,
-        'can_delete': can_delete,
+        'user_task': user_task,
+        'is_assigned_task': is_assigned_task,
         'task_completed': task_completed,
         'subtasks': subtasks,
         'incomplete_subtasks': incomplete_subtasks,
-        'is_my_task': is_my_task,
+        'can_complete': not incomplete_subtasks and not task_completed,
+        # Add more action-related flags if needed
+    }
+
+    return render(request, 'tasks/do_task.html', context)
+
+from django.shortcuts import render, get_object_or_404
+from django.http import HttpResponseForbidden
+from django.contrib.auth.decorators import login_required
+from django.utils import timezone
+from datetime import date
+import pytz
+
+from .models import Task, UserTask, SubTask, Comment, TaskAttachment
+
+
+@login_required
+def task_detail(request, task_id):
+    """
+    Detailed view of a single task.
+    Works for:
+    - Manager viewing any task they assigned (or their own)
+    - Staff viewing tasks assigned to them
+    """
+    task = get_object_or_404(Task, id=task_id)
+
+    # Tanzanian timezone consistency (same as your other views)
+    tanzania_tz = pytz.timezone('Africa/Dar_es_Salaam')
+    today = timezone.now().astimezone(tanzania_tz).date()
+
+    # ───────────────────────────────────────────────
+    # Permission check + context determination
+    # ───────────────────────────────────────────────
+    can_view = False
+    is_manager_view = request.user.role == 'manager'
+    is_my_own_task = False
+    is_assigned_task = False
+    own_usertask = None
+    can_delete = False
+    can_edit = False
+
+    # All UserTask records related to this task
+    all_usertasks = UserTask.objects.filter(task=task).select_related('assigned_to', 'assigned_by')
+
+    # Check if current user has any relationship to the task
+    user_related_ut = all_usertasks.filter(
+        Q(assigned_to=request.user) | Q(assigned_by=request.user)
+    ).first()
+
+    if user_related_ut:
+        can_view = True
+
+        # ── Determine type of relationship ──
+        if user_related_ut.assigned_by == request.user and user_related_ut.assigned_to == request.user:
+            is_my_own_task = True
+
+        if user_related_ut.assigned_to == request.user and user_related_ut.assigned_by != request.user:
+            is_assigned_task = True
+            own_usertask = user_related_ut
+
+    # Managers can view any task they ever assigned (even if not current assignee)
+    if is_manager_view and all_usertasks.filter(assigned_by=request.user).exists():
+        can_view = True
+
+    if not can_view:
+        return HttpResponseForbidden("You do not have permission to view this task.")
+
+    # ───────────────────────────────────────────────
+    # Manager-specific permissions
+    # ───────────────────────────────────────────────
+    if is_manager_view:
+        can_delete = all_usertasks.filter(assigned_by=request.user).exists()
+        can_edit = can_delete  # usually same condition
+
+    # ───────────────────────────────────────────────
+    # Compute task-level status (same logic as assigned_tasks)
+    # ───────────────────────────────────────────────
+    computed_status = 'pending'
+    if all_usertasks.exists():
+        statuses = {ut.status for ut in all_usertasks}
+        if statuses == {'completed'}:
+            computed_status = 'completed'
+        elif statuses == {'rejected'}:
+            computed_status = 'rejected'
+        elif 'in_progress' in statuses:
+            computed_status = 'in_progress'
+        elif 'completed' in statuses:
+            computed_status = 'partially_completed'  # optional - you can customize
+
+    # ───────────────────────────────────────────────
+    # Days left / overdue calculation
+    # ───────────────────────────────────────────────
+    days_left = (task.due_date - today).days
+    is_overdue = days_left < 0 and computed_status in ['pending', 'in_progress']
+
+    # ───────────────────────────────────────────────
+    # Subtasks
+    # ───────────────────────────────────────────────
+    subtasks = task.subtasks.select_related('created_by').all()
+    incomplete_subtasks_exist = subtasks.exclude(status='completed').exists()
+
+    # ───────────────────────────────────────────────
+    # Attachments (both main task attachment + extras)
+    # ───────────────────────────────────────────────
+    main_attachment = task.attachment
+    extra_attachments = TaskAttachment.objects.filter(task=task).select_related('uploaded_by')
+
+    # ───────────────────────────────────────────────
+    # Comments (all – including replies)
+    # ───────────────────────────────────────────────
+    comments = Comment.objects.filter(
+        task=task,
+        parent__isnull=True
+    ).select_related('user').prefetch_related('replies__user').order_by('-created_at')
+
+    # ───────────────────────────────────────────────
+    # Assigned people (clean list – exclude duplicates)
+    # ───────────────────────────────────────────────
+    assigned_users = all_usertasks.values(
+        'assigned_to__id',
+        'assigned_to__email',
+        'status',
+        'review_status'
+    ).distinct()
+
+    context = {
+        'task': task,
+        'all_usertasks': all_usertasks,
+        'own_usertask': own_usertask,
+        'computed_status': computed_status,
+        'is_my_task': is_my_own_task,
         'is_assigned_task': is_assigned_task,
+        'task_completed': own_usertask.status == 'completed' if own_usertask else False,
+        'task_reviewed': own_usertask.review_status in ['accepted', 'rejected'] if own_usertask else False,
+        'can_delete': can_delete,
+        'can_edit': can_edit,
+        'days_left': max(days_left, 0),
+        'is_overdue': is_overdue,
+        'subtasks': subtasks,
+        'incomplete_subtasks': incomplete_subtasks_exist,
+        'main_attachment': main_attachment,
+        'extra_attachments': extra_attachments,
         'comments': comments,
-        'task_accepted': task_accepted,
-    })
+        'assigned_users': assigned_users,
+        'today': today,
+    }
 
-
+    return render(request, 'tasks/task_detail.html', context)
 
 
 #get subtask for populating the modal

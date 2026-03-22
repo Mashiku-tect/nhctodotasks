@@ -3,44 +3,135 @@ from django.shortcuts import render, redirect
 from django.contrib.auth import authenticate, login, logout
 from django.contrib import messages
 from .models import User
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+from django.shortcuts import render, redirect, get_object_or_404
+from django.db.models import Q
+from django.http import HttpResponseForbidden
+from .models import User
 
-
+@login_required
 def add_user(request):
     section_choices = User.SECTION_CHOICES
 
     if request.method == 'POST':
         email = request.POST.get('email')
-        section = request.POST.get('section')
-        print(section)
-        role = request.POST.get('role')
         password1 = request.POST.get('password1')
         password2 = request.POST.get('password2')
 
-        # Validations
-        if not all([email, section, role, password1, password2]):
+        # DEFAULT values from form
+        section = request.POST.get('section')
+        role = request.POST.get('role')
+
+        # 🔥 FORCE RULES FOR MANAGER
+        if request.user.role == 'manager':
+            section = request.user.section   # same section
+            role = 'staff'                   # force staff
+
+        # VALIDATIONS
+        if not all([email, password1, password2]):
             messages.error(request, "All fields are required.")
+
         elif password1 != password2:
             messages.error(request, "Passwords do not match.")
+
         elif User.objects.filter(email=email).exists():
-            messages.error(request, "User with this email already exists.")
-        elif section not in dict(User.SECTION_CHOICES):
-            messages.error(request, "Invalid section selected.")
+            messages.error(request, "User already exists.")
+
         else:
-            user = User.objects.create_user(
+            User.objects.create_user(
                 email=email,
                 section=section,
                 role=role,
                 password=password1,
             )
-            messages.success(request, f"User {email} created successfully!")
+
+            messages.success(request, f"{email} created successfully")
             return redirect('add_user')
 
-    return render(
-        request,
-        'accounts/add_user.html',
-        {'section_choices': section_choices}
-    )
+    return render(request, 'accounts/add_user.html', {
+        'section_choices': section_choices
+    })
 
+@login_required
+def manage_users(request):
+    if request.user.role != 'manager':
+        return HttpResponseForbidden("You do not have permission to manage users.")
+
+    # Search & filter
+    query = request.GET.get('q', '').strip()
+    role_filter = request.GET.get('role')
+    section_filter = request.GET.get('section')
+    status_filter = request.GET.get('status')  # active/inactive
+
+    users = User.objects.all().order_by('-id')  # instead of date_joined
+
+    # Apply filters
+    if query:
+        users = users.filter(
+            Q(email__icontains=query) 
+        )
+
+    if role_filter:
+        users = users.filter(role=role_filter)
+
+    if section_filter:
+        users = users.filter(section=section_filter)
+
+    if status_filter == 'active':
+        users = users.filter(is_active=True)
+    elif status_filter == 'inactive':
+        users = users.filter(is_active=False)
+
+    context = {
+        'users': users,
+        'section_choices': User.SECTION_CHOICES,
+        'role_choices': [('manager', 'Manager'), ('staff', 'Staff')],
+        'current_filters': {
+            'q': query,
+            'role': role_filter,
+            'section': section_filter,
+            'status': status_filter,
+        }
+    }
+
+    return render(request, 'accounts/manage_users.html', context)
+
+
+@login_required
+def toggle_user_active(request, user_id):
+    if request.user.role != 'manager':
+        return HttpResponseForbidden()
+
+    user = get_object_or_404(User, id=user_id)
+
+    # Prevent self-deactivation or deactivating other managers (optional safety)
+    if user == request.user:
+        messages.error(request, "You cannot deactivate yourself.")
+        return redirect('manage_users')
+
+    user.is_active = not user.is_active
+    user.save()
+
+    status = "activated" if user.is_active else "deactivated"
+    messages.success(request, f"User {user.email} has been {status}.")
+    return redirect('manage_users')
+
+
+@login_required
+def delete_user(request, user_id):
+    if request.user.role != 'manager':
+        return HttpResponseForbidden()
+
+    user = get_object_or_404(User, id=user_id)
+
+    if user == request.user:
+        messages.error(request, "You cannot delete yourself.")
+        return redirect('manage_users')
+
+    # Optional: prevent deleting users with tasks (add later if needed)
+    user.delete()
+    messages.success(request, f"User {user.email} deleted successfully.")
 
 #login view
 def login_view(request):

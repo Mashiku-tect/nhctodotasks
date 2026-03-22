@@ -28,8 +28,8 @@
     {% endif %}
 </p>
         </div>
-        
-        {% if not task_completed and user.role == 'staff' %}
+
+        {% if not task_completed  %}
         <button class="btn btn-success btn-lg align-self-start"
                 id="completeTaskBtn"
                 data-is-my-task="{{ is_my_task|yesno:'true,false' }}"
@@ -38,7 +38,6 @@
           Mark Task Completed
         </button>
         {% endif %}
-
       </div>
     </div>
   </div>
@@ -48,7 +47,7 @@
     <div class="card-header bg-light d-flex justify-content-between align-items-center">
       <h5 class="mb-0">Subtasks</h5>
 
-      {% if not task_completed and user.role == 'staff' %}
+      {% if not task_completed %}
       <button class="btn btn-sm btn-primary" id="addSubtaskBtn">
         <i class="bi bi-plus-circle"></i> Add Subtask
       </button>
@@ -263,63 +262,145 @@ $(function () {
   });
 
   // DELETE SUBTASK
-  $('.delete-subtask').click(function () {
-    if (!confirm('Delete this subtask?')) return;
+$(document).on('click', '.delete-subtask', function () {
+    const id = $(this).data('id');
 
-    $.post(
-      `/tasks/subtasks/${$(this).data('id')}/delete/`,
-      { csrfmiddlewaretoken: '{{ csrf_token }}' },
-      () => location.reload()
-    );
-  });
+    Swal.fire({
+        title: 'Delete subtask?',
+        text: "You won't be able to undo this!",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc3545',      // danger red
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'Yes, delete it!',
+        cancelButtonText: 'Cancel'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            $.post(
+                `/tasks/subtasks/${id}/delete/`,
+                { csrfmiddlewaretoken: '{{ csrf_token }}' },
+                () => {
+                    Swal.fire({
+                        title: 'Deleted!',
+                        text: 'Subtask has been deleted.',
+                        icon: 'success',
+                        timer: 1800,
+                        showConfirmButton: false
+                    }).then(() => location.reload());
+                }
+            ).fail(() => {
+                Swal.fire('Error', 'Could not delete subtask.', 'error');
+            });
+        }
+    });
+});
 
-  // COMPLETE SUBTASK
-  $('.complete-subtask').click(function () {
-    if (!confirm('Mark this subtask as completed?')) return;
+// COMPLETE SUBTASK
+$(document).on('click', '.complete-subtask', function () {
+    const id = $(this).data('id');
 
-    $.post(
-      `/tasks/subtasks/${$(this).data('id')}/complete/`,
-      { csrfmiddlewaretoken: '{{ csrf_token }}' },
-      () => location.reload()
-    );
-  });
+    Swal.fire({
+        title: 'Complete subtask?',
+        text: "This will mark it as done.",
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#198754',      // success green
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'Yes, complete it!',
+        cancelButtonText: 'Cancel'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            $.post(
+                `/tasks/subtasks/${id}/complete/`,
+                { csrfmiddlewaretoken: '{{ csrf_token }}' },
+                () => {
+                    Swal.fire({
+                        title: 'Done!',
+                        text: 'Subtask marked as completed.',
+                        icon: 'success',
+                        timer: 1600,
+                        showConfirmButton: false
+                    }).then(() => location.reload());
+                }
+            ).fail(() => {
+                Swal.fire('Oops...', 'Something went wrong.', 'error');
+            });
+        }
+    });
+});
 
  // COMPLETE TASK
 $('#completeTaskBtn').click(function () {
+    const isMyTask = $(this).data('is-my-task') === true || $(this).data('is-my-task') === 'true';
 
-    const isMyTask = $(this).data('is-my-task');
-
-    // MY OWN TASK → complete immediately (no modal)
-    if (isMyTask === true || isMyTask === 'true') {
-        if (!confirm('Mark this task as completed?')) return;
-
-        $.post(
-            "{% url 'complete_task' task.id %}",
-            { csrfmiddlewaretoken: '{{ csrf_token }}' },
-            () => location.reload()
-        );
-
+    if (isMyTask) {
+        // Own task → nice confirmation before immediate complete
+        Swal.fire({
+            title: 'Complete this task?',
+            text: "You're about to mark your own task as done.",
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#198754',  // Bootstrap success green
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: 'Yes, complete it!',
+            cancelButtonText: 'Not yet'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                $.post(
+                    "{% url 'complete_task' task.id %}",
+                    { csrfmiddlewaretoken: '{{ csrf_token }}' },
+                    () => {
+                        Swal.fire({
+                            title: 'Task Completed!',
+                            text: 'Great job — task marked as done.',
+                            icon: 'success',
+                            timer: 1800,
+                            showConfirmButton: false,
+                            allowOutsideClick: false
+                        }).then(() => location.reload());
+                    }
+                ).fail(() => {
+                    Swal.fire('Error', 'Could not complete the task. Try again.', 'error');
+                });
+            }
+        });
     } else {
-        // ASSIGNED TASK → show attachment modal
+        // Assigned task → keep your existing modal for attachments
+        // But we can add a nicer trigger/feedback if you want
         $('#completeTaskModal').modal('show');
     }
 });
 
-
-  $('#completeTaskForm').submit(function (e) {
+$('#completeTaskForm').submit(function (e) {
     e.preventDefault();
 
     const formData = new FormData(this);
 
     $.ajax({
-      url: "{% url 'complete_task' task.id %}",
-      method: "POST",
-      data: formData,
-      processData: false,
-      contentType: false,
-      success: () => location.reload()
+        url: "{% url 'complete_task' task.id %}",
+        method: "POST",
+        data: formData,
+        processData: false,
+        contentType: false,
+        success: () => {
+            Swal.fire({
+                title: 'Task Completed!',
+                html: 'Well done!<br>Attachments saved successfully.',
+                icon: 'success',
+                timer: 2200,
+                showConfirmButton: false,
+                allowOutsideClick: false
+            }).then(() => location.reload());
+        },
+        error: () => {
+            Swal.fire({
+                title: 'Oops...',
+                text: 'Something went wrong while completing the task.',
+                icon: 'error'
+            });
+        }
     });
-  });
+});
 
   // DELETE TASK
   $('#deleteTaskBtn').click(() => {

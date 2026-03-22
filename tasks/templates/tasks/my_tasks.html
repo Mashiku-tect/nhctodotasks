@@ -12,19 +12,64 @@
       </ol>
       
   </nav>
-<div class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <!-- Left side: Title -->
-        <h2 class="h4 mb-0">My Tasks</h2>
 
-        <!-- Right side: Search form -->
-        <form method="GET" class="d-flex" role="search">
-            <input type="text" name="q" value="{{ request.GET.q }}" placeholder="Search by title"
-                   class="form-control form-control-sm me-2" style="min-width: 200px;">
-            <button type="submit" class="btn btn-primary btn-sm">Search</button>
-        </form>
+   <div>
+   <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="h4 mb-0">My Tasks</h2>
+        <small class="text-muted">Tasks you created and assigned to yourself</small>
     </div>
+
+    <!-- Filters + Search -->
+    <form method="GET" class="row g-2 align-items-center mb-4">
+        <!-- Due Date -->
+        <div class="col-md-2">
+            <select name="due" class="form-select form-select-sm">
+                <option value="">All Due Dates</option>
+                <option value="today"    {% if current_filters.due == 'today'    %}selected{% endif %}>Today</option>
+                <option value="upcoming" {% if current_filters.due == 'upcoming' %}selected{% endif %}>Upcoming</option>
+                <option value="overdue"  {% if current_filters.due == 'overdue'  %}selected{% endif %}>Overdue</option>
+            </select>
+        </div>
+
+        <!-- Status -->
+        <div class="col-md-2">
+            <select name="status" class="form-select form-select-sm">
+                <option value="">All Status</option>
+                <option value="pending"     {% if current_filters.status == 'pending'     %}selected{% endif %}>Pending</option>
+                <option value="in_progress" {% if current_filters.status == 'in_progress' %}selected{% endif %}>In Progress</option>
+                <option value="completed"   {% if current_filters.status == 'completed'   %}selected{% endif %}>Completed</option>
+            </select>
+        </div>
+
+        <!-- Review -->
+        <div class="col-md-2">
+            <select name="review" class="form-select form-select-sm">
+                <option value="">All Reviews</option>
+                <option value="pending"  {% if current_filters.review == 'pending'  %}selected{% endif %}>Pending</option>
+                <option value="accepted" {% if current_filters.review == 'accepted' %}selected{% endif %}>Accepted</option>
+                <option value="rejected" {% if current_filters.review == 'rejected' %}selected{% endif %}>Rejected</option>
+            </select>
+        </div>
+
+        <!-- Search -->
+        <div class="col-md-3">
+            <input type="text" name="q" value="{{ current_filters.q|default:'' }}"
+                   placeholder="Search by title..." class="form-control form-control-sm">
+        </div>
+
+        <!-- Buttons -->
+        <div class="col-md-3 d-flex gap-2">
+            <button type="submit" class="btn btn-primary btn-sm">
+                <i class="bi bi-funnel-fill me-1"></i> Apply
+            </button>
+            <a href="{% url 'my_tasks' %}" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-arrow-repeat me-1"></i> Reset
+            </a>
+        </div>
+    </form>
 </div>
+
 <div id="messagesContainer">
     {% if messages %}
         {% for message in messages %}
@@ -52,9 +97,37 @@
         {% for task in tasks %}
         <tr>
             <td>{{ tasks.start_index|add:forloop.counter0 }}</td>
-            <td>{{ task.title }}</td>
-            <td>{{ task.description|default:"-" }}</td>
-            <td>{{ task.due_date|date:"Y-m-d" }}</td>
+           <td style="max-width:200px; vertical-align:top;">
+            <!-- SHORT TITLE -->
+            <div class="short-title">
+                {{ task.title|truncatechars:20 }}
+            </div>
+
+            <!-- FULL TITLE (hidden initially, block element) -->
+            <div class="full-title" style="display:none; white-space:normal; word-break:break-word;">
+                {{ task.title }}
+            </div>
+
+            {% if task.title|length > 20 %}
+                <a href="#" class="toggle-title text-primary small">Read more</a>
+            {% endif %}
+        </td>
+      <td style="max-width:250px; vertical-align:top;">
+            <!-- SHORT TEXT -->
+            <div class="short-desc">
+                {{ task.description|truncatechars:40 }}
+            </div>
+
+            <!-- FULL TEXT (hidden initially, block element) -->
+            <div class="full-desc" style="display:none; white-space:normal; word-break:break-word;">
+                {{ task.description }}
+            </div>
+
+            {% if task.description|length > 40 %}
+                <a href="#" class="toggle-desc text-primary small">Read more</a>
+            {% endif %}
+        </td>
+   <td>{{ task.due_date|date:"Y-m-d" }}</td>
             <td>
                 {% with task.user_tasks.all.0 as ut %}
                 <span class="badge
@@ -125,5 +198,32 @@
     </ul>
 </nav>
 {% endif %}
+<script>
+$(document).on('click', '.toggle-desc', function(e) {
+    e.preventDefault();
 
+    const td = $(this).closest('td');
+    const shortText = td.find('.short-desc');
+    const fullText = td.find('.full-desc');
+
+    shortText.toggle();
+    fullText.toggle();
+
+    $(this).text($(this).text() === 'Read more' ? 'Show less' : 'Read more');
+});
+</script>
+<script>
+$(document).on('click', '.toggle-title', function(e) {
+    e.preventDefault();
+
+    const td = $(this).closest('td');
+    const shortText = td.find('.short-title');
+    const fullText = td.find('.full-title');
+
+    shortText.toggle();
+    fullText.toggle();
+
+    $(this).text($(this).text() === 'Read more' ? 'Show less' : 'Read more');
+});
+</script>
 {% endblock %}
