@@ -996,54 +996,101 @@ def due_soon_report(request):
 
 @login_required
 def staff_performance_report(request):
+    # 🔒 Only manager can access
     if request.user.role != 'manager':
         return HttpResponseForbidden()
 
-    import pytz
+    # 📅 Tanzania time
     tanzania_tz = pytz.timezone('Africa/Dar_es_Salaam')
     today = timezone.now().astimezone(tanzania_tz).date()
 
-    # Get staff in manager's section
+    # 👥 Get staff in same section
     staff_users = User.objects.filter(
-        role__iexact='staff',
+        role='staff',
         section=request.user.section
     )
 
     performance_data = []
 
     for staff in staff_users:
-        # Only tasks assigned by this manager
-        tasks = UserTask.objects.filter(
+
+        # ✅ Manager → Staff tasks
+        manager_tasks = UserTask.objects.filter(
             assigned_to=staff,
             assigned_by=request.user
-        )
+        ).select_related('task')
 
-        total_tasks = tasks.count()
-        completed_tasks = tasks.filter(status='completed').count()
-        pending_tasks = tasks.filter(status__in=['pending', 'in_progress', 'accepted']).count()
-        overdue_tasks = tasks.filter(
+        # ✅ Staff self tasks
+        staff_tasks = UserTask.objects.filter(
+            assigned_to=staff,
+            assigned_by=staff
+        ).select_related('task')
+
+        # ---------------- MANAGER STATS ----------------
+        m_total = manager_tasks.count()
+        m_completed = manager_tasks.filter(status='completed').count()
+        m_pending = manager_tasks.filter(
+            status__in=['pending', 'in_progress', 'accepted']
+        ).count()
+        m_overdue = manager_tasks.filter(
             task__due_date__lt=today
         ).exclude(status__in=['completed', 'rejected']).count()
 
-        completion_rate = (completed_tasks / total_tasks * 100) if total_tasks > 0 else 0
+        m_rate = (m_completed / m_total * 100) if m_total else 0
+
+        # ---------------- STAFF STATS ----------------
+        s_total = staff_tasks.count()
+        s_completed = staff_tasks.filter(status='completed').count()
+        s_pending = staff_tasks.filter(
+            status__in=['pending', 'in_progress', 'accepted']
+        ).count()
+        s_overdue = staff_tasks.filter(
+            task__due_date__lt=today
+        ).exclude(status__in=['completed', 'rejected']).count()
+
+        s_rate = (s_completed / s_total * 100) if s_total else 0
+
+        # ---------------- COMBINED SUMMARY ----------------
+        total_tasks = m_total + s_total
+        completed_tasks = m_completed + s_completed
+        pending_tasks = m_pending + s_pending
+        overdue_tasks = m_overdue + s_overdue
+        completion_rate = (completed_tasks / total_tasks * 100) if total_tasks else 0
 
         performance_data.append({
             'staff': staff,
+
+            # 🔹 combined summary (used in main table)
             'total_tasks': total_tasks,
             'completed_tasks': completed_tasks,
             'pending_tasks': pending_tasks,
             'overdue_tasks': overdue_tasks,
             'completion_rate': round(completion_rate, 1),
+
+            # 🔹 manager stats
+            'm_total': m_total,
+            'm_completed': m_completed,
+            'm_pending': m_pending,
+            'm_overdue': m_overdue,
+            'm_rate': round(m_rate, 1),
+
+            # 🔹 staff stats
+            's_total': s_total,
+            's_completed': s_completed,
+            's_pending': s_pending,
+            's_overdue': s_overdue,
+            's_rate': round(s_rate, 1),
+
+            # 🔹 task lists
+            'manager_tasks': manager_tasks,
+            'staff_tasks': staff_tasks,
         })
 
-    # Prepare chart data
-    labels = [
-        f"{item['staff'].email}"
-        for item in performance_data
-    ]
-    completed = [item['completed_tasks'] for item in performance_data]
-    pending = [item['pending_tasks'] for item in performance_data]
-    overdue = [item['overdue_tasks'] for item in performance_data]
+    # 📊 Chart data (using STAFF stats)
+    labels = [f"{item['staff'].email}" for item in performance_data]
+    completed = [item['s_completed'] for item in performance_data]
+    pending = [item['s_pending'] for item in performance_data]
+    overdue = [item['s_overdue'] for item in performance_data]
 
     return render(request, 'reports/staff_performance.html', {
         'performance_data': performance_data,
@@ -1053,3 +1100,56 @@ def staff_performance_report(request):
         'chart_overdue': json.dumps(overdue),
     })
 
+@login_required
+def staff_detail(request, staff_id):
+    staff = get_object_or_404(User, id=staff_id)
+
+    # 🔒 Only manager can view
+    if request.user.role != 'manager' and not request.user.is_superuser:
+        return HttpResponseForbidden()
+
+    # Staff tasks (all)
+    all_tasks = UserTask.objects.filter(assigned_to=staff).select_related('task', 'assigned_by')
+
+    # Tasks assigned by THIS manager
+    manager_tasks = all_tasks.filter(assigned_by=request.user)
+
+    context = {
+        'staff': staff,
+        'all_tasks': all_tasks,
+        'manager_tasks': manager_tasks,
+    }
+
+    return render(request, 'reports/staff_detail.html', context)
+
+@login_required
+def manager_task_detail(request, staff_id):
+    if request.user.role != 'manager':
+        return HttpResponseForbidden()
+
+    staff = get_object_or_404(User, id=staff_id, role='staff', section=request.user.section)
+    tasks = UserTask.objects.filter(assigned_by=request.user, assigned_to=staff).select_related('task')
+
+    return render(request, 'reports/manager_task_detail.html', {
+        'staff': staff,
+        'tasks': tasks,
+    })
+
+@login_required
+def staff_task_detail(request, staff_id):
+    if request.user.role != 'manager':
+        return HttpResponseForbidden()
+
+    # Ensure the staff is in the same section
+    staff = get_object_or_404(User, id=staff_id, role='staff', section=request.user.section)
+
+    # Only tasks assigned TO this staff AND assigned BY the same staff (self-assigned)
+    tasks = UserTask.objects.filter(
+        assigned_to=staff,
+        assigned_by=staff
+    ).select_related('task')
+
+    return render(request, 'reports/staff_task_detail.html', {
+        'staff': staff,
+        'tasks': tasks,
+    })

@@ -47,42 +47,43 @@
                             </div>
 
                             <!-- SECTION -->
-<div class="col-md-6">
-    <label class="form-label fw-semibold">Section</label>
+            <div class="col-md-6">
+                <label class="form-label fw-semibold">Section</label>
 
-    {% if request.user.role == 'manager' %}
-        <!-- LOCKED -->
-        <input type="text" class="form-control" 
-               value="{{ request.user.get_section_display }}" readonly>
+                {% if request.user.role == 'manager' and not request.user.is_superuser %}
+                    <!-- MANAGER (LOCKED) -->
+                    <input type="text" class="form-control" 
+                        value="{{ request.user.get_section_display }}" readonly>
 
-        <input type="hidden" name="section" value="{{ request.user.section }}">
-    {% else %}
-        <select class="form-select" name="section" required>
-            <option value="" disabled selected>Select section</option>
-            {% for value, label in section_choices %}
-                <option value="{{ value }}">{{ label }}</option>
-            {% endfor %}
-        </select>
-    {% endif %}
-</div>
+                    <input type="hidden" name="section" value="{{ request.user.section }}">
+                {% else %}
+                    <!-- SUPERUSER -->
+                    <select class="form-select" name="section" required>
+                        <option value="" disabled selected>Select section</option>
+                        {% for value, label in section_choices %}
+                            <option value="{{ value }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                {% endif %}
+            </div>
 
+            <!-- ROLE -->
+            <div class="col-md-6">
+                <label class="form-label fw-semibold">Role</label>
 
-<!-- ROLE -->
-<div class="col-md-6">
-    <label class="form-label fw-semibold">Role</label>
-
-    {% if request.user.role == 'manager' %}
-        <!-- LOCKED -->
-        <input type="text" class="form-control" value="Staff" readonly>
-        <input type="hidden" name="role" value="staff">
-    {% else %}
-        <select class="form-select" name="role" required>
-            <option value="" disabled selected>Select role</option>
-            <option value="manager">Manager</option>
-            <option value="staff">Staff</option>
-        </select>
-    {% endif %}
-</div>
+                {% if request.user.role == 'manager' and not request.user.is_superuser %}
+                    <!-- MANAGER (LOCKED TO STAFF) -->
+                    <input type="text" class="form-control" value="Staff" readonly>
+                    <input type="hidden" name="role" value="staff">
+                {% else %}
+                    <!-- SUPERUSER -->
+                    <select class="form-select" name="role" required>
+                        <option value="" disabled selected>Select role</option>
+                        <option value="manager">Manager</option>
+                        <option value="staff">Staff</option>
+                    </select>
+                {% endif %}
+            </div>
 
                             <!-- Password 1 -->
                             <div class="col-md-6">

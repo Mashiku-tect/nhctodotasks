@@ -36,8 +36,11 @@
                         </div>
 
                         <!-- Role -->
-                        <div class="col-md-2">
-                            <label class="form-label fw-semibold">Role</label>
+                    <div class="col-md-2">
+                        <label class="form-label fw-semibold">Role</label>
+
+                        {% if request.user.is_superuser %}
+                            <!-- Superuser can select any role -->
                             <select name="role" class="form-select">
                                 <option value="">All Roles</option>
                                 {% for value, label in role_choices %}
@@ -46,11 +49,21 @@
                                     </option>
                                 {% endfor %}
                             </select>
-                        </div>
 
-                        <!-- Section -->
-                        <div class="col-md-2">
-                            <label class="form-label fw-semibold">Section</label>
+                        {% elif request.user.role == "manager" %}
+                            <!-- Manager sees only staff -->
+                            <input type="text" class="form-control" value="Staff" disabled>
+                            <input type="hidden" name="role" value="staff">
+
+                        {% endif %}
+                    </div>
+
+                    <!-- Section -->
+                    <div class="col-md-2">
+                        <label class="form-label fw-semibold">Section</label>
+
+                        {% if request.user.is_superuser %}
+                            <!-- Superuser can select any section -->
                             <select name="section" class="form-select">
                                 <option value="">All Sections</option>
                                 {% for value, label in section_choices %}
@@ -59,7 +72,14 @@
                                     </option>
                                 {% endfor %}
                             </select>
-                        </div>
+
+                        {% elif request.user.role == "manager" %}
+                            <!-- Manager sees their section only, disabled -->
+                            <input type="text" class="form-control" value="{{ request.user.get_section_display }}" disabled>
+                            <input type="hidden" name="section" value="{{ request.user.section }}">
+
+                        {% endif %}
+                    </div>
 
                         <!-- Status -->
                         <div class="col-md-2">

@@ -3,42 +3,47 @@
 {% block content %}
 <div class="container-fluid">
 
-    <h3 class="mb-4 text-primary"><i class="bi bi-graph-up"></i> Staff Performance</h3>
+    <h3 class="mb-4 text-primary">
+        <i class="bi bi-graph-up"></i> Staff Performance
+    </h3>
+
     <div class="mb-3">
-    <a href="" class="btn btn-sm btn-primary me-2">
-        Refresh List
-    </a>
-    <a href="" class="btn btn-sm btn-outline-success">
-        Export CSV
-    </a>
-</div>
+        <a href="" class="btn btn-sm btn-primary me-2">Refresh List</a>
+        <a href="" class="btn btn-sm btn-outline-success">Export CSV</a>
+    </div>
 
     {% if performance_data %}
 
-    <!-- Chart -->
-    <div class="mb-5">
-        <canvas id="staffPerformanceChart" height="100"></canvas>
+    <!-- Toggle Buttons -->
+    <div class="mb-3">
+        <button class="btn btn-sm btn-primary" onclick="showSummary()">Total Summary</button>
+        <button class="btn btn-sm btn-outline-secondary" onclick="showManagerSummary()">Assigned by Me Summary</button>
+        <button class="btn btn-sm btn-outline-secondary" onclick="showStaff()">Staff Tasks Summary</button>
     </div>
 
-    <!-- Table -->
-    <div class="table-responsive">
-        <table class="table table-hover align-middle">
+    <!-- ================= TOTAL SUMMARY ================= -->
+    <div id="summaryTable" class="table-responsive">
+        <h5 class="text-secondary">Total Summary</h5>
+
+        <table class="table table-bordered align-middle">
             <thead class="table-light">
                 <tr>
-                    <th>Number</th>
+                    <th>S/N</th>
                     <th>Staff</th>
                     <th>Total Tasks</th>
                     <th>Completed</th>
                     <th>Pending</th>
                     <th>Overdue</th>
-                    <th>Completion Rate</th>
+                    <th>Rate</th>
                 </tr>
             </thead>
             <tbody>
                 {% for item in performance_data %}
-                <tr>
+                <tr style="cursor:pointer;"
+                    onclick="window.location.href='{% url 'staff_detail' item.staff.id %}'">
+
                     <td>{{ forloop.counter }}</td>
-                    <td>{{ item.staff.first_name }} {{ item.staff.last_name|default:item.staff.email }}</td>
+                    <td>{{ item.staff.email }}</td>
                     <td>{{ item.total_tasks }}</td>
                     <td><span class="badge bg-success">{{ item.completed_tasks }}</span></td>
                     <td><span class="badge bg-secondary">{{ item.pending_tasks }}</span></td>
@@ -49,54 +54,117 @@
             </tbody>
         </table>
     </div>
-    <canvas id="staffPerformanceChart" width="400" height="200"></canvas>
-    <!-- Chart.js -->
+
+    <!-- ================= MANAGER SUMMARY ================= -->
+    <div id="managerSummaryStats" class="table-responsive" style="display:none;">
+        <h5 class="text-secondary">Assigned by Me Summary</h5>
+
+        <table class="table table-bordered align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>S/N</th>
+                    <th>Staff</th>
+                    <th>Total</th>
+                    <th>Completed</th>
+                    <th>Pending</th>
+                    <th>Overdue</th>
+                    <th>Completion Rate</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in performance_data %}
+                <tr style="cursor:pointer;"
+                    onclick="window.location.href='{% url 'manager_task_detail' item.staff.id %}'">
+
+                    <td>{{ forloop.counter }}</td>
+                    <td>{{ item.staff.email }}</td>
+                    <td>{{ item.m_total }}</td>
+                    <td><span class="badge bg-success">{{ item.m_completed }}</span></td>
+                    <td><span class="badge bg-secondary">{{ item.m_pending }}</span></td>
+                    <td><span class="badge bg-danger">{{ item.m_overdue }}</span></td>
+                    <td>{{ item.m_rate }}%</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- ================= STAFF SUMMARY ================= -->
+    <div id="staffSummaryStats" class="table-responsive" style="display:none;">
+        <h5 class="text-secondary">Staff Task Summary</h5>
+
+        <table class="table table-bordered align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>S/N</th>
+                    <th>Staff</th>
+                    <th>Total</th>
+                    <th>Completed</th>
+                    <th>Pending</th>
+                    <th>Overdue</th>
+                    <th>Completion Rate</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in performance_data %}
+                <tr style="cursor:pointer;"
+                    onclick="window.location.href='{% url 'staff_task_detail' item.staff.id %}'">
+
+                    <td>{{ forloop.counter }}</td>
+                    <td>{{ item.staff.email }}</td>
+                    <td>{{ item.s_total }}</td>
+                    <td><span class="badge bg-success">{{ item.s_completed }}</span></td>
+                    <td><span class="badge bg-secondary">{{ item.s_pending }}</span></td>
+                    <td><span class="badge bg-danger">{{ item.s_overdue }}</span></td>
+                    <td>{{ item.s_rate }}%</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+  
+
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
-    const labels = JSON.parse('{{ chart_labels|escapejs }}');
-    const completed = JSON.parse('{{ chart_completed|escapejs }}');
-    const pending = JSON.parse('{{ chart_pending|escapejs }}');
-    const overdue = JSON.parse('{{ chart_overdue|escapejs }}');
+        const labels = JSON.parse('{{ chart_labels|escapejs }}');
+        const completed = JSON.parse('{{ chart_completed|escapejs }}');
+        const pending = JSON.parse('{{ chart_pending|escapejs }}');
+        const overdue = JSON.parse('{{ chart_overdue|escapejs }}');
 
-    const ctx = document.getElementById('staffPerformanceChart').getContext('2d');
-    new Chart(ctx, {
-    type: 'bar',
-    data: {
-        labels: labels,
-        datasets: [
-            { label: 'Completed', data: completed, backgroundColor: 'rgba(25, 135, 84, 0.7)' },
-            { label: 'Pending', data: pending, backgroundColor: 'rgba(108, 117, 125, 0.7)' },
-            { label: 'Overdue', data: overdue, backgroundColor: 'rgba(220, 53, 69, 0.7)' }
-        ]
-    },
-    options: {
-        responsive: true,
-        plugins: {
-            legend: { position: 'top' },
-            title: { display: true, text: 'Staff Performance Metrics' }
-        },
-        scales: {
-            y: {
-                beginAtZero: true,
-                precision: 0,
-                min: 0,
-                // Dynamically set max based on your highest value + some padding
-                max: Math.max(...completed, ...pending, ...overdue) + 2,
-                ticks: {
-                    stepSize: 1  // show every number on Y-axis
-                }
+        new Chart(document.getElementById('staffPerformanceChart'), {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [
+                    { label: 'Completed', data: completed, backgroundColor: 'rgba(25,135,84,0.7)' },
+                    { label: 'Pending', data: pending, backgroundColor: 'rgba(108,117,125,0.7)' },
+                    { label: 'Overdue', data: overdue, backgroundColor: 'rgba(220,53,69,0.7)' }
+                ]
             }
-        }
-    }
-});
+        });
 
+        function showSummary() {
+            document.getElementById('summaryTable').style.display = 'block';
+            document.getElementById('managerSummaryStats').style.display = 'none';
+            document.getElementById('staffSummaryStats').style.display = 'none';
+        }
+
+        function showManagerSummary() {
+            document.getElementById('summaryTable').style.display = 'none';
+            document.getElementById('managerSummaryStats').style.display = 'block';
+            document.getElementById('staffSummaryStats').style.display = 'none';
+        }
+
+        function showStaff() {
+            document.getElementById('summaryTable').style.display = 'none';
+            document.getElementById('managerSummaryStats').style.display = 'none';
+            document.getElementById('staffSummaryStats').style.display = 'block';
+        }
     </script>
 
-
     {% else %}
-        <div class="alert alert-info">
-            No staff tasks available.
-        </div>
+        <div class="alert alert-info">No staff tasks available.</div>
     {% endif %}
 
 </div>

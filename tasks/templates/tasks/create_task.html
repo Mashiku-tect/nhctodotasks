@@ -1,234 +1,202 @@
 {% extends "base.html" %}
 
 {% block content %}
-<nav aria-label="breadcrumb" class="py-2 bg-light border-bottom">
-    <ol class="breadcrumb mb-0 px-3">
-<li class="breadcrumb-item"><a href="{% url 'dashboard' %}">Dashboard</a></li>
-<li class="breadcrumb-item"><a href="{% url 'my_tasks' %}">My Tasks</a></li>
-<li class="breadcrumb-item"><a href="{% url 'assigned_tasks' %}">Assigned Tasks</a></li>
-<li class="breadcrumb-item active text-muted" aria-current="page">
-    Create Task
-</li>
-      </ol>
-  </nav>
 
-<div class="container py-4">
-    <div class="row">
+<style>
+.form-card {
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    background: white;
+}
 
-        <!-- LEFT: FORM -->
-    <div class="col-md-6">
-     <div class="card shadow-sm border-1">
-        <div class="card-body">
-            <h2 class="text-center text-primary mb-4">Create New Task</h2>
-            
+.section-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #6b7280;
+    margin-bottom: 10px;
+    text-transform: uppercase;
+}
+
+.preview-box {
+    border: 1px dashed #d1d5db;
+    border-radius: 10px;
+    height: 100%;
+    min-height: 300px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f9fafb;
+}
+</style>
+<nav aria-label="breadcrumb" class="py-2 bg-light border-bottom"> 
+    <ol class="breadcrumb mb-0 px-3"> <li class="breadcrumb-item">
+        <a href="{% url 'dashboard' %}">Dashboard</a></li> <li class="breadcrumb-item">
+            <a href="{% url 'my_tasks' %}">My Tasks</a></li> <li class="breadcrumb-item">
+                <a href="{% url 'assigned_tasks' %}">Assigned Tasks</a>
+            </li> 
+    <li class="breadcrumb-item active text-muted" aria-current="page"> Create Task </li> </ol> </nav>
+<!-- Header -->
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="mb-1">Create Task</h4>
+        <small class="text-muted">Fill details and assign task</small>
+    </div>
+</div>
+
+<div class="row g-4">
+
+    <!-- FORM -->
+    <div class="col-lg-7">
+        <div class="form-card p-4">
+
             <form id="taskForm" enctype="multipart/form-data" novalidate>
                 {% csrf_token %}
 
-                <!-- Task Title -->
+                <!-- BASIC INFO -->
+                <div class="section-title">Basic Info</div>
+
                 <div class="mb-3">
-                    <label class="form-label">Task Title <span class="text-danger">*</span></label>
+                    <label class="form-label">Task Title</label>
                     <input type="text" name="title" class="form-control" placeholder="Enter task title" required>
-                    <div class="invalid-feedback">Please provide a task title.</div>
+                    <div class="invalid-feedback">Required</div>
                 </div>
 
-                <!-- Task Description -->
                 <div class="mb-3">
-                     <label class="form-label">Task Description <span class="text-danger">*</span></label>
-                    <textarea name="description" class="form-control" placeholder="Optional details" rows="3"></textarea>
+                    <label class="form-label">Description</label>
+                    <textarea name="description" class="form-control" rows="3" placeholder="Optional details"></textarea>
                 </div>
 
-                <!-- File Attachment -->
-            <div class="mb-3">
-                <label class="form-label">Attach File</label>
-                <input type="file" name="attachment" class="form-control">
-                <small class="text-muted">Optional (PDF, image, doc, etc.)</small>
-            </div>
+                <!-- DETAILS -->
+                <div class="section-title mt-4">Details</div>
 
-                <!-- Due Date -->
-                <div class="mb-3">
-                     <label class="form-label">Task Due Date <span class="text-danger">*</span></label>
-                    <input type="date" name="due_date" class="form-control" min="{{ min_date }}" required>
-                    <div class="invalid-feedback">Please select a valid due date.</div>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Due Date</label>
+                        <input type="date" name="due_date" class="form-control" required>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">Priority</label>
+                        <select name="priority" class="form-select">
+                            {% for value, label in PRIORITY_CHOICES %}
+                            <option value="{{ value }}">{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
                 </div>
 
-                <!-- Priority -->
+                <!-- FILE -->
+                <div class="section-title mt-4">Attachment</div>
+
                 <div class="mb-3">
-                   <label class="form-label">Task Priority <span class="text-danger">*</span></label>
-                    <select name="priority" class="form-select">
-                        {% for value, label in PRIORITY_CHOICES %}
-                        <option value="{{ value }}" {% if value == 'normal' %}selected{% endif %}>{{ label }}</option>
-                        {% endfor %}
-                    </select>
+                    <input type="file" name="attachment" class="form-control">
                 </div>
 
                 {% if request.user.role == "manager" %}
-                <!-- Task Ownership -->
+                <!-- ASSIGN -->
+                <div class="section-title mt-4">Assignment</div>
+
                 <div class="mb-3">
-                    <label class="form-label">Task Ownership <span class="text-danger">*</span></label>
-                    <div>
-                        <div class="form-check form-check-inline">
-                            <input class="form-check-input task-type" type="radio" name="task_type" id="task_type_self" value="self" checked>
-                            <label class="form-check-label" for="task_type_self">My Task</label>
-                        </div>
-                        <div class="form-check form-check-inline">
-                            <input class="form-check-input task-type" type="radio" name="task_type" id="task_type_assign" value="assign">
-                            <label class="form-check-label" for="task_type_assign">Assign to Staff</label>
-                        </div>
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input task-type" type="radio" name="task_type" value="self" checked>
+                        <label class="form-check-label">My Task</label>
+                    </div>
+
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input task-type" type="radio" name="task_type" value="assign">
+                        <label class="form-check-label">Assign</label>
                     </div>
                 </div>
 
-                <!-- Assign Staff Section (hidden by default) -->
                 <div class="mb-3 d-none" id="assignSection">
-                    <label class="form-label">Select Staff Members *</label>
                     <select name="assigned_to[]" class="form-select" multiple size="4">
                         {% for user in subordinates %}
-                            <option value="{{ user.id }}">{{ user.get_full_name|default:user.email }}</option>
-                        {% empty %}
-                            <option disabled>No staff members available</option>
+                        <option value="{{ user.id }}">{{ user.get_full_name|default:user.email }}</option>
                         {% endfor %}
                     </select>
-                    <div class="invalid-feedback" id="assignError">Please select at least one staff member.</div>
-                    <small class="text-muted">Hold Ctrl/Cmd to select multiple staff members</small>
+                    <small class="text-muted">Select one or more staff</small>
                 </div>
                 {% endif %}
 
-                <!-- Submit Button -->
-                <div class="d-grid mt-4">
-                    <button type="submit" class="btn btn-primary">Create Task</button>
+                <!-- SUBMIT -->
+                <div class="d-flex justify-content-end mt-4">
+                    <button class="btn btn-primary px-4">Create Task</button>
                 </div>
 
             </form>
-
         </div>
     </div>
-    </div>
-        <!-- RIGHT: FILE PREVIEW -->         
-  <div class="col-md-6">
-            <div class="card shadow-sm border-1 h-100">
-                <div class="card-body">
-                    <h5 class="text-secondary mb-3">File Preview</h5>
 
-                    <div id="filePreviewContainer" style="max-height:450px; overflow:auto;">
-                        <p class="text-muted text-center">No file selected</p>
-                    </div>
-                </div>
+    <!-- PREVIEW -->
+    <div class="col-lg-5">
+        <div class="form-card p-4 h-100">
+            <div class="section-title">File Preview</div>
+
+            <div id="filePreviewContainer" class="preview-box">
+                <span class="text-muted">No file selected</span>
             </div>
         </div>
-</div>
-</div>
-
-        </div>
     </div>
+
 </div>
 
-<!--End of Tawk.to Script-->
-<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-
+<!-- JS -->
 <script>
-$(function() {
+$(function () {
     const today = new Date().toISOString().split('T')[0];
     $('input[name="due_date"]').attr('min', today);
 
-    // Toggle assign section
-    $('.task-type').on('change', function() {
-        if ($(this).val() === 'assign') {
-            $('#assignSection').removeClass('d-none');
-        } else {
-            $('#assignSection').addClass('d-none');
-        }
+    $('.task-type').on('change', function () {
+        $('#assignSection').toggleClass('d-none', $(this).val() !== 'assign');
     });
 
-    // Form submit
-    $('#taskForm').on('submit', async function(e) {
+    $('#taskForm').on('submit', async function (e) {
         e.preventDefault();
-        let valid = true;
 
-        // Title validation
-        const title = $('input[name="title"]').val().trim();
-        if (!title) { $('input[name="title"]').addClass('is-invalid'); valid = false; } 
-        else { $('input[name="title"]').removeClass('is-invalid'); }
-
-        // Due date validation
-        const dueDate = $('input[name="due_date"]').val();
-        if (!dueDate || new Date(dueDate) < new Date(today)) {
-            $('input[name="due_date"]').addClass('is-invalid'); valid = false;
-        } else { $('input[name="due_date"]').removeClass('is-invalid'); }
-
-        // Assignment validation if needed
-        const taskType = $('input[name="task_type"]:checked').val() || 'self';
-        const assigned = $('select[name="assigned_to[]"]').val();
-        if (taskType === 'assign' && (!assigned || assigned.length === 0)) {
-            $('#assignError').show(); valid = false;
-        } else {
-            $('#assignError').hide();
-        }
-
-        if (!valid) return;
-
-        // Use FormData to include files
-        const form = document.getElementById('taskForm');
-        const formData = new FormData(form);
+        const formData = new FormData(this);
 
         try {
-            const response = await $.ajax({
+            const res = await $.ajax({
                 url: "{% url 'create_task' %}",
                 method: "POST",
                 data: formData,
-                processData: false,  // important for file upload
-                contentType: false,  // important for file upload
-                dataType: 'json'
+                processData: false,
+                contentType: false
             });
 
-            await Swal.fire({
+            Swal.fire({
                 icon: 'success',
-                title: 'Task Created!',
-                text: response.message || 'Task has been created successfully.',
-                timer: 2000,
-                timerProgressBar: true,
-                showConfirmButton: false,
-                didClose: () => {
-                    document.getElementById('taskForm').reset(); // reset form after success
-                    if (response.redirect_url) window.location.href = response.redirect_url;
-                }
-            });
+                title: 'Created',
+                timer: 1500,
+                showConfirmButton: false
+            }).then(() => location.reload());
 
         } catch (err) {
-            await Swal.fire({
-                icon: 'error',
-                title: 'Failed',
-                text: err.responseJSON?.error || 'Something went wrong.',
-            });
+            Swal.fire('Error', 'Something went wrong', 'error');
+        }
+    });
+
+    // Preview
+    $('input[name="attachment"]').on('change', function () {
+        const file = this.files[0];
+        const preview = $('#filePreviewContainer');
+
+        if (!file) {
+            preview.html('<span class="text-muted">No file selected</span>');
+            return;
+        }
+
+        const url = URL.createObjectURL(file);
+
+        if (file.type.startsWith('image/')) {
+            preview.html(`<img src="${url}" class="img-fluid rounded">`);
+        } else if (file.type === 'application/pdf') {
+            preview.html(`<iframe src="${url}" width="100%" height="300"></iframe>`);
+        } else {
+            preview.html(`<p>${file.name}</p>`);
         }
     });
 });
 </script>
-<script>
-const fileInput = document.querySelector('input[name="attachment"]');
-const preview = document.getElementById('filePreviewContainer');
 
-fileInput.addEventListener('change', function () {
-    const file = this.files[0];
-
-    if (!file) {
-        preview.innerHTML = '<p class="text-muted text-center">No file selected</p>';
-        return;
-    }
-
-    const url = URL.createObjectURL(file);
-
-    if (file.type.startsWith('image/')) {
-        preview.innerHTML = `<img src="${url}" class="img-fluid rounded">`;
-    } 
-    else if (file.type === 'application/pdf') {
-        preview.innerHTML = `<iframe src="${url}" width="100%" height="400"></iframe>`;
-    } 
-    else {
-        preview.innerHTML = `
-            <p><strong>${file.name}</strong></p>
-            <small class="text-muted">Preview not supported</small>
-        `;
-    }
-});
-</script>
 {% endblock %}

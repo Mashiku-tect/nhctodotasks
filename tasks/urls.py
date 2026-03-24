@@ -1,6 +1,6 @@
 from django import views
 from django.urls import path
-from .views import create_task, due_soon_report,do_task,my_tasks,assigned_tasks,dashboard, overdue_tasks_report, reassign_task, staff_performance_report,task_detail,start_task,complete_subtask,complete_task,edit_task,delete_task,delete_subtask,review_task,reply_comment,ajax_save_subtask,subtask_json,delete_task_cascade
+from .views import create_task, staff_detail,staff_task_detail,manager_task_detail, due_soon_report,do_task,my_tasks,assigned_tasks,dashboard, overdue_tasks_report, reassign_task, staff_performance_report,task_detail,start_task,complete_subtask,complete_task,edit_task,delete_task,delete_subtask,review_task,reply_comment,ajax_save_subtask,subtask_json,delete_task_cascade
 from django.conf import settings
 from django.conf.urls.static import static
 
@@ -35,11 +35,14 @@ path(
     name='delete_task_cascade'
 ),
      path('reports/overdue/',overdue_tasks_report, name='reports_overdue'),
-     # urls.py
+   
 path('reports/due-soon/', due_soon_report, name='reports_due_soon'),
 path('reports/staff-performance/', staff_performance_report, name='reports_performance'),
  path('task/<int:task_id>/reassign/', reassign_task, name='reassign_task'),
- 
+
+path('staff/<int:staff_id>/', staff_detail, name='staff_detail'),
+ path('manager-task/<int:staff_id>/', manager_task_detail, name='manager_task_detail'),  # ✅ add this
+ path('staff-task/<int:staff_id>/', staff_task_detail, name='staff_task_detail'),
 
 ]
 
