@@ -153,7 +153,7 @@ def login_view(request):
 
         if user is not None:
             login(request, user)
-            return redirect("dashboard")
+            return redirect("reports_performance")
         else:
             messages.error(request, "Invalid email or password")
 

@@ -334,7 +334,7 @@ $('#completeTaskBtn').click(function () {
     $.post(
       "{% url 'delete_task' task.id %}",
       { csrfmiddlewaretoken: '{{ csrf_token }}' },
-      () => window.location.href = "{% url 'dashboard' %}"
+      () => window.location.href = "{% url 'reports_performance' %}"
     );
   });
 

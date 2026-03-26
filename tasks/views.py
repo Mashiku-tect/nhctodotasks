@@ -3,7 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect,get_object_or_404
 from django.contrib import messages
 from django.contrib.auth import get_user_model
-from .models import Task, UserTask,SubTask,Comment,TaskAttachment
+from .models import Task, UserTask,SubTask,Comment,TaskAttachment,Category
 from django.utils import timezone
 from django.http import HttpResponseForbidden,JsonResponse
 from django.db.models import Q
@@ -35,12 +35,19 @@ def compute_task_status(usertasks):
 
 
 
+from django.urls import reverse
+
 @login_required
 def create_task(request):
     user = request.user
     subordinates = []
+    categories = []
+    category = None
 
+    # Load form data
     if user.role == 'manager':
+        categories = Category.objects.filter(section=user.section)
+
         subordinates = User.objects.filter(
             section=user.section,
             role='staff',
@@ -53,6 +60,7 @@ def create_task(request):
         attachment = request.FILES.get("attachment")
         due_date = request.POST.get('due_date')
         priority = request.POST.get('priority', 'normal')
+        category_id = request.POST.get('category_id')
 
         if not title or not due_date:
             return JsonResponse(
@@ -60,40 +68,40 @@ def create_task(request):
                 status=400
             )
 
-        assigned_users = [user]  # default assignment: self
-        messages.success(request, "Task created successfully!")
-        redirect_url = '/tasks/mytasks/'  # default redirect for staff or manager self-task
+        # 🔹 Default: self task
+        assigned_users = [user]
+        redirect_url = reverse('my_tasks')
 
-        if user.role == 'manager':
-            task_type = request.POST.get('task_type')
+        # 🔹 Manager assigning by category
+        if user.role == 'manager' and category_id:
+            category = Category.objects.filter(
+                id=category_id,
+                section=user.section
+            ).first()
 
-            if task_type == 'assign':
-                user_ids = request.POST.getlist('assigned_to[]')
-                assigned_users = User.objects.filter(
-                    id__in=user_ids,
-                    section=user.section,
-                    role='staff',
-                    is_active=True
-                )
+            if not category:
+                return JsonResponse({'error': 'Invalid category'}, status=400)
 
-                if not assigned_users.exists():
-                    return JsonResponse(
-                        {'error': 'Please select at least one valid staff member.'},
-                        status=400
-                    )
+            assigned_users = User.objects.filter(
+                categorymember__category=category
+            ).distinct()
 
-                # If manager is assigning to others, redirect to assigned_tasks
-                
-                redirect_url = '/tasks/assigned/'
+            if not assigned_users.exists():
+                return JsonResponse({'error': 'No users in this category'}, status=400)
 
+            redirect_url = reverse('assigned_tasks')
+
+        # 🔹 Create Task
         task = Task.objects.create(
             title=title,
             description=description,
             due_date=due_date,
             priority=priority,
-            attachment=attachment
+            attachment=attachment,
+            category=category
         )
 
+       # 🔹 Assign Users
         UserTask.objects.bulk_create([
             UserTask(
                 task=task,
@@ -104,16 +112,23 @@ def create_task(request):
             for assignee in assigned_users
         ])
 
+        # ✅ Add success message
+        if assigned_users == [user]:
+            messages.success(request, "My task created successfully!")
+        else:
+            messages.success(request, "Task assigned successfully!")
+
+        # ✅ Return JSON with redirect URL
         return JsonResponse({
-            'message': 'Task created successfully!',
+            'message': 'success',
             'redirect_url': redirect_url
         })
-
     return render(
         request,
         'tasks/create_task.html',
         {
             'subordinates': subordinates,
+            'categories': categories,
             'PRIORITY_CHOICES': Task.PRIORITY_CHOICES,
         }
     )
@@ -343,58 +358,58 @@ def reassign_task(request, task_id):
         'staff_users': staff_users
     })
 
-#dashboard view
-@login_required
-def dashboard(request):
-    user = request.user
-    today = timezone.localdate()  # Tanzanian date if timezone set
+# #dashboard view
+# @login_required
+# def dashboard(request):
+#     user = request.user
+#     today = timezone.localdate()  # Tanzanian date if timezone set
 
-    if user.role == "manager":
-        # Tasks assigned to staff in this manager's section
-        section_staff_tasks = UserTask.objects.filter(
-            assigned_to__role='staff',
-            assigned_to__section=user.section
-        )
+#     if user.role == "manager":
+#         # Tasks assigned to staff in this manager's section
+#         section_staff_tasks = UserTask.objects.filter(
+#             assigned_to__role='staff',
+#             assigned_to__section=user.section
+#         )
 
-        my_open_tasks_count = section_staff_tasks.exclude(status__in=['completed', 'rejected']).count()
-        overdue_tasks_count = section_staff_tasks.filter(
-            task__due_date__lt=today
-        ).exclude(status__in=['completed', 'rejected']).count()
+#         my_open_tasks_count = section_staff_tasks.exclude(status__in=['completed', 'rejected']).count()
+#         overdue_tasks_count = section_staff_tasks.filter(
+#             task__due_date__lt=today
+#         ).exclude(status__in=['completed', 'rejected']).count()
 
-        rejected_tasks_count = UserTask.objects.filter(
-            assigned_by=request.user,
-            review_status='rejected'
-        ).count()
+#         rejected_tasks_count = UserTask.objects.filter(
+#             assigned_by=request.user,
+#             review_status='rejected'
+#         ).count()
 
-        completed_tasks_count = section_staff_tasks.filter(status='completed').count()
+#         completed_tasks_count = section_staff_tasks.filter(status='completed').count()
 
-    else:
-        # Staff sees only their own tasks
-        my_open_tasks_count = UserTask.objects.filter(
-            assigned_to=user
-        ).exclude(status__in=['completed', 'rejected']).count()
+#     else:
+#         # Staff sees only their own tasks
+#         my_open_tasks_count = UserTask.objects.filter(
+#             assigned_to=user
+#         ).exclude(status__in=['completed', 'rejected']).count()
 
-        overdue_tasks_count = UserTask.objects.filter(
-            assigned_to=user,
-            task__due_date__lt=today
-        ).exclude(status__in=['completed', 'rejected']).count()
+#         overdue_tasks_count = UserTask.objects.filter(
+#             assigned_to=user,
+#             task__due_date__lt=today
+#         ).exclude(status__in=['completed', 'rejected']).count()
 
-        rejected_tasks_count = UserTask.objects.filter(
-        assigned_to=request.user,
-        review_status='rejected'
-         ).count()
+#         rejected_tasks_count = UserTask.objects.filter(
+#         assigned_to=request.user,
+#         review_status='rejected'
+#          ).count()
 
-        completed_tasks_count = UserTask.objects.filter(
-            assigned_to=user,
-            status='completed'
-        ).count()
+#         completed_tasks_count = UserTask.objects.filter(
+#             assigned_to=user,
+#             status='completed'
+#         ).count()
 
-    return render(request, "tasks/dashboard.html", {
-        'my_open_tasks_count': my_open_tasks_count,
-        'overdue_tasks_count': overdue_tasks_count,
-        'rejected_tasks_count': rejected_tasks_count,
-        'completed_tasks_count': completed_tasks_count,
-    })
+#     return render(request, "tasks/dashboard.html", {
+#         'my_open_tasks_count': my_open_tasks_count,
+#         'overdue_tasks_count': overdue_tasks_count,
+#         'rejected_tasks_count': rejected_tasks_count,
+#         'completed_tasks_count': completed_tasks_count,
+#     })
 
 
 @login_required
@@ -996,9 +1011,9 @@ def due_soon_report(request):
 
 @login_required
 def staff_performance_report(request):
-    # 🔒 Only manager can access
-    if request.user.role != 'manager':
-        return HttpResponseForbidden()
+    # # 🔒 Only manager can access
+    # if request.user.role != 'manager':
+    #     return HttpResponseForbidden()
 
     # 📅 Tanzania time
     tanzania_tz = pytz.timezone('Africa/Dar_es_Salaam')
@@ -1135,8 +1150,32 @@ def manager_task_detail(request, staff_id):
         'tasks': tasks,
     })
 
+from django.http import JsonResponse
+from tasks.models import CategoryMember
+
+def category_users_json(request):
+    category_id = request.GET.get('category_id')
+
+    users = []
+
+    if category_id:
+        members = CategoryMember.objects.filter(
+            category_id=category_id
+        ).select_related('user')
+
+        users = [
+            {
+                'id': m.user.id,
+                'name': m.user.email  # ✅ FIX HERE
+            }
+            for m in members
+        ]
+
+    return JsonResponse({'users': users})
+
 @login_required
 def staff_task_detail(request, staff_id):
+
     if request.user.role != 'manager':
         return HttpResponseForbidden()
 

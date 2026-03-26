@@ -3,16 +3,71 @@ from django.contrib.auth import get_user_model
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
+from accounts.models import User
 
 User = get_user_model()
 #User = settings.AUTH_USER_MODEL
 
+
+class Category(models.Model):
+    name = models.CharField(max_length=100)
+    section = models.CharField(
+        max_length=100,
+        choices=User.SECTION_CHOICES
+    )
+    members = models.ManyToManyField(
+        User,
+        through='CategoryMember',
+        related_name='categories_joined'  # avoid clash
+    )
+
+    def __str__(self):
+        return f"{self.name} ({self.section})"
+
+
+class Category(models.Model):
+    name = models.CharField(max_length=100)
+    section = models.CharField(
+        max_length=100,
+        choices=User.SECTION_CHOICES
+    )
+
+    members = models.ManyToManyField(
+        User,
+        through='CategoryMember',   # through table
+        related_name='categories'   # reverse lookup from User
+    )
+
+    def __str__(self):
+        return f"{self.name} ({self.section})"
+
+
+class CategoryMember(models.Model):
+    category = models.ForeignKey(
+        Category, 
+        on_delete=models.CASCADE,
+        related_name='category_members'  # avoids clashes
+    )
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+
+    class Meta:
+        unique_together = ('category', 'user')
+
+    def __str__(self):
+        return f"{self.category.name} → {self.user.email}"
+    
 class Task(models.Model):
     PRIORITY_CHOICES = [
         ('normal', 'Normal'),
         ('high', 'High'),
     ]
-
+    category = models.ForeignKey(
+        Category,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='tasks'
+    )
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True)
     attachment = models.FileField(upload_to='task_files/', blank=True, null=True)

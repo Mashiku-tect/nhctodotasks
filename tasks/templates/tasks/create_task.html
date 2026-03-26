@@ -30,7 +30,7 @@
 </style>
 <nav aria-label="breadcrumb" class="py-2 bg-light border-bottom"> 
     <ol class="breadcrumb mb-0 px-3"> <li class="breadcrumb-item">
-        <a href="{% url 'dashboard' %}">Dashboard</a></li> <li class="breadcrumb-item">
+        <a href="{% url 'reports_performance' %}">Dashboard</a></li> <li class="breadcrumb-item">
             <a href="{% url 'my_tasks' %}">My Tasks</a></li> <li class="breadcrumb-item">
                 <a href="{% url 'assigned_tasks' %}">Assigned Tasks</a>
             </li> 
@@ -49,7 +49,7 @@
     <div class="col-lg-7">
         <div class="form-card p-4">
 
-            <form id="taskForm" enctype="multipart/form-data" novalidate>
+            <form id="taskForm" enctype="multipart/form-data" method="POST" novalidate>
                 {% csrf_token %}
 
                 <!-- BASIC INFO -->
@@ -94,28 +94,21 @@
 
                 {% if request.user.role == "manager" %}
                 <!-- ASSIGN -->
-                <div class="section-title mt-4">Assignment</div>
+                <div class="mb-3" id="assignSection">
+    <label class="form-label">Select Category</label>
+    <select name="category_id" id="categorySelect" class="form-select">
+        <option value="">-- Select Category --</option>
+        {% for cat in categories %}
+        <option value="{{ cat.id }}">{{ cat.name }}</option>
+        {% endfor %}
+    </select>
 
-                <div class="mb-3">
-                    <div class="form-check form-check-inline">
-                        <input class="form-check-input task-type" type="radio" name="task_type" value="self" checked>
-                        <label class="form-check-label">My Task</label>
-                    </div>
-
-                    <div class="form-check form-check-inline">
-                        <input class="form-check-input task-type" type="radio" name="task_type" value="assign">
-                        <label class="form-check-label">Assign</label>
-                    </div>
-                </div>
-
-                <div class="mb-3 d-none" id="assignSection">
-                    <select name="assigned_to[]" class="form-select" multiple size="4">
-                        {% for user in subordinates %}
-                        <option value="{{ user.id }}">{{ user.get_full_name|default:user.email }}</option>
-                        {% endfor %}
-                    </select>
-                    <small class="text-muted">Select one or more staff</small>
-                </div>
+    <label class="form-label mt-2">Staff in Category</label>
+    <select name="assigned_to[]" id="categoryUsers" class="form-select" multiple size="4" disabled>
+        <!-- users will be populated via JS -->
+    </select>
+    <small class="text-muted">Select one or more staff</small>
+</div>
                 {% endif %}
 
                 <!-- SUBMIT -->
@@ -151,29 +144,33 @@ $(function () {
     });
 
     $('#taskForm').on('submit', async function (e) {
-        e.preventDefault();
+    e.preventDefault();
 
-        const formData = new FormData(this);
+    const formData = new FormData(this);
+    const btn = $(this).find('button');   // 👈 here
+    btn.prop('disabled', true);           // 👈 disable immediately
 
-        try {
-            const res = await $.ajax({
-                url: "{% url 'create_task' %}",
-                method: "POST",
-                data: formData,
-                processData: false,
-                contentType: false
-            });
+    try {
+        const response = await $.ajax({
+            url: "{% url 'create_task' %}",
+            method: "POST",
+            data: formData,
+            processData: false,
+            contentType: false
+        });
 
-            Swal.fire({
-                icon: 'success',
-                title: 'Created',
-                timer: 1500,
-                showConfirmButton: false
-            }).then(() => location.reload());
+        Swal.fire({
+            icon: 'success',
+            title: response.message || 'Task created',
+            timer: 1500,
+            showConfirmButton: false
+        }).then(() => {
+            window.location.href = response.redirect_url;
+        });
 
-        } catch (err) {
-            Swal.fire('Error', 'Something went wrong', 'error');
-        }
+    } catch (err) {
+        Swal.fire('Error', err.responseJSON?.error || 'Something went wrong', 'error');
+    }
     });
 
     // Preview
@@ -198,5 +195,26 @@ $(function () {
     });
 });
 </script>
+<script>
+    $(function () {
+    const categoryUsers = $('#categoryUsers');
 
+    $('#categorySelect').on('change', async function () {
+        const categoryId = $(this).val();
+        categoryUsers.empty().prop('disabled', true);
+
+        if (!categoryId) return;
+
+        try {
+            const res = await $.getJSON("{% url 'category_users_json' %}", { category_id: categoryId });
+            res.users.forEach(user => {
+                categoryUsers.append(`<option value="${user.id}">${user.name}</option>`);
+            });
+            categoryUsers.prop('disabled', false);
+        } catch (err) {
+            console.error(err);
+        }
+    });
+});
+</script>
 {% endblock %}

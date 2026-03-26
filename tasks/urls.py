@@ -1,6 +1,5 @@
-from django import views
 from django.urls import path
-from .views import create_task, staff_detail,staff_task_detail,manager_task_detail, due_soon_report,do_task,my_tasks,assigned_tasks,dashboard, overdue_tasks_report, reassign_task, staff_performance_report,task_detail,start_task,complete_subtask,complete_task,edit_task,delete_task,delete_subtask,review_task,reply_comment,ajax_save_subtask,subtask_json,delete_task_cascade
+from .views import create_task, staff_detail,category_users_json,staff_task_detail,manager_task_detail, due_soon_report,do_task,my_tasks,assigned_tasks, overdue_tasks_report, reassign_task, staff_performance_report,task_detail,start_task,complete_subtask,complete_task,edit_task,delete_task,delete_subtask,review_task,reply_comment,ajax_save_subtask,subtask_json,delete_task_cascade
 from django.conf import settings
 from django.conf.urls.static import static
 
@@ -8,7 +7,7 @@ urlpatterns = [
     path('create/', create_task, name='create_task'),
      path('mytasks/', my_tasks, name='my_tasks'),
      path('assigned/', assigned_tasks, name='assigned_tasks'),
-      path('', dashboard, name='dashboard'),
+    #   path('', dashboard, name='dashboard'),
       path('tasks/<int:task_id>/', task_detail, name='task_detail'),
       path('tasks/<int:task_id>/', do_task, name='do_task'),
 path('tasks/start/<int:usertask_id>/', start_task, name='start_task'),
@@ -43,6 +42,7 @@ path('reports/staff-performance/', staff_performance_report, name='reports_perfo
 path('staff/<int:staff_id>/', staff_detail, name='staff_detail'),
  path('manager-task/<int:staff_id>/', manager_task_detail, name='manager_task_detail'),  # ✅ add this
  path('staff-task/<int:staff_id>/', staff_task_detail, name='staff_task_detail'),
+ path('category-users/', category_users_json, name='category_users_json'),
 
 ]
 

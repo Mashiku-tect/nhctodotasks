@@ -1,6 +1,6 @@
 # tasks/admin.py
 from django.contrib import admin
-from .models import Task, UserTask, SubTask,TaskAttachment
+from .models import Task, UserTask, SubTask, TaskAttachment, Comment, Category, CategoryMember
 
 
 @admin.register(Task)
@@ -10,6 +10,32 @@ class TaskAdmin(admin.ModelAdmin):
     list_filter = ('due_date',)
     ordering = ('-created_at',)
 
+from django.contrib import admin
+from .models import Category, CategoryMember
+from accounts.models import User
+
+class CategoryMemberInline(admin.TabularInline):
+    model = CategoryMember
+    extra = 1  # number of blank forms
+    autocomplete_fields = ('user',)
+
+    def formfield_for_foreignkey(self, db_field, request=None, **kwargs):
+        if db_field.name == 'user' and hasattr(self, 'parent_obj'):
+            # limit users to the selected section
+            kwargs['queryset'] = User.objects.filter(section=self.parent_obj.section)
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
+class CategoryAdmin(admin.ModelAdmin):
+    list_display = ('name', 'section')
+    inlines = [CategoryMemberInline]
+
+    def get_form(self, request, obj=None, **kwargs):
+        form = super().get_form(request, obj, **kwargs)
+        # store obj for inline filtering
+        CategoryMemberInline.parent_obj = obj
+        return form
+
+admin.site.register(Category, CategoryAdmin)
 
 @admin.register(UserTask)
 class UserTaskAdmin(admin.ModelAdmin):
@@ -61,8 +87,7 @@ class TaskAttachmentAdmin(admin.ModelAdmin):
     )
 
 
-from django.contrib import admin
-from .models import Comment
+
 
 class CommentAdmin(admin.ModelAdmin):
     list_display = ('user', 'task', 'parent','comment', 'created_at')  # columns shown in list view
