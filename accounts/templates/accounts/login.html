@@ -12,12 +12,15 @@
 
 <style>
 :root {
-    --nhc-primary: #000000;       /* black */
-    --nhc-accent: #fbbf24;        /* orange */
-    --nhc-accent-dark: #f59e0b;   /* darker orange */
+    --nhc-primary: #2f8fc9;
+    --nhc-accent: #8fd3ff;
+    --nhc-accent-dark: #62b9f0;
     --nhc-light: #ffffff;         /* white */
     --nhc-dark: #000000;          /* black text */
     --nhc-warning: #dc2626;       /* red for errors */
+    --nhc-sidebar-bg: linear-gradient(180deg, #2f8fc9 0%, #2a84bb 55%, #2474a5 100%);
+    --nhc-sidebar-text: #f4fbff;
+    --nhc-sidebar-muted: #d8efff;
 }
 
 body {
@@ -42,8 +45,8 @@ body {
 /* Left panel */
 .login-left {
     flex: 1 1 50%;
-    background: var(--nhc-primary);
-    color: var(--nhc-light);
+    background: var(--nhc-sidebar-bg);
+    color: var(--nhc-sidebar-text);
     padding: 3rem 2rem;
     display: flex;
     flex-direction: column;
@@ -55,7 +58,7 @@ body {
     font-weight: 700;
 }
 
-.login-left p, .login-left ul li { opacity: 0.9; color: var(--nhc-light); }
+.login-left p, .login-left ul li { opacity: 0.95; color: var(--nhc-sidebar-muted); }
 .login-left ul { list-style: none; padding-left: 0; }
 .login-left ul li { margin-bottom: 0.5rem; }
 .login-left ul li i { margin-right: 0.5rem; color: var(--nhc-accent); }
@@ -131,14 +134,14 @@ body {
         <!-- Left description -->
         <div class="login-left">
             <div class="nhc-logo mb-3">
-                <span style="color:#fbbf24;">N</span>
+                <span style="color:#8fd3ff;">N</span>
                 <span style="color:#ffffff;">H</span>
-                <span style="color:#fbbf24;">C</span>
+                <span style="color:#8fd3ff;">C</span>
             </div>
             <h2>
-                <span style="color:#fbbf24;">National</span>
+                <span style="color:#8fd3ff;">National</span>
                 <span style="color:#ffffff;">Housing</span>
-                <span style="color:#fbbf24;">Corporation</span>
+                <span style="color:#8fd3ff;">Corporation</span>
             </h2>
             <p>{% block header_subtitle %}To Do list System{% endblock %}</p>
         </div>
