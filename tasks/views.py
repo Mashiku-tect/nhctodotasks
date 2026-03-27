@@ -296,6 +296,7 @@ def assigned_tasks(request):
             "is_overdue": is_overdue,
             "reassign_needed": reassign_needed,
             "deadline_progress": deadline_progress,
+            "completed_by": task.completed_by,
         }
         task_list.append(task_dict)
 
@@ -485,7 +486,7 @@ def task_detail(request, task_id):
     user_related_ut = all_usertasks.filter(
         Q(assigned_to=request.user) | Q(assigned_by=request.user)
     ).first()
-
+    
     if user_related_ut:
         can_view = True
 
@@ -561,7 +562,24 @@ def task_detail(request, task_id):
         'status',
         'review_status'
     ).distinct()
+    # Determine correct completion status
 
+    manager_own_ut = all_usertasks.filter(
+        assigned_by=request.user,
+        assigned_to=request.user
+    ).first()
+
+    if own_usertask:
+        task_completed = own_usertask.status == 'completed'
+    elif manager_own_ut:
+        task_completed = manager_own_ut.status == 'completed'
+    else:
+        task_completed = computed_status == 'completed'
+
+    can_complete = (
+    not task_completed and (is_assigned_task or is_my_own_task)
+    )
+    
     context = {
         'task': task,
         'all_usertasks': all_usertasks,
@@ -582,6 +600,7 @@ def task_detail(request, task_id):
         'comments': comments,
         'assigned_users': assigned_users,
         'today': today,
+        'can_complete': can_complete,
     }
 
     return render(request, 'tasks/task_detail.html', context)
@@ -651,6 +670,7 @@ def complete_task(request, task_id):
         assigned_to=request.user
     )
 
+    # ❗ Validate subtasks first
     if task.subtasks.exclude(status='completed').exists():
         return JsonResponse(
             {'error': 'Complete all subtasks first.'},
@@ -662,48 +682,32 @@ def complete_task(request, task_id):
         user_task.assigned_by != request.user
     )
 
+    # ✅ Handle attachments ONLY for assigned tasks
     if is_assigned_task:
         files = request.FILES.getlist('attachments')
 
         if len(files) > 3:
-            return JsonResponse(
-                {'error': 'Maximum 3 attachments allowed.'},
-                status=400
-            )
-
-        allowed_extensions = {'.pdf', '.jpeg', '.jpg', '.png'}
-        allowed_mime_types = {
-            'application/pdf',
-            'image/jpeg',
-            'image/png',
-        }
+            return JsonResponse({'error': 'Maximum 3 attachments allowed.'}, status=400)
 
         for f in files:
-            ext = os.path.splitext(f.name)[1].lower()
-
-            if ext not in allowed_extensions:
-                return JsonResponse(
-                    {'error': f'Invalid file type: {f.name}'},
-                    status=400
-                )
-
-            if f.content_type not in allowed_mime_types:
-                return JsonResponse(
-                    {'error': f'Invalid file content: {f.name}'},
-                    status=400
-                )
-
             TaskAttachment.objects.create(
                 task=task,
                 uploaded_by=request.user,
                 file=f
             )
 
+    # 🔥 ALWAYS mark as completed (for BOTH cases)
     user_task.status = 'completed'
     user_task.save()
 
-    return JsonResponse({'success': True})
+    # Optional: if you want ALL users completed
+    # UserTask.objects.filter(task=task).update(status='completed')
 
+    task.completed_by = request.user
+    task.completed_at = timezone.now()
+    task.save()
+
+    return JsonResponse({'success': True})
 
 
 
@@ -726,73 +730,66 @@ def delete_task(request, task_id):
 
 
 #edit task
-@login_required
-def edit_task(request, task_id):
-    task = get_object_or_404(Task, id=task_id)
-    task.priority = request.POST.get('priority')
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib.auth.decorators import login_required
+from django.contrib import messages
+from django.http import JsonResponse
+from .models import Task, UserTask, User, CategoryMember
 
-    # ✅ Permission: must be the assigner (my task OR manager-assigned task)
-    if not UserTask.objects.filter(
-        task=task,
-        assigned_by=request.user
-    ).exists():
-        return HttpResponseForbidden("You cannot edit this task.")
+def edit_task(request, id):
+    task = get_object_or_404(Task, id=id)
+    categories = Category.objects.all()
+    staff_users = User.objects.all()
 
-    # Subordinates (only for managers)
-    subordinates = []
-    if request.user.role == 'manager':
-        subordinates = User.objects.filter(
-            section=request.user.section,
-            role='staff',
-            is_active=True
-        )
+    # Get currently assigned staff IDs
+    assigned_staff_ids = list(task.user_tasks.values_list('assigned_to_id', flat=True))
 
-    # ✅ FIXED: Current assignees (exclude self)
-    current_assignees = User.objects.filter(
-        tasks_received__task=task,
-        tasks_received__assigned_by=request.user
-    ).exclude(id=request.user.id)
+    if request.method == "POST":
+        title = request.POST.get("title")
+        description = request.POST.get("description")
+        due_date = request.POST.get("due_date")
+        priority = request.POST.get("priority")
+        category_id = request.POST.get("category")
+        assigned_staff = request.POST.getlist("assigned_staff")
 
-    if request.method == 'POST':
-        task.title = request.POST.get('title')
-        task.description = request.POST.get('description')
-        task.due_date = request.POST.get('due_date')
-
-        if not task.title or not task.due_date:
-            messages.error(request, "Title and due date are required.")
-            return redirect('edit_task', task_id=task.id)
-
+        task.title = title
+        task.description = description
+        task.due_date = due_date
+        task.priority = priority
+        task.category_id = category_id
         task.save()
 
-        # 🔁 Handle reassignment (manager only)
-        if request.user.role == 'manager':
-            selected_user_ids = request.POST.getlist('assigned_to')
+        # Update UserTask assignments
+        task.user_tasks.all().delete()  # Remove old assignments
+        for staff_id in assigned_staff:
+            UserTask.objects.create(task=task, assigned_to_id=staff_id)
 
-            # Remove old staff assignments (keep self-task if exists)
-            UserTask.objects.filter(
-                task=task,
-                assigned_by=request.user
-            ).exclude(assigned_to=request.user).delete()
+        return JsonResponse({
+            "message": "Task updated successfully!",
+            "redirect_url": "/tasks/assigned/"
+        })
 
-            # Add new assignments
-            for uid in selected_user_ids:
-                UserTask.objects.get_or_create(
-                    task=task,
-                    assigned_by=request.user,
-                    assigned_to_id=uid,
-                    defaults={'status': 'pending'}
-                )
+    # Prepare context
+    context = {
+        "task": task,
+        "categories": categories,
+        "staff_users": staff_users,
+        "assigned_staff_ids": assigned_staff_ids,
+    }
+    return render(request, "tasks/edit_task.html", context)
 
-        messages.success(request, "Task updated successfully.")
-        return redirect('assigned_tasks')
+from django.views.decorators.http import require_GET, require_POST
 
-    return render(request, 'tasks/edit_task.html', {
-        'task': task,
-        'subordinates': subordinates,
-        'current_assignees': current_assignees,
-        'PRIORITY_CHOICES': Task.PRIORITY_CHOICES,
-    })
-
+@require_GET
+def get_staff_by_category(request):
+    category_id = request.GET.get("category_id")
+    if not category_id:
+        return JsonResponse({"staff": []})
+    
+    # Filter staff who belong to this category
+    staff = User.objects.filter(category__id=category_id).values("id", "email")
+    staff_list = list(staff)
+    return JsonResponse({"staff": staff_list})
 
 #edit subtask
 @login_required
@@ -1101,18 +1098,11 @@ def staff_performance_report(request):
             'staff_tasks': staff_tasks,
         })
 
-    # 📊 Chart data (using STAFF stats)
-    labels = [f"{item['staff'].email}" for item in performance_data]
-    completed = [item['s_completed'] for item in performance_data]
-    pending = [item['s_pending'] for item in performance_data]
-    overdue = [item['s_overdue'] for item in performance_data]
+
 
     return render(request, 'reports/staff_performance.html', {
         'performance_data': performance_data,
-        'chart_labels': json.dumps(labels),
-        'chart_completed': json.dumps(completed),
-        'chart_pending': json.dumps(pending),
-        'chart_overdue': json.dumps(overdue),
+    
     })
 
 @login_required
@@ -1139,8 +1129,8 @@ def staff_detail(request, staff_id):
 
 @login_required
 def manager_task_detail(request, staff_id):
-    if request.user.role != 'manager':
-        return HttpResponseForbidden()
+    # if request.user.role != 'manager':
+    #     return HttpResponseForbidden()
 
     staff = get_object_or_404(User, id=staff_id, role='staff', section=request.user.section)
     tasks = UserTask.objects.filter(assigned_by=request.user, assigned_to=staff).select_related('task')
@@ -1176,8 +1166,8 @@ def category_users_json(request):
 @login_required
 def staff_task_detail(request, staff_id):
 
-    if request.user.role != 'manager':
-        return HttpResponseForbidden()
+    # if request.user.role != 'manager':
+    #     return HttpResponseForbidden()
 
     # Ensure the staff is in the same section
     staff = get_object_or_404(User, id=staff_id, role='staff', section=request.user.section)

@@ -34,16 +34,20 @@
     {% endif %}
 </p>
         </div>
-        
-        {% if not task_completed and user.role == 'staff' %}
-        <button class="btn btn-success btn-lg align-self-start"
-                id="completeTaskBtn"
-                data-is-my-task="{{ is_my_task|yesno:'true,false' }}"
-                {% if incomplete_subtasks %}disabled{% endif %}>
-          <i class="bi bi-check-circle me-1"></i>
-          Mark Task Completed
-        </button>
-        {% endif %}
+        <button class="btn btn-success btn-lg align-self-start
+        {% if not can_complete %}disabled opacity-50{% endif %}"
+        id="completeTaskBtn"
+        data-is-my-task="{{ is_my_task|yesno:'true,false' }}"
+        {% if not can_complete %}disabled{% endif %}>
+  <i class="bi bi-check-circle me-1"></i>
+  Mark Task Completed
+</button>
+
+{% if incomplete_subtasks %}
+<small class="text-danger d-block mt-2">
+  Complete all subtasks first
+</small>
+{% endif %}
 
       </div>
     </div>
@@ -54,11 +58,15 @@
     <div class="card-header bg-light d-flex justify-content-between align-items-center">
       <h5 class="mb-0">Subtasks</h5>
 
-      {% if not task_completed and user.role == 'staff' %}
-      <button class="btn btn-sm btn-primary" id="addSubtaskBtn">
+     {% if not task_completed and user.role == 'staff' %}
+    <button class="btn btn-sm btn-primary" id="addSubtaskBtn">
         <i class="bi bi-plus-circle"></i> Add Subtask
-      </button>
-      {% endif %}
+    </button>
+{% elif not task_completed and user.role == 'manager' and is_my_task %}
+    <button class="btn btn-sm btn-primary" id="addSubtaskBtn">
+        <i class="bi bi-plus-circle"></i> Add Subtask
+    </button>
+{% endif %}
     </div>
 
     <div class="card-body p-0">
@@ -293,9 +301,10 @@ $(function () {
  // COMPLETE TASK
 $('#completeTaskBtn').click(function () {
 
+    if ($(this).prop('disabled')) return; // 🚫 stop click if faint
+
     const isMyTask = $(this).data('is-my-task');
 
-    // MY OWN TASK → complete immediately (no modal)
     if (isMyTask === true || isMyTask === 'true') {
         if (!confirm('Mark this task as completed?')) return;
 
@@ -306,7 +315,6 @@ $('#completeTaskBtn').click(function () {
         );
 
     } else {
-        // ASSIGNED TASK → show attachment modal
         $('#completeTaskModal').modal('show');
     }
 });

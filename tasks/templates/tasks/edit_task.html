@@ -1,101 +1,103 @@
 {% extends "base.html" %}
 
 {% block content %}
-
 <div class="container py-4">
-    <div class="d-flex align-items-center mb-3">
-    <a href="{% url 'assigned_tasks' %}" class="btn btn-outline-secondary btn-sm me-2">
+    <a href="{% url 'assigned_tasks' %}" class="btn btn-outline-secondary btn-sm mb-3">
         <i class="bi bi-arrow-left"></i> Back
     </a>
-  
-</div>
+
     <div class="row justify-content-center">
         <div class="col-md-6">
-
             <div class="card shadow-sm border-1">
                 <div class="card-body">
-
                     <h2 class="text-center text-primary mb-4">Edit Task</h2>
 
-                    <form method="post">
+                    <form id="taskForm" enctype="multipart/form-data" method="POST">
                         {% csrf_token %}
+                        <input type="text" name="title" class="form-control mb-2" value="{{ task.title }}" required>
+                        <textarea name="description" class="form-control mb-2">{{ task.description }}</textarea>
+                        <input type="date" name="due_date" class="form-control mb-2" value="{{ task.due_date|date:'Y-m-d' }}" required>
 
-                        <!-- Title -->
-                        <div class="mb-3">
-                            <label class="form-label">Task Title <span class="text-danger">*</span></label>
-                            <input type="text" name="title" class="form-control"
-                                   value="{{ task.title }}" required>
-                        </div>
+                        <select name="priority" class="form-select mb-2">
+                            {% for value, label in PRIORITY_CHOICES %}
+                            <option value="{{ value }}" {% if task.priority == value %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
 
-                        <!-- Description -->
-                        <div class="mb-3">
-                            <label class="form-label">Task Description</label>
-                            <textarea name="description" class="form-control" rows="3">{{ task.description }}</textarea>
-                        </div>
+                        <select id="categorySelect" name="category" class="form-select mb-2">
+                            {% for cat in categories %}
+                            <option value="{{ cat.id }}" {% if task.category_id == cat.id %}selected{% endif %}>{{ cat.name }}</option>
+                            {% endfor %}
+                        </select>
 
-                        <!-- Attachment -->
-                        <div class="mb-3">
-                            <label class="form-label">Attach File</label>
-                            <input type="file" name="attachment" class="form-control">
-                            {% if task.attachment %}
-                                <small class="text-muted">
-                                    Current: 
-                                    <a href="{{ task.attachment.url }}" target="_blank">
-                                        {{ task.attachment.name|cut:"task_files/" }}
-                                    </a>
-                                </small>
-                            {% endif %}
-                        </div>
+                        <select id="staffSelect" name="assigned_staff" class="form-select mb-2" multiple>
+                            {% for staff in staff_users %}
+                            <option value="{{ staff.id }}" {% if staff.id in assigned_staff_ids %}selected{% endif %}>
+                                {{ staff.get_full_name|default:staff.email }}
+                            </option>
+                            {% endfor %}
+                        </select>
 
-                        <!-- Due Date -->
-                        <div class="mb-3">
-                            <label class="form-label">Task Due Date <span class="text-danger">*</span></label>
-                            <input type="date" name="due_date" class="form-control"
-                                   value="{{ task.due_date|date:'Y-m-d' }}" required>
-                        </div>
-            <!-- Priority -->
-                            <div class="mb-3">
-                            <label class="form-label">Task Priority <span class="text-danger">*</span></label>
-                                <select name="priority" class="form-select">
-                                    {% for value, label in PRIORITY_CHOICES %}
-                                    <option value="{{ value }}" {% if value == 'normal' %}selected{% endif %}>{{ label }}</option>
-                                    {% endfor %}
-                                </select>
-                </div>
-
-                        {% if user.role == 'manager' %}
-                        <!-- Assign -->
-                        <div class="mb-3">
-                            <label class="form-label">Assign to Staff</label>
-                            <select name="assigned_to" class="form-select" multiple>
-                                {% for staff in subordinates %}
-                                    <option value="{{ staff.id }}"
-                                        {% if staff in current_assignees %}selected{% endif %}>
-                                        {{ staff.get_full_name|default:staff.email }}
-                                    </option>
-                                {% endfor %}
-                            </select>
-                            <small class="text-muted">Hold Ctrl/Cmd to select multiple</small>
-                        </div>
+                        <input type="file" name="attachment" class="form-control mb-2">
+                        {% if task.attachment %}
+                        <small class="text-muted">Current: {{ task.attachment.name }}</small>
                         {% endif %}
 
-                        <!-- Buttons -->
-                        <div class="d-flex justify-content-between mt-4">
-                            <a href="{% url 'task_detail' task.id %}" class="btn btn-outline-secondary">
-                                Cancel
-                            </a>
-                            <button type="submit" class="btn btn-primary">
-                                Save Changes
-                            </button>
-                        </div>
-
+                        <button class="btn btn-primary mt-3" type="submit">Update Task</button>
                     </form>
-
                 </div>
             </div>
-
         </div>
     </div>
 </div>
 
+<script>
+$('#taskForm').on('submit', async function (e) {
+    e.preventDefault();
+    const btn = $(this).find('button[type="submit"]');
+    btn.prop('disabled', true);
+
+    const formData = new FormData(this);
+
+    try {
+        const response = await $.ajax({
+            url: window.location.href,
+            method: "POST",
+            data: formData,
+            processData: false,
+            contentType: false
+        });
+
+        Swal.fire({
+            icon: 'success',
+            title: response.message,
+            timer: 1500,
+            showConfirmButton: false
+        }).then(() => {
+            window.location.href = response.redirect_url;
+        });
+
+    } catch (err) {
+        btn.prop('disabled', false);
+        Swal.fire('Error', err.responseJSON?.error || 'Failed', 'error');
+    }
+});
+
+// Update staff list when category changes
+document.getElementById('categorySelect').addEventListener('change', function() {
+    const categoryId = this.value;
+    fetch(`/tasks/get_staff_by_category/?category_id=${categoryId}`)
+        .then(res => res.json())
+        .then(data => {
+            const staffSelect = document.getElementById('staffSelect');
+            staffSelect.innerHTML = '';
+            data.staff.forEach(s => {
+                const option = document.createElement('option');
+                option.value = s.id;
+                option.text = s.name;
+                staffSelect.appendChild(option);
+            });
+        });
+});
+</script>
 {% endblock %}

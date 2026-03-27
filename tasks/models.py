@@ -79,6 +79,14 @@ class Task(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    completed_by = models.ForeignKey(
+    settings.AUTH_USER_MODEL,
+    null=True,
+    blank=True,
+    on_delete=models.SET_NULL,
+    related_name='completed_tasks'
+    )
+    completed_at = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
         return self.title

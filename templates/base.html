@@ -1,5 +1,7 @@
 {% load static %}
+
 <!DOCTYPE html>
+
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -10,29 +12,32 @@
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
 
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 <style>
 :root {
-    --nhc-primary: #1e3a8a;
-    --nhc-accent: #fbbf24;
-    --nhc-light: #f8fafc;
+    --nhc-primary: #0f172a;
+    --nhc-accent: #f59e0b;
+    --nhc-light: #f1f5f9;
+    --nhc-card: #ffffff;
 }
 
-/* ================= BASE ================= */
+/* BASE */
 body {
     margin: 0;
     display: flex;
     height: 100vh;
     overflow: hidden;
     background: var(--nhc-light);
+    font-family: "Inter", sans-serif;
 }
 
-/* ================= SIDEBAR ================= */
+/* SIDEBAR */
 #sidebar {
-    width: 260px;
-    background: #181824;
-    color: white;
+    width: 250px;
+    background: #0b1120;
+    color: #cbd5f5;
     display: flex;
     flex-direction: column;
     position: fixed;
@@ -41,79 +46,148 @@ body {
     left: 0;
     z-index: 1000;
     overflow-y: auto;
+    transition: all 0.3s ease;
 }
 
-/* ================= MAIN ================= */
+/* PROFILE */
+.profile-section {
+    padding: 1.2rem 1rem;
+    text-align: center;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+.profile-img {
+    width: 55px;
+    border-radius: 12px;
+    background: white;
+    padding: 6px;
+}
+
+/* NAV */
+.nav-link {
+    color: #cbd5f5;
+    padding: 0.75rem 1rem;
+    margin: 0.2rem 0.6rem;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    transition: all 0.2s ease;
+}
+
+.nav-link i {
+    width: 28px;
+    font-size: 1.1rem;
+}
+
+.nav-link:hover {
+    background: rgba(255,255,255,0.05);
+    color: white;
+}
+
+.nav-link.active {
+    background: var(--nhc-accent);
+    color: black;
+    font-weight: 500;
+}
+
+/* MAIN */
 #main {
-    margin-left: 260px;
+    margin-left: 250px;
     display: flex;
     flex-direction: column;
     width: 100%;
     height: 100vh;
+    transition: all 0.3s ease;
 }
 
-/* ================= TOPBAR ================= */
+/* TOPBAR */
 #topbar {
     height: 60px;
-    background: white;
+    background: var(--nhc-card);
     display: flex;
     align-items: center;
     justify-content: space-between;
     padding: 0 1.5rem;
-    border-bottom: 1px solid #e5e7eb;
+    border-bottom: 1px solid #e2e8f0;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.03);
 }
 
-/* ================= CONTENT ================= */
+/* CONTENT */
 #content {
     flex: 1;
     overflow-y: auto;
     padding: 1.5rem;
 }
 
-/* ================= FOOTER ================= */
+/* FOOTER */
 footer {
     background: white;
-    padding: 0.75rem;
+    padding: 0.6rem;
     text-align: center;
-    border-top: 1px solid #e5e7eb;
+    border-top: 1px solid #e2e8f0;
+    font-size: 0.85rem;
 }
 
-/* ================= SIDEBAR ITEMS ================= */
-.nav-link {
-    color: white;
-    padding: 0.7rem 1rem;
-    margin: 0.2rem 0.5rem;
-    border-radius: 6px;
+/* COLLAPSE */
+#sidebar.collapsed {
+    width: 80px;
+}
+
+#sidebar.collapsed .nav-link span,
+#sidebar.collapsed .profile-section div {
+    display: none;
+}
+
+#sidebar.collapsed .profile-img {
+    width: 40px;
+}
+
+#sidebar.collapsed ~ #main {
+    margin-left: 80px;
+}
+.welcome-box {
     display: flex;
-    align-items: center;
+    flex-direction: column;
+    line-height: 1.1;
 }
 
-.nav-link:hover {
-    background: rgba(255,255,255,0.1);
+/* "Welcome," */
+.welcome-text {
+    font-size: 0.7rem;
+    color: #64748b;
 }
 
-.nav-link i {
-    width: 30px;
+/* USER NAME (attention) */
+.welcome-user {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #0f172a;
+    position: relative;
+    animation: softBounce 2.5s ease-in-out infinite;
 }
 
-/* PROFILE */
-.profile-section {
-    padding: 1rem;
-    text-align: center;
-    border-bottom: 1px solid rgba(255,255,255,0.1);
+/* SOFT BOUNCE (professional, not childish) */
+@keyframes softBounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-3px); }
 }
 
-.profile-img {
-    width: 70px;
-    border-radius: 50%;
-    border: 2px solid var(--nhc-accent);
+/* OPTIONAL: highlight glow */
+.welcome-user::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    bottom: -2px;
+    width: 40%;
+    height: 2px;
+    background: #f59e0b;
+    border-radius: 2px;
 }
 
 /* MOBILE */
 @media(max-width: 992px){
     #sidebar{
-        left: -260px;
-        transition: 0.3s;
+        left: -250px;
     }
 
     #sidebar.active{
@@ -124,170 +198,159 @@ footer {
         margin-left: 0;
     }
 }
-/* COLLAPSED SIDEBAR */
-#sidebar.collapsed {
-    width: 80px;
-}
 
-#sidebar.collapsed .nav-link span {
-    display: none;
-}
-
-#sidebar.collapsed .profile-section div {
-    display: none;
-}
-
-#sidebar.collapsed .profile-img {
-    width: 40px;
-}
-
-/* ADJUST MAIN */
-#sidebar.collapsed ~ #main {
-    margin-left: 80px;
-}
 </style>
+
 </head>
 
 <body>
 
 <!-- SIDEBAR -->
+
 <div id="sidebar">
 
-    <div class="profile-section">
-        <img src="{% static 'images/nhclogo.png' %}" class="profile-img">
-        <div class="text-white mt-2">
-            {% if not request.user.is_superuser %}
-                <div class="fw-bold">ICT DEPARTMENT TO DO TASKS</div>
-                <small class="text-warning">Manage Your Tasks Efficiently</small>
-            {% else %}
-                <div class="fw-bold">TO DO TASKS</div>
-                <small class="text-warning">User management</small>
-            {% endif %}
-        </div>
-    </div>
 
-    <ul class="nav flex-column mt-3">
-
+<div class="profile-section">
+    <img src="{% static 'images/nhclogo.png' %}" class="profile-img">
+    <div class="text-white mt-2">
         {% if not request.user.is_superuser %}
-        <li><a class="nav-link" href="{% url 'reports_performance' %}">
-            <i class="bi bi-speedometer2"></i> 
-           <span>Dashboard</span>
-        </a></li>
-
-        <li><a class="nav-link" href="{% url 'my_tasks' %}">
-            <i class="bi bi-list-task"></i>
-            <span>My Tasks</span> 
-        </a></li>
-
-        <li><a class="nav-link" href="{% url 'assigned_tasks'%}">
-            <i class="bi bi-person-check"></i> 
-            <span>Assigned Tasks</span>
-        </a></li>
-
-        <li><a class="nav-link" href="{% url 'create_task' %}">
-            <i class="bi bi-plus-circle"></i>
-            <span> Create Task</span>
-        </a></li>
+            <div class="fw-bold">ICT DEPARTMENT TO DO TASKS</div>
+            <small class="text-warning">Manage Your Tasks Efficiently</small>
+        {% else %}
+            <div class="fw-bold">TO DO TASKS</div>
+            <small class="text-warning">User management</small>
         {% endif %}
+    </div>
+</div>
+
+<ul class="nav flex-column mt-3">
+
+    {% if not request.user.is_superuser %}
+    <li><a class="nav-link" href="{% url 'reports_performance' %}">
+        <i class="bi bi-speedometer2"></i> 
+       <span>Dashboard</span>
+    </a></li>
+
+    <li><a class="nav-link" href="{% url 'my_tasks' %}">
+        <i class="bi bi-list-task"></i>
+        <span>My Tasks</span> 
+    </a></li>
+
+    <li><a class="nav-link" href="{% url 'assigned_tasks'%}">
+        <i class="bi bi-person-check"></i> 
+        <span>Assigned Tasks</span>
+    </a></li>
+
+    <li><a class="nav-link" href="{% url 'create_task' %}">
+        <i class="bi bi-plus-circle"></i>
+        <span>Create Task</span>
+    </a></li>
+    {% endif %}
+
 
 {% if request.user.role == "manager" and not request.user.is_superuser %}
 
 <li class="nav-item">
     <a class="nav-link d-flex justify-content-between align-items-center"
        data-bs-toggle="collapse"
-       href="#reportsMenu"
-       role="button"
-       aria-expanded="false"
-       aria-controls="reportsMenu">
+       href="#reportsMenu">
 
-        <span>
-            <i class="bi bi-bar-chart"></i> 
-            <span> Reports</span>
-        </span>
-        <i class="bi bi-chevron-down"></i>
-    </a>
 
-    <div class="collapse" id="reportsMenu">
-        <ul class="nav flex-column ms-3">
+    <span>
+        <i class="bi bi-bar-chart"></i> 
+        <span>Reports</span>
+    </span>
+    <i class="bi bi-chevron-down"></i>
+</a>
 
-            <li>
-                <a class="nav-link" href="{% url 'reports_overdue' %}">
-                    <i class="bi bi-exclamation-circle"></i> 
-                    <span> Overdue Tasks</span>
-                </a>
-            </li>
+<div class="collapse" id="reportsMenu">
+    <ul class="nav flex-column ms-3">
 
-            {% comment %} <li>
-                <a class="nav-link" href="{% url 'reports_performance' %}">
-                    <i class="bi bi-people"></i> 
-                    <span>Staff Performance</span>
-                </a>
-            </li> {% endcomment %}
+        <li>
+            <a class="nav-link" href="{% url 'reports_overdue' %}">
+                <i class="bi bi-exclamation-circle"></i> 
+                <span>Overdue Tasks</span>
+            </a>
+        </li>
 
-            <li>
-                <a class="nav-link" href="{% url 'reports_due_soon' %}">
-                    <i class="bi bi-clock"></i>
-                    <span>Due Soon</span>
-                </a>
-            </li>
-
-        </ul>
-    </div>
-</li>
-
-{% endif %}
-
-        {% if request.user.is_superuser  %}
-        <li class="mt-3 px-3 text-warning">ADMIN</li>
-
-        <li><a class="nav-link" href="{% url 'add_user' %}">
-            <i class="bi bi-person-plus"></i> <span>Add Users</span>
-        </a></li>
-
-        <li><a class="nav-link" href="{% url 'manage_users' %}">
-            <i class="bi bi-people"></i> <span>Manage Users</span>
-        </a></li>
-        {% endif %}
+        <li>
+            <a class="nav-link" href="{% url 'reports_due_soon' %}">
+                <i class="bi bi-clock"></i>
+                <span>Due Soon</span>
+            </a>
+        </li>
 
     </ul>
 </div>
 
+
+</li>
+
+{% endif %}
+
+
+    {% if request.user.is_superuser %}
+    <li class="mt-3 px-3 text-warning">ADMIN</li>
+
+    <li><a class="nav-link" href="{% url 'add_user' %}">
+        <i class="bi bi-person-plus"></i> <span>Add Users</span>
+    </a></li>
+
+    <li><a class="nav-link" href="{% url 'manage_users' %}">
+        <i class="bi bi-people"></i> <span>Manage Users</span>
+    </a></li>
+    {% endif %}
+
+</ul>
+
+
+</div>
+
 <!-- MAIN -->
+
 <div id="main">
 
-    <!-- TOPBAR -->
-    <div id="topbar">
 
-        <div class="d-flex align-items-center gap-3">
-            <button id="toggleBtn" class="btn btn-warning btn-sm">
-                <i class="bi bi-list"></i>
+<!-- TOPBAR -->
+<div id="topbar">
+
+    <div class="d-flex align-items-center gap-3">
+        <button id="toggleBtn" class="btn btn-light btn-sm border">
+            <i class="bi bi-list"></i>
+        </button>
+
+        <div class="welcome-box">
+    <div class="welcome-text mb-1">Welcome,</div>
+    <div class="welcome-user">
+        {{ request.user.get_full_name|default:request.user.email }}
+    </div>
+</div>
+    </div>
+
+    <div class="d-flex align-items-center gap-3">
+
+        <i class="bi bi-bell"></i>
+
+        <form method="post" action="{% url 'logout' %}">
+            {% csrf_token %}
+            <button class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-box-arrow-right"></i>
             </button>
-            <strong>Welcome, {{ request.user.get_full_name|default:request.user.email }}</strong>
-        </div>
-
-        <div class="d-flex align-items-center gap-3">
-
-            <i class="bi bi-bell"></i>
-
-            <form method="post" action="{% url 'logout' %}">
-                {% csrf_token %}
-                <button class="btn btn-outline-secondary btn-sm">
-                    <i class="bi bi-box-arrow-right"></i>
-                </button>
-            </form>
-
-        </div>
+        </form>
 
     </div>
 
-    <!-- CONTENT -->
-    <div id="content">
-        {% block content %}{% endblock %}
-    </div>
+</div>
 
-    <footer>
-        © {% now "Y" %} National Housing Corporation
-    </footer>
+<!-- CONTENT -->
+<div id="content">
+    {% block content %}{% endblock %}
+</div>
+
+<footer>
+    © {% now "Y" %} National Housing Corporation
+</footer>
+
 
 </div>
 
@@ -296,18 +359,22 @@ const sidebar = document.getElementById('sidebar');
 const toggleBtn = document.getElementById('toggleBtn');
 
 toggleBtn.addEventListener('click', () => {
-
-    // MOBILE
     if (window.innerWidth <= 992) {
         sidebar.classList.toggle('active');
-    } 
-    // DESKTOP
-    else {
+    } else {
         sidebar.classList.toggle('collapsed');
     }
+});
 
+/* ACTIVE LINK */
+document.querySelectorAll('.nav-link').forEach(link => {
+    if (link.href === window.location.href) {
+        link.classList.add('active');
+    }
 });
 </script>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
 </body>
 </html>

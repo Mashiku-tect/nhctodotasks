@@ -106,16 +106,23 @@
             </td>
 
             <!-- Assigned users -->
-            <td>
-                {% for ut in item.usertasks %}
-                    {% if ut.assigned_to == user %}
-                        <strong>Me ({{ ut.assigned_to.email }})</strong>
-                    {% else %}
-                        {{ ut.assigned_to.email }}
-                    {% endif %}
-                    {% if not forloop.last %}, {% endif %}
-                {% endfor %}
-            </td>
+          <td>
+    {% for ut in item.usertasks %}
+        <span class="badge 
+            {% if item.task.completed_by and ut.assigned_to.id == item.task.completed_by.id %}
+                bg-success
+            {% else %}
+                bg-secondary
+            {% endif %}
+        ">
+            {% if ut.assigned_to == user %}
+                Me ({{ ut.assigned_to.email }})
+            {% else %}
+                {{ ut.assigned_to.email }}
+            {% endif %}
+        </span>
+    {% endfor %}
+</td>
 
             <!-- Due Date -->
             <td>{{ item.task.due_date|date:"Y-m-d" }}</td>
