@@ -116,9 +116,9 @@
             {% endif %}
         ">
             {% if ut.assigned_to == user %}
-                Me ({{ ut.assigned_to.email }})
+                Me ({{ ut.assigned_to.username }})
             {% else %}
-                {{ ut.assigned_to.email }}
+                {{ ut.assigned_to.username }}
             {% endif %}
         </span>
     {% endfor %}
@@ -278,7 +278,7 @@ $(function() {
 
   // Delete Task
   let selectedTaskId = null;
-  function getCSRFToken() { return document.querySelector('[name=csrfmiddlewaretoken]').value; }
+  function getCSRFToken() { return '{{ csrf_token }}'; }
 
   $(document).on('click', '.delete-task-btn', function(e) {
       e.preventDefault();
@@ -294,7 +294,9 @@ $(function() {
              function() {
                 const modalEl = document.getElementById('deleteTaskModal');
                 bootstrap.Modal.getInstance(modalEl).hide();
-                $(`.delete-task-btn[data-task-id="${selectedTaskId}"]`).closest('tr').remove();
+                location.reload();
+             }).fail(function() {
+                alert('Could not delete task. Please try again.');
              });
   });
 

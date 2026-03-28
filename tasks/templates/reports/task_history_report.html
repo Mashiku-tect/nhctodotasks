@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+.report-shell {
+    display: grid;
+    gap: 1rem;
+}
+
+.report-hero {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 1.25rem 1.5rem;
+    border: 1px solid #d9eaf5;
+    border-radius: 20px;
+    background: linear-gradient(135deg, #ffffff 0%, #f4fbff 60%, #eaf6fd 100%);
+}
+
+.report-hero h2 {
+    margin: 0;
+    color: #184968;
+    font-size: 1.5rem;
+    font-weight: 700;
+}
+
+.report-hero p {
+    margin: 0.35rem 0 0;
+    color: #60758a;
+}
+
+.report-filter {
+    border: 1px solid #e1ebf3;
+    border-radius: 18px;
+    background: #ffffff;
+    padding: 1rem;
+}
+
+.report-table-wrap {
+    border: 1px solid #e1ebf3;
+    border-radius: 18px;
+    background: #ffffff;
+    overflow: hidden;
+}
+
+.table thead th {
+    white-space: nowrap;
+}
+
+.deleted-badge {
+    background: #fee2e2;
+    color: #b91c1c;
+}
+
+.active-badge {
+    background: #dcfce7;
+    color: #166534;
+}
+
+@media print {
+    #sidebar, #topbar, footer, .report-actions, .report-filter, .btn, .nav, .breadcrumb {
+        display: none !important;
+    }
+
+    #main {
+        margin-left: 0 !important;
+    }
+
+    #content {
+        padding: 0 !important;
+        overflow: visible !important;
+    }
+
+    .report-hero, .report-table-wrap {
+        border: 0;
+        box-shadow: none;
+    }
+}
+</style>
+
+<div class="report-shell">
+    <div class="report-hero">
+        <div>
+            <h2>{{ report_title }}</h2>
+            <p>{{ report_subtitle }}</p>
+        </div>
+        <div class="report-actions d-flex gap-2">
+            <button type="button" class="btn btn-outline-secondary" onclick="window.print()">
+                <i class="bi bi-printer me-1"></i>Print Report
+            </button>
+        </div>
+    </div>
+
+    <form method="get" class="report-filter">
+        <div class="row g-3 align-items-end">
+            <div class="col-md-2">
+                <label class="form-label fw-semibold">From</label>
+                <input type="date" name="date_from" value="{{ filters.date_from }}" class="form-control">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label fw-semibold">To</label>
+                <input type="date" name="date_to" value="{{ filters.date_to }}" class="form-control">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label fw-semibold">Status</label>
+                <select name="status" class="form-select">
+                    <option value="">All</option>
+                    <option value="pending" {% if filters.status == 'pending' %}selected{% endif %}>Pending</option>
+                    <option value="in_progress" {% if filters.status == 'in_progress' %}selected{% endif %}>In Progress</option>
+                    <option value="completed" {% if filters.status == 'completed' %}selected{% endif %}>Completed</option>
+                    <option value="rejected" {% if filters.status == 'rejected' %}selected{% endif %}>Rejected</option>
+                    <option value="accepted" {% if filters.status == 'accepted' %}selected{% endif %}>Accepted</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label fw-semibold">Record Type</label>
+                <select name="deleted" class="form-select">
+                    <option value="">All</option>
+                    <option value="active" {% if filters.deleted == 'active' %}selected{% endif %}>Active</option>
+                    <option value="deleted" {% if filters.deleted == 'deleted' %}selected{% endif %}>Deleted</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label fw-semibold">Search</label>
+                <input type="text" name="q" value="{{ filters.q }}" class="form-control" placeholder="Task or user">
+            </div>
+            <div class="col-md-2 d-flex gap-2">
+                <button type="submit" class="btn btn-primary w-100">Filter</button>
+                <a href="{% if report_kind == 'my' %}{% url 'report_my_tasks' %}{% else %}{% url 'report_assigned_tasks' %}{% endif %}" class="btn btn-outline-secondary w-100">Reset</a>
+            </div>
+        </div>
+    </form>
+
+    <div class="report-table-wrap">
+        <div class="table-responsive">
+            <table class="table table-bordered table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>S/N</th>
+                        <th>Task</th>
+                        {% if show_counterparty %}<th>{{ counterparty_label }}</th>{% endif %}
+                        <th>Category</th>
+                        <th>Status</th>
+                        <th>Review</th>
+                        <th>Due Date</th>
+                        <th>Created</th>
+                        <th>Record</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for record in records %}
+                    <tr>
+                        <td>{{ forloop.counter }}</td>
+                        <td>
+                            <div class="fw-semibold">{{ record.task_title }}</div>
+                            {% if record.task_description %}
+                            <div class="small text-muted">{{ record.task_description|truncatechars:80 }}</div>
+                            {% endif %}
+                        </td>
+                        {% if show_counterparty %}
+                        <td>
+                            {% if report_kind == 'assigned_manager' %}
+                                {{ record.assigned_to_username }}
+                            {% elif report_kind == 'assigned_staff' %}
+                                {{ record.assigned_by_username }}
+                            {% endif %}
+                        </td>
+                        {% endif %}
+                        <td>{{ record.category_name|default:'-' }}</td>
+                        <td><span class="badge bg-secondary">{{ record.status|capfirst }}</span></td>
+                        <td><span class="badge bg-light text-dark border">{{ record.review_status|capfirst }}</span></td>
+                        <td>{{ record.due_date|date:"Y-m-d" }}</td>
+                        <td>{{ record.task_created_at|date:"Y-m-d H:i" }}</td>
+                        <td>
+                            {% if record.deleted_at %}
+                                <span class="badge deleted-badge">Deleted</span>
+                            {% else %}
+                                <span class="badge active-badge">Active</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="{% if show_counterparty %}9{% else %}8{% endif %}" class="text-center text-muted py-4">No report records found for the selected filters.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

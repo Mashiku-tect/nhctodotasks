@@ -3,7 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect,get_object_or_404
 from django.contrib import messages
 from django.contrib.auth import get_user_model
-from .models import Task, UserTask,SubTask,Comment,TaskAttachment,Category
+from .models import Task, UserTask, SubTask, Comment, TaskAttachment, Category, Notification, TaskReportRecord
 from django.utils import timezone
 from django.http import HttpResponseForbidden,JsonResponse
 from django.db.models import Q
@@ -37,6 +37,62 @@ def compute_task_status(usertasks):
 
 from django.urls import reverse
 
+
+def create_notification(*, user, title, message, notification_type, task=None, target_url=''):
+    Notification.objects.create(
+        user=user,
+        task=task,
+        title=title,
+        message=message,
+        notification_type=notification_type,
+        target_url=target_url,
+    )
+
+
+def sync_task_report_records(task=None, usertasks=None, mark_deleted=False):
+    if usertasks is None:
+        if task is None:
+            return
+        usertasks = task.user_tasks.select_related('assigned_by', 'assigned_to', 'task', 'task__category')
+
+    deleted_at = timezone.now() if mark_deleted else None
+
+    for ut in usertasks:
+        task_obj = ut.task
+        assigned_by = ut.assigned_by
+        assigned_to = ut.assigned_to
+
+        TaskReportRecord.objects.update_or_create(
+            source_usertask_id=ut.id,
+            defaults={
+                'source_task_id': task_obj.id,
+                'task_title': task_obj.title,
+                'task_description': task_obj.description or '',
+                'category_name': task_obj.category.name if task_obj.category else '',
+                'section': getattr(assigned_to, 'section', '') or getattr(assigned_by, 'section', ''),
+                'priority': task_obj.priority,
+                'due_date': task_obj.due_date,
+                'assigned_by': assigned_by,
+                'assigned_to': assigned_to,
+                'assigned_by_username': getattr(assigned_by, 'username', '') if assigned_by else '',
+                'assigned_to_username': getattr(assigned_to, 'username', '') if assigned_to else '',
+                'status': ut.status,
+                'review_status': ut.review_status,
+                'is_self_task': assigned_by_id_equals(assigned_by, assigned_to),
+                'task_created_at': task_obj.created_at,
+                'task_updated_at': task_obj.updated_at,
+                'completed_at': ut.completed_at or task_obj.completed_at,
+                'completed_by_username': getattr(task_obj.completed_by, 'username', '') if task_obj.completed_by else '',
+                'deleted_at': deleted_at,
+            }
+        )
+
+
+def assigned_by_id_equals(assigned_by, assigned_to):
+    if not assigned_by or not assigned_to:
+        return False
+    return assigned_by.id == assigned_to.id
+
 @login_required
 def create_task(request):
     user = request.user
@@ -61,6 +117,7 @@ def create_task(request):
         due_date = request.POST.get('due_date')
         priority = request.POST.get('priority', 'normal')
         category_id = request.POST.get('category_id')
+        selected_user_ids = request.POST.getlist('assigned_to[]')
 
         if not title or not due_date:
             return JsonResponse(
@@ -83,11 +140,15 @@ def create_task(request):
                 return JsonResponse({'error': 'Invalid category'}, status=400)
 
             assigned_users = User.objects.filter(
+                id__in=selected_user_ids,
+                role='staff',
+                section=user.section,
+                is_active=True,
                 categorymember__category=category
             ).distinct()
 
             if not assigned_users.exists():
-                return JsonResponse({'error': 'No users in this category'}, status=400)
+                return JsonResponse({'error': 'Select at least one valid staff member from this category'}, status=400)
 
             redirect_url = reverse('assigned_tasks')
 
@@ -111,6 +172,20 @@ def create_task(request):
             )
             for assignee in assigned_users
         ])
+        sync_task_report_records(task=task)
+
+        if user.role == 'manager':
+            target_url = reverse('task_detail', args=[task.id])
+            for assignee in assigned_users:
+                if assignee != user:
+                    create_notification(
+                        user=assignee,
+                        title='New task assigned',
+                        message=f'You have been assigned a new task: {task.title}.',
+                        notification_type='task_assigned',
+                        task=task,
+                        target_url=target_url,
+                    )
 
         # ✅ Add success message
         if assigned_users == [user]:
@@ -182,7 +257,12 @@ def my_tasks(request):
     qs = qs.order_by('-created_at')
 
     # Extract unique tasks (since UserTask → Task is 1:1 in this case)
-    tasks_list = [ut.task for ut in qs]
+    tasks_list = []
+    for ut in qs:
+        task = ut.task
+        task.user_task = ut
+        task.days_left = (task.due_date - today).days if task.due_date else None
+        tasks_list.append(task)
 
     # Pagination (10 per page)
     paginator = Paginator(tasks_list, 10)
@@ -268,11 +348,16 @@ def assigned_tasks(request):
 
     task_list = []
     for task, usertasks in grouped_tasks.items():
-        all_usertasks = task.user_tasks.select_related('assigned_to', 'assigned_by') \
-                                       .exclude(Q(assigned_to=user) & Q(assigned_by=user))
-
-        own_usertask = all_usertasks.filter(assigned_to=user).first()
-        computed_status = compute_task_status(all_usertasks)
+        if user.role == 'manager':
+            all_usertasks = task.user_tasks.select_related('assigned_to', 'assigned_by') \
+                                           .exclude(Q(assigned_to=user) & Q(assigned_by=user))
+            own_usertask = all_usertasks.filter(assigned_to=user).first()
+            display_usertasks = all_usertasks
+            computed_status = compute_task_status(all_usertasks)
+        else:
+            own_usertask = next((ut for ut in usertasks if ut.assigned_to_id == user.id), None)
+            display_usertasks = task.user_tasks.select_related('assigned_to', 'assigned_by').all()
+            computed_status = own_usertask.status if own_usertask else compute_task_status(usertasks)
 
         days_left = (task.due_date - today).days
         is_overdue = days_left < 0 and computed_status in ['pending', 'in_progress']
@@ -289,7 +374,7 @@ def assigned_tasks(request):
 
         task_dict = {
             "task": task,
-            "usertasks": all_usertasks,
+            "usertasks": display_usertasks,
             "own_usertask": own_usertask,
             "computed_status": computed_status,
             "days_left": days_left,
@@ -300,8 +385,8 @@ def assigned_tasks(request):
         }
         task_list.append(task_dict)
 
-    # Optional: sort by due date
-    task_list.sort(key=lambda x: x['task'].due_date)
+    # Keep newly created or recently edited tasks visible at the top
+    task_list.sort(key=lambda x: x['task'].updated_at, reverse=True)
 
     paginator = Paginator(task_list, 8)
     page_number = request.GET.get('page')
@@ -320,6 +405,84 @@ def assigned_tasks(request):
 
     return render(request, 'tasks/assigned_tasks.html', context)
 
+
+def filter_task_report_records(records, request):
+    date_from = request.GET.get('date_from', '').strip()
+    date_to = request.GET.get('date_to', '').strip()
+    status = request.GET.get('status', '').strip()
+    deleted = request.GET.get('deleted', '').strip()
+    query = request.GET.get('q', '').strip()
+
+    if date_from:
+        records = records.filter(task_created_at__date__gte=date_from)
+    if date_to:
+        records = records.filter(task_created_at__date__lte=date_to)
+    if status:
+        records = records.filter(status=status)
+    if deleted == 'active':
+        records = records.filter(deleted_at__isnull=True)
+    elif deleted == 'deleted':
+        records = records.filter(deleted_at__isnull=False)
+    if query:
+        records = records.filter(
+            Q(task_title__icontains=query) |
+            Q(category_name__icontains=query) |
+            Q(assigned_by_username__icontains=query) |
+            Q(assigned_to_username__icontains=query)
+        )
+
+    return records.order_by('-task_created_at', '-last_synced_at'), {
+        'date_from': date_from,
+        'date_to': date_to,
+        'status': status,
+        'deleted': deleted,
+        'q': query,
+    }
+
+
+@login_required
+def my_task_report(request):
+    records = TaskReportRecord.objects.filter(
+        assigned_by=request.user,
+        assigned_to=request.user,
+    )
+    records, filters = filter_task_report_records(records, request)
+
+    return render(request, 'reports/task_history_report.html', {
+        'report_title': 'My Task Report',
+        'report_subtitle': 'History of tasks you created for yourself, including deleted records.',
+        'records': records,
+        'filters': filters,
+        'report_kind': 'my',
+        'show_counterparty': False,
+    })
+
+
+@login_required
+def assigned_task_report(request):
+    if request.user.role == 'manager':
+        records = TaskReportRecord.objects.filter(assigned_by=request.user).exclude(assigned_to=request.user)
+        counterparty_label = 'Assigned To'
+        report_kind = 'assigned_manager'
+        subtitle = 'Department assignment history, including tasks that were later deleted.'
+    else:
+        records = TaskReportRecord.objects.filter(assigned_to=request.user).exclude(assigned_by=request.user)
+        counterparty_label = 'Assigned By'
+        report_kind = 'assigned_staff'
+        subtitle = 'Tasks assigned to you, including tasks that were later deleted.'
+
+    records, filters = filter_task_report_records(records, request)
+
+    return render(request, 'reports/task_history_report.html', {
+        'report_title': 'Assigned Task Report',
+        'report_subtitle': subtitle,
+        'records': records,
+        'filters': filters,
+        'counterparty_label': counterparty_label,
+        'report_kind': report_kind,
+        'show_counterparty': True,
+    })
+
 @login_required
 def reassign_task(request, task_id):
     task = Task.objects.get(id=task_id)
@@ -337,18 +500,30 @@ def reassign_task(request, task_id):
         if existing_usertask:
             # Update existing usertask
             existing_usertask.assigned_to = new_user
+            existing_usertask.assigned_by = request.user
             existing_usertask.status = 'pending'
             existing_usertask.review_status = 'pending'
             existing_usertask.save()
+            sync_task_report_records(usertasks=[existing_usertask])
         else:
             # Create new assignment
-            UserTask.objects.create(
+            usertask = UserTask.objects.create(
                 task=task,
                 assigned_by=request.user,
                 assigned_to=new_user,
                 status='pending',
                 review_status='pending'
             )
+            sync_task_report_records(usertasks=[usertask])
+
+        create_notification(
+            user=new_user,
+            title='Task reassigned to you',
+            message=f'A task has been assigned to you: {task.title}.',
+            notification_type='task_assigned',
+            task=task,
+            target_url=reverse('task_detail', args=[task.id]),
+        )
 
         return redirect('assigned_tasks')
 
@@ -630,6 +805,7 @@ def start_task(request, usertask_id):
     ut.status = 'in_progress'
     ut.review_status = 'pending'   # reset review status
     ut.save()
+    sync_task_report_records(usertasks=[ut])
 
     # Conditional redirect
     if ut.assigned_to == ut.assigned_by:
@@ -696,16 +872,33 @@ def complete_task(request, task_id):
                 file=f
             )
 
-    # 🔥 ALWAYS mark as completed (for BOTH cases)
-    user_task.status = 'completed'
-    user_task.save()
-
-    # Optional: if you want ALL users completed
-    # UserTask.objects.filter(task=task).update(status='completed')
+    # For manager-assigned tasks, completing once should reflect as completed
+    # for both the assigned staff view and the manager view.
+    if is_assigned_task:
+        UserTask.objects.filter(task=task).update(
+            status='completed',
+            completed_at=timezone.now()
+        )
+        sync_task_report_records(task=task)
+    else:
+        user_task.status = 'completed'
+        user_task.completed_at = timezone.now()
+        user_task.save(update_fields=['status', 'completed_at'])
+        sync_task_report_records(usertasks=[user_task])
 
     task.completed_by = request.user
     task.completed_at = timezone.now()
     task.save()
+
+    if is_assigned_task and user_task.assigned_by:
+        create_notification(
+            user=user_task.assigned_by,
+            title='Task ready for review',
+            message=f'{request.user.email} completed "{task.title}" and it is ready for review.',
+            notification_type='task_review',
+            task=task,
+            target_url=reverse('review_task', args=[task.id]),
+        )
 
     return JsonResponse({'success': True})
 
@@ -723,6 +916,8 @@ def delete_task(request, task_id):
     ).exists():
         return HttpResponseForbidden("You cannot delete this task.")
 
+    snapshot_rows = list(task.user_tasks.select_related('assigned_by', 'assigned_to', 'task', 'task__category'))
+    sync_task_report_records(usertasks=snapshot_rows, mark_deleted=True)
     task.delete()
     messages.success(request, "Task deleted successfully.")
     return redirect('my_tasks')
@@ -736,45 +931,141 @@ from django.contrib import messages
 from django.http import JsonResponse
 from .models import Task, UserTask, User, CategoryMember
 
+
+@login_required
 def edit_task(request, id):
     task = get_object_or_404(Task, id=id)
-    categories = Category.objects.all()
-    staff_users = User.objects.all()
+    usertasks = task.user_tasks.select_related('assigned_to', 'assigned_by')
 
-    # Get currently assigned staff IDs
-    assigned_staff_ids = list(task.user_tasks.values_list('assigned_to_id', flat=True))
+    is_my_task = usertasks.filter(
+        assigned_by=request.user,
+        assigned_to=request.user
+    ).exists()
+    is_assigned_task = usertasks.filter(
+        assigned_by=request.user
+    ).exclude(
+        assigned_to=request.user
+    ).exists()
+
+    if not (is_my_task or is_assigned_task):
+        return HttpResponseForbidden("You cannot edit this task.")
+
+    categories = Category.objects.none()
+    assigned_staff_ids = []
+    selected_category_id = task.category_id
+
+    if is_assigned_task:
+        categories = Category.objects.filter(section=request.user.section)
+        assigned_staff_ids = list(
+            usertasks.exclude(assigned_to=request.user).values_list('assigned_to_id', flat=True)
+        )
 
     if request.method == "POST":
-        title = request.POST.get("title")
-        description = request.POST.get("description")
+        title = request.POST.get("title", "").strip()
+        description = request.POST.get("description", "").strip()
         due_date = request.POST.get("due_date")
-        priority = request.POST.get("priority")
-        category_id = request.POST.get("category")
-        assigned_staff = request.POST.getlist("assigned_staff")
+        priority = request.POST.get("priority", "normal")
+        attachment = request.FILES.get("attachment")
+
+        if not title or not due_date:
+            return JsonResponse({"error": "Title and due date are required."}, status=400)
 
         task.title = title
         task.description = description
         task.due_date = due_date
         task.priority = priority
-        task.category_id = category_id
+
+        if attachment:
+            task.attachment = attachment
+
+        redirect_url = reverse("my_tasks")
+
+        if is_assigned_task:
+            category_id = request.POST.get("category_id")
+            selected_user_ids = request.POST.getlist("assigned_to[]")
+
+            category = Category.objects.filter(
+                id=category_id,
+                section=request.user.section
+            ).first()
+
+            if not category:
+                return JsonResponse({"error": "Please select a valid category."}, status=400)
+
+            selected_users = list(
+                User.objects.filter(
+                    id__in=selected_user_ids,
+                    role='staff',
+                    section=request.user.section,
+                    is_active=True,
+                    categorymember__category=category
+                ).distinct()
+            )
+
+            if not selected_users:
+                return JsonResponse({"error": "Select at least one staff member."}, status=400)
+
+            task.category = category
+            redirect_url = reverse("assigned_tasks")
+        else:
+            task.category = None
+            selected_users = [request.user]
+
         task.save()
 
-        # Update UserTask assignments
-        task.user_tasks.all().delete()  # Remove old assignments
-        for staff_id in assigned_staff:
-            UserTask.objects.create(task=task, assigned_to_id=staff_id)
+        existing_usertasks = {
+            ut.assigned_to_id: ut for ut in task.user_tasks.all()
+        }
+        selected_ids = {selected_user.id for selected_user in selected_users}
+
+        for assignee in selected_users:
+            if assignee.id in existing_usertasks:
+                ut = existing_usertasks[assignee.id]
+                if is_assigned_task:
+                    ut.assigned_by = request.user
+                ut.save(update_fields=['assigned_by'])
+                sync_task_report_records(usertasks=[ut])
+            else:
+                ut = UserTask.objects.create(
+                    task=task,
+                    assigned_by=request.user,
+                    assigned_to=assignee,
+                    status='pending',
+                    review_status='pending'
+                )
+                sync_task_report_records(usertasks=[ut])
+                if is_assigned_task:
+                    create_notification(
+                        user=assignee,
+                        title='Task updated',
+                        message=f'Task details were updated: {task.title}.',
+                        notification_type='task_assigned',
+                        task=task,
+                        target_url=reverse('task_detail', args=[task.id]),
+                    )
+
+        removed_usertasks = list(
+            task.user_tasks.select_related('assigned_by', 'assigned_to', 'task', 'task__category')
+            .exclude(assigned_to_id__in=selected_ids)
+        )
+        if removed_usertasks:
+            sync_task_report_records(usertasks=removed_usertasks, mark_deleted=True)
+        task.user_tasks.exclude(assigned_to_id__in=selected_ids).delete()
+        sync_task_report_records(task=task)
 
         return JsonResponse({
             "message": "Task updated successfully!",
-            "redirect_url": "/tasks/assigned/"
+            "redirect_url": redirect_url
         })
 
-    # Prepare context
     context = {
         "task": task,
         "categories": categories,
-        "staff_users": staff_users,
         "assigned_staff_ids": assigned_staff_ids,
+        "selected_category_id": selected_category_id,
+        "PRIORITY_CHOICES": Task.PRIORITY_CHOICES,
+        "is_my_task": is_my_task,
+        "is_assigned_task": is_assigned_task,
     }
     return render(request, "tasks/edit_task.html", context)
 
@@ -802,6 +1093,9 @@ def ajax_save_subtask(request, task_id):
     subtask_id = request.POST.get('id')
     title = request.POST.get('title', '').strip()
     description = request.POST.get('description', '')
+
+    if not subtask_id and task.user_tasks.filter(status='completed').exists():
+        return JsonResponse({'error': 'This task is already completed. You cannot add another subtask.'}, status=400)
 
     if not title:
         return JsonResponse({'error': 'Title is required'}, status=400)
@@ -879,10 +1173,12 @@ def review_task(request, task_id):
         elif action == 'accept':
             # UserTask.objects.filter(task=task, assigned_by=request.user).update(status='accepted')
             UserTask.objects.filter(task=task).update(review_status='accepted')
+            sync_task_report_records(task=task)
             messages.success(request, "Task accepted successfully.")
 
         elif action == 'reject':
             UserTask.objects.filter(task=task, assigned_by=request.user).update(review_status='rejected', status='pending')
+            sync_task_report_records(task=task)
             Comment.objects.create(
                 user=request.user,
                 task=task,
@@ -898,6 +1194,25 @@ def review_task(request, task_id):
         'attachments': attachments,
         'major_comments': major_comments,
     })
+
+
+@login_required
+def notification_redirect(request, notification_id):
+    notification = get_object_or_404(Notification, id=notification_id, user=request.user)
+    notification.is_read = True
+    notification.save(update_fields=['is_read'])
+
+    if notification.target_url:
+        return redirect(notification.target_url)
+
+    return redirect('assigned_tasks')
+
+
+@login_required
+@require_POST
+def mark_all_notifications_read(request):
+    request.user.notifications.filter(is_read=False).update(is_read=True)
+    return redirect(request.META.get('HTTP_REFERER', 'assigned_tasks'))
 
 
 
@@ -958,6 +1273,8 @@ def delete_task_cascade(request, task_id):
     ).exists():
         return JsonResponse({'error': 'Forbidden'}, status=403)
 
+    snapshot_rows = list(task.user_tasks.select_related('assigned_by', 'assigned_to', 'task', 'task__category'))
+    sync_task_report_records(usertasks=snapshot_rows, mark_deleted=True)
     task.delete()  # CASCADE deletes all UserTask rows
     return JsonResponse({'success': True})
 
@@ -1107,22 +1424,32 @@ def staff_performance_report(request):
 
 @login_required
 def staff_detail(request, staff_id):
-    staff = get_object_or_404(User, id=staff_id)
+    staff = get_object_or_404(User, id=staff_id, role='staff')
 
-    # 🔒 Only manager can view
-    if request.user.role != 'manager' and not request.user.is_superuser:
+    if request.user.is_superuser:
+        all_tasks = UserTask.objects.filter(assigned_to=staff).select_related('task', 'assigned_by')
+        manager_tasks = all_tasks.filter(assigned_by=request.user)
+        manager_tasks_heading = "Tasks Assigned By You"
+    elif request.user.role == 'manager':
+        if staff.section != request.user.section:
+            return HttpResponseForbidden()
+        all_tasks = UserTask.objects.filter(assigned_to=staff).select_related('task', 'assigned_by')
+        manager_tasks = all_tasks.filter(assigned_by=request.user)
+        manager_tasks_heading = "Tasks Assigned By You"
+    elif request.user.role == 'staff':
+        if staff.section != request.user.section:
+            return HttpResponseForbidden()
+        all_tasks = UserTask.objects.filter(assigned_to=staff).select_related('task', 'assigned_by')
+        manager_tasks = all_tasks.exclude(assigned_by=staff)
+        manager_tasks_heading = "Tasks Assigned By Manager"
+    else:
         return HttpResponseForbidden()
-
-    # Staff tasks (all)
-    all_tasks = UserTask.objects.filter(assigned_to=staff).select_related('task', 'assigned_by')
-
-    # Tasks assigned by THIS manager
-    manager_tasks = all_tasks.filter(assigned_by=request.user)
 
     context = {
         'staff': staff,
         'all_tasks': all_tasks,
         'manager_tasks': manager_tasks,
+        'manager_tasks_heading': manager_tasks_heading,
     }
 
     return render(request, 'reports/staff_detail.html', context)
@@ -1156,7 +1483,7 @@ def category_users_json(request):
         users = [
             {
                 'id': m.user.id,
-                'name': m.user.email  # ✅ FIX HERE
+                                'name': m.user.username
             }
             for m in members
         ]

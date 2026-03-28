@@ -13,6 +13,7 @@ def add_user(request):
     section_choices = User.SECTION_CHOICES
 
     if request.method == 'POST':
+        username = request.POST.get('username', '').strip()
         email = request.POST.get('email')
         password1 = request.POST.get('password1')
         password2 = request.POST.get('password2')
@@ -28,23 +29,27 @@ def add_user(request):
             return HttpResponseForbidden("Not allowed")
 
         # VALIDATIONS
-        if not all([email, password1, password2]):
+        if not all([username, email, password1, password2]):
             messages.error(request, "All fields are required.")
 
         elif password1 != password2:
             messages.error(request, "Passwords do not match.")
+
+        elif User.objects.filter(username=username).exists():
+            messages.error(request, "Username already exists.")
 
         elif User.objects.filter(email=email).exists():
             messages.error(request, "User already exists.")
 
         else:
             User.objects.create_user(
+                username=username,
                 email=email,
                 section=section,
                 role=role,
                 password=password1,
             )
-            messages.success(request, f"{email} created successfully")
+            messages.success(request, f"User created successfully. Staff login credentials: username '{username}' and the password you set.")
             return redirect('add_user')
 
     return render(request, 'accounts/add_user.html', {
@@ -73,7 +78,7 @@ def manage_users(request):
 
     # Apply filters
     if query:
-        users = users.filter(email__icontains=query)
+        users = users.filter(Q(email__icontains=query) | Q(username__icontains=query))
 
     if role_filter:
         users = users.filter(role=role_filter)
@@ -146,16 +151,16 @@ def delete_user(request, user_id):
 # login view
 def login_view(request):
     if request.method == "POST":
-        email = request.POST.get("email")
+        username = request.POST.get("username", "").strip()
         password = request.POST.get("password")
 
-        user = authenticate(request, email=email, password=password)
+        user = authenticate(request, username=username, password=password)
 
         if user is not None:
             login(request, user)
             return redirect("reports_performance")
         else:
-            messages.error(request, "Invalid email or password")
+            messages.error(request, "Invalid username or password")
 
     return render(request, "accounts/login.html")
 

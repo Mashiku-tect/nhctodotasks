@@ -144,6 +144,95 @@ class UserTask(models.Model):
         return f"{self.task.title} → {self.assigned_to}"
 
 
+class TaskReportRecord(models.Model):
+    source_usertask_id = models.PositiveIntegerField(unique=True)
+    source_task_id = models.PositiveIntegerField(db_index=True)
+
+    task_title = models.CharField(max_length=255)
+    task_description = models.TextField(blank=True)
+    category_name = models.CharField(max_length=100, blank=True)
+    section = models.CharField(max_length=100, blank=True)
+    priority = models.CharField(max_length=20, blank=True)
+    due_date = models.DateField(null=True, blank=True)
+
+    assigned_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='task_report_records_assigned'
+    )
+    assigned_to = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='task_report_records_received'
+    )
+    assigned_by_username = models.CharField(max_length=150, blank=True)
+    assigned_to_username = models.CharField(max_length=150, blank=True)
+
+    status = models.CharField(max_length=20, choices=UserTask.STATUS_CHOICES, default='pending')
+    review_status = models.CharField(
+        max_length=20,
+        choices=[
+            ('pending', 'Pending'),
+            ('accepted', 'Accepted'),
+            ('rejected', 'Rejected')
+        ],
+        default='pending'
+    )
+    is_self_task = models.BooleanField(default=False)
+
+    task_created_at = models.DateTimeField(null=True, blank=True)
+    task_updated_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    completed_by_username = models.CharField(max_length=150, blank=True)
+    last_synced_at = models.DateTimeField(auto_now=True)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-task_created_at', '-last_synced_at']
+
+    def __str__(self):
+        return f"{self.task_title} -> {self.assigned_to_username or 'unknown'}"
+
+
+class Notification(models.Model):
+    TYPE_CHOICES = [
+        ('task_assigned', 'Task Assigned'),
+        ('task_review', 'Task Review'),
+    ]
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='notifications'
+    )
+    task = models.ForeignKey(
+        Task,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='notifications'
+    )
+    title = models.CharField(max_length=255)
+    message = models.TextField()
+    notification_type = models.CharField(
+        max_length=30,
+        choices=TYPE_CHOICES
+    )
+    target_url = models.CharField(max_length=255, blank=True)
+    is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.user.email} - {self.title}"
+
+
 #subtasks model
 class SubTask(models.Model):
 

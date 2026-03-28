@@ -1,6 +1,6 @@
 # tasks/admin.py
 from django.contrib import admin
-from .models import Task, UserTask, SubTask, TaskAttachment, Comment, Category, CategoryMember
+from .models import Task, UserTask, SubTask, TaskAttachment, Comment, Category, CategoryMember, Notification
 
 
 @admin.register(Task)
@@ -20,9 +20,10 @@ class CategoryMemberInline(admin.TabularInline):
     autocomplete_fields = ('user',)
 
     def formfield_for_foreignkey(self, db_field, request=None, **kwargs):
-        if db_field.name == 'user' and hasattr(self, 'parent_obj'):
+        parent_obj = getattr(self, 'parent_obj', None)
+        if db_field.name == 'user' and parent_obj is not None:
             # limit users to the selected section
-            kwargs['queryset'] = User.objects.filter(section=self.parent_obj.section)
+            kwargs['queryset'] = User.objects.filter(section=parent_obj.section)
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
 class CategoryAdmin(admin.ModelAdmin):
@@ -96,3 +97,10 @@ class CommentAdmin(admin.ModelAdmin):
     readonly_fields = ('created_at',)  # prevent editing created_at
 
 admin.site.register(Comment, CommentAdmin)
+
+
+@admin.register(Notification)
+class NotificationAdmin(admin.ModelAdmin):
+    list_display = ('user', 'title', 'notification_type', 'is_read', 'created_at')
+    list_filter = ('notification_type', 'is_read', 'created_at')
+    search_fields = ('user__email', 'title', 'message', 'task__title')

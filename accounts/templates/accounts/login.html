@@ -1,3 +1,4 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -56,6 +57,14 @@ body {
 .login-left h2 {
     margin-bottom: 1rem;
     font-weight: 700;
+}
+
+.login-brand-logo {
+    width: 90px;
+    border-radius: 16px;
+    background: #ffffff;
+    padding: 10px;
+    box-shadow: 0 12px 24px rgba(15, 23, 42, 0.14);
 }
 
 .login-left p, .login-left ul li { opacity: 0.95; color: var(--nhc-sidebar-muted); }
@@ -134,9 +143,7 @@ body {
         <!-- Left description -->
         <div class="login-left">
             <div class="nhc-logo mb-3">
-                <span style="color:#8fd3ff;">N</span>
-                <span style="color:#ffffff;">H</span>
-                <span style="color:#8fd3ff;">C</span>
+                <img src="{% static 'images/nhclogo.png' %}" alt="NHC Logo" class="login-brand-logo">
             </div>
             <h2>
                 <span style="color:#8fd3ff;">National</span>
@@ -153,12 +160,12 @@ body {
             <form method="POST" action="{% url 'login' %}" autocomplete="off">
                 {% csrf_token %}
 
-                <!-- Email -->
+                <!-- Username -->
                 <div class="mb-3">
-                    <label for="id_email" class="form-label">Email</label>
+                    <label for="id_username" class="form-label">Username</label>
                     <div class="input-group">
                         <span class="input-group-text"><i class="fas fa-user text-muted"></i></span>
-                        <input type="email" class="form-control" id="id_email" name="email" placeholder="you@example.com" required>
+                        <input type="text" class="form-control" id="id_username" name="username" placeholder="Enter your username" required>
                     </div>
                 </div>
 
@@ -185,7 +192,7 @@ body {
 <div class="toast align-items-center text-bg-light border-0" id="loginToast" role="alert" aria-live="assertive" aria-atomic="true">
   <div class="d-flex">
     <div class="toast-body">
-        <i class="fas fa-exclamation-triangle me-1"></i> Invalid email or password
+        <i class="fas fa-exclamation-triangle me-1"></i> Invalid username or password
     </div>
     <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
   </div>

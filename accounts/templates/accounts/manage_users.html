@@ -32,7 +32,7 @@
                         <div class="col-md-4">
                             <label class="form-label fw-semibold">Search</label>
                             <input type="text" name="q" value="{{ current_filters.q|default:'' }}"
-                                   class="form-control" placeholder="Email or name...">
+                                   class="form-control" placeholder="Username or email...">
                         </div>
 
                         <!-- Role -->
@@ -113,7 +113,7 @@
                                 <thead class="table-light">
                                     <tr>
                                         <th>Id</th>
-                                        <th>Email</th>
+                                        <th>Username</th>
                                         <th>Role</th>
                                         <th>Section</th>
                                         <th>Status</th>
@@ -126,7 +126,7 @@
                                     <tr>
                                         <td>{{ u.id }}</td>
                                         <td>
-                                            <strong>{{ u.email }}</strong>
+                                            <strong>{{ u.username }}</strong>
                                         </td>
                                         <td>
                                             <span class="badge {% if u.role == 'manager' %}bg-primary{% else %}bg-info{% endif %}">
@@ -168,7 +168,7 @@
                                                 <div class="modal-dialog modal-dialog-centered">
                                                     <div class="modal-content border-danger">
                                                         <div class="modal-header bg-danger text-white">
-                                                            <h5 class="modal-title">Delete {{ u.email }}?</h5>
+                                                            <h5 class="modal-title">Delete {{ u.username }}?</h5>
                                                             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                                                         </div>
                                                         <div class="modal-body">

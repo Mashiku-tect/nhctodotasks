@@ -264,16 +264,27 @@ $(function () {
   $('#subtaskForm').submit(function (e) {
     e.preventDefault();
 
-    $.post(
-      "{% url 'ajax_save_subtask' task.id %}",
-      {
+    $.ajax({
+      url: "{% url 'ajax_save_subtask' task.id %}",
+      method: 'POST',
+      data: {
         csrfmiddlewaretoken: '{{ csrf_token }}',
         id: $('#subtaskId').val(),
         title: $('#subtaskTitle').val(),
         description: $('#subtaskDescription').val()
       },
-      () => location.reload()
-    );
+      success: function () {
+        location.reload();
+      },
+      error: function (xhr) {
+        Swal.fire({
+          title: 'Could not save subtask',
+          text: xhr.responseJSON?.error || 'Something went wrong.',
+          icon: 'error',
+          confirmButtonColor: '#dc3545'
+        });
+      }
+    });
   });
 
   // DELETE SUBTASK
@@ -289,30 +300,90 @@ $(function () {
 
   // COMPLETE SUBTASK
   $('.complete-subtask').click(function () {
-    if (!confirm('Mark this subtask as completed?')) return;
+    const subtaskId = $(this).data('id');
 
-    $.post(
-      `/tasks/subtasks/${$(this).data('id')}/complete/`,
-      { csrfmiddlewaretoken: '{{ csrf_token }}' },
-      () => location.reload()
-    );
+    Swal.fire({
+      title: 'Complete this subtask?',
+      text: 'This will mark the subtask as completed.',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Yes, complete it',
+      cancelButtonText: 'Cancel',
+      confirmButtonColor: '#198754',
+      cancelButtonColor: '#6c757d',
+      reverseButtons: true
+    }).then((result) => {
+      if (!result.isConfirmed) return;
+
+      $.ajax({
+        url: `/tasks/subtasks/${subtaskId}/complete/`,
+        method: 'POST',
+        data: { csrfmiddlewaretoken: '{{ csrf_token }}' },
+        success: function () {
+          Swal.fire({
+            title: 'Subtask completed',
+            text: 'The subtask has been marked as completed successfully.',
+            icon: 'success',
+            timer: 1400,
+            showConfirmButton: false
+          }).then(() => location.reload());
+        },
+        error: function () {
+          Swal.fire({
+            title: 'Could not complete subtask',
+            text: 'Please try again.',
+            icon: 'error',
+            confirmButtonColor: '#dc3545'
+          });
+        }
+      });
+    });
   });
 
  // COMPLETE TASK
 $('#completeTaskBtn').click(function () {
 
-    if ($(this).prop('disabled')) return; // 🚫 stop click if faint
+    if ($(this).prop('disabled')) return; // stop click if button is disabled
 
     const isMyTask = $(this).data('is-my-task');
 
     if (isMyTask === true || isMyTask === 'true') {
-        if (!confirm('Mark this task as completed?')) return;
+        Swal.fire({
+            title: 'Complete this task?',
+            text: 'This will mark the task as completed.',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, complete it',
+            cancelButtonText: 'Cancel',
+            confirmButtonColor: '#198754',
+            cancelButtonColor: '#6c757d',
+            reverseButtons: true
+        }).then((result) => {
+            if (!result.isConfirmed) return;
 
-        $.post(
-            "{% url 'complete_task' task.id %}",
-            { csrfmiddlewaretoken: '{{ csrf_token }}' },
-            () => location.reload()
-        );
+            $.ajax({
+                url: "{% url 'complete_task' task.id %}",
+                method: 'POST',
+                data: { csrfmiddlewaretoken: '{{ csrf_token }}' },
+                success: function () {
+                    Swal.fire({
+                        title: 'Task completed',
+                        text: 'The task has been marked as completed successfully.',
+                        icon: 'success',
+                        timer: 1600,
+                        showConfirmButton: false
+                    }).then(() => location.reload());
+                },
+                error: function () {
+                    Swal.fire({
+                        title: 'Could not complete task',
+                        text: 'Please try again.',
+                        icon: 'error',
+                        confirmButtonColor: '#dc3545'
+                    });
+                }
+            });
+        });
 
     } else {
         $('#completeTaskModal').modal('show');

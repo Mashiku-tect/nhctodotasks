@@ -3,207 +3,464 @@
 {% block content %}
 
 <style>
-.form-card {
-    border: 1px solid #e5e7eb;
-    border-radius: 12px;
-    background: white;
+.create-shell {
+    max-width: 1180px;
+    margin: 0 auto;
+}
+
+.create-card {
+    border: 1px solid #dbe7f0;
+    border-radius: 22px;
+    background:
+        radial-gradient(circle at top right, rgba(143, 211, 255, 0.22), transparent 26%),
+        linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+    box-shadow: 0 18px 36px rgba(15, 23, 42, 0.06);
+    overflow: hidden;
+}
+
+.create-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid #e7eef5;
+    background: linear-gradient(135deg, #f9fcff 0%, #eff7fd 100%);
+}
+
+.create-topbar h4 {
+    margin: 0;
+    color: #163b57;
+    font-weight: 700;
+}
+
+.create-topbar p {
+    margin: 0.25rem 0 0;
+    color: #60758a;
+}
+
+.status-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.55rem 0.85rem;
+    border-radius: 999px;
+    background: #e8f4fb;
+    color: #1d6d9d;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.create-body {
+    padding: 1.5rem;
+}
+
+.form-grid {
+    display: grid;
+    grid-template-columns: 1.1fr 0.9fr;
+    gap: 1.25rem;
+    align-items: start;
+}
+
+.panel-box {
+    border: 1px solid #e5edf4;
+    border-radius: 18px;
+    padding: 1rem;
+    background: #ffffff;
 }
 
 .section-title {
-    font-size: 0.9rem;
-    font-weight: 600;
-    color: #6b7280;
-    margin-bottom: 10px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #60819a;
+    margin-bottom: 0.9rem;
     text-transform: uppercase;
+    letter-spacing: 0.08em;
 }
 
-.preview-box {
-    border: 1px dashed #d1d5db;
-    border-radius: 10px;
-    height: 100%;
-    min-height: 300px;
+.stack-sm > * + * {
+    margin-top: 0.9rem;
+}
+
+.meta-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.9rem;
+}
+
+.form-label {
+    font-weight: 600;
+    color: #29465b;
+    margin-bottom: 0.45rem;
+}
+
+.form-control,
+.form-select {
+    border-radius: 12px;
+    border: 1px solid #ccdae7;
+    min-height: 46px;
+}
+
+textarea.form-control {
+    min-height: 128px;
+    resize: vertical;
+}
+
+.form-control:focus,
+.form-select:focus {
+    border-color: #2f8fc9;
+    box-shadow: 0 0 0 0.2rem rgba(47, 143, 201, 0.14);
+}
+
+.attachment-panel {
+    border: 1px dashed #bfd6e7;
+    border-radius: 16px;
+    padding: 1rem;
+    background: #f8fbfe;
+}
+
+.attachment-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.attachment-name {
+    font-weight: 600;
+    color: #163b57;
+    word-break: break-word;
+}
+
+.attachment-hint {
+    color: #6d8092;
+    font-size: 0.92rem;
+}
+
+.helper-card {
+    border: 1px solid #e2edf5;
+    border-radius: 18px;
+    padding: 1rem;
+    background: linear-gradient(180deg, #ffffff 0%, #f7fbfe 100%);
+}
+
+.helper-list {
+    margin: 0;
+    padding-left: 1.1rem;
+    color: #587085;
+}
+
+.helper-list li + li {
+    margin-top: 0.55rem;
+}
+
+.form-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 1.25rem;
+}
+
+.btn-primary {
+    border-radius: 12px;
+    padding: 0.8rem 1.6rem;
+    font-weight: 600;
+}
+
+.preview-frame {
+    width: 100%;
+    min-height: 70vh;
+    border: 0;
+    border-radius: 14px;
+    background: #f8fafc;
+}
+
+.preview-empty {
+    min-height: 260px;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: #f9fafb;
+    border: 1px dashed #d5e2ec;
+    border-radius: 16px;
+    background: #f8fbfe;
+    color: #72869a;
+    text-align: center;
+    padding: 1.25rem;
+}
+
+@media (max-width: 991.98px) {
+    .form-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 767.98px) {
+    .create-topbar {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .meta-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .create-body {
+        padding: 1rem;
+    }
 }
 </style>
-<nav aria-label="breadcrumb" class="py-2 bg-light border-bottom"> 
-    <ol class="breadcrumb mb-0 px-3"> <li class="breadcrumb-item">
-        <a href="{% url 'reports_performance' %}">Dashboard</a></li> <li class="breadcrumb-item">
-            <a href="{% url 'my_tasks' %}">My Tasks</a></li> <li class="breadcrumb-item">
-                <a href="{% url 'assigned_tasks' %}">Assigned Tasks</a>
-            </li> 
-    <li class="breadcrumb-item active text-muted" aria-current="page"> Create Task </li> </ol> </nav>
-<!-- Header -->
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <div>
-        <h4 class="mb-1">Create Task</h4>
-        <small class="text-muted">Fill details and assign task</small>
-    </div>
-</div>
 
-<div class="row g-4">
+<div class="create-shell">
+    <nav aria-label="breadcrumb" class="py-2 mb-3">
+        <ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item"><a href="{% url 'reports_performance' %}">Dashboard</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'my_tasks' %}">My Tasks</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'assigned_tasks' %}">Assigned Tasks</a></li>
+            <li class="breadcrumb-item active text-muted" aria-current="page">Create Task</li>
+        </ol>
+    </nav>
 
-    <!-- FORM -->
-    <div class="col-lg-7">
-        <div class="form-card p-4">
+    <div class="create-card">
+        <div class="create-topbar">
+            <div>
+                <h4>Create Task</h4>
+                <p>Keep everything on one screen, add an attachment only if needed, and preview it on demand.</p>
+            </div>
+            <div class="status-chip">
+                <i class="bi bi-lightning-charge"></i>
+                Quick task entry
+            </div>
+        </div>
 
+        <div class="create-body">
             <form id="taskForm" enctype="multipart/form-data" method="POST" novalidate>
                 {% csrf_token %}
 
-                <!-- BASIC INFO -->
-                <div class="section-title">Basic Info</div>
+                <div class="form-grid">
+                    <div class="stack-sm">
+                        <div class="panel-box">
+                            <div class="section-title">Task Details</div>
 
-                <div class="mb-3">
-                    <label class="form-label">Task Title</label>
-                    <input type="text" name="title" class="form-control" placeholder="Enter task title" required>
-                    <div class="invalid-feedback">Required</div>
-                </div>
+                            <div class="mb-3">
+                                <label class="form-label" for="taskTitle">Task Title</label>
+                                <input id="taskTitle" type="text" name="title" class="form-control" placeholder="Enter task title" required>
+                                <div class="invalid-feedback">Required</div>
+                            </div>
 
-                <div class="mb-3">
-                    <label class="form-label">Description</label>
-                    <textarea name="description" class="form-control" rows="3" placeholder="Optional details"></textarea>
-                </div>
+                            <div>
+                                <label class="form-label" for="taskDescription">Description</label>
+                                <textarea id="taskDescription" name="description" class="form-control" rows="4" placeholder="Add task details, instructions, or notes"></textarea>
+                            </div>
+                        </div>
 
-                <!-- DETAILS -->
-                <div class="section-title mt-4">Details</div>
+                        {% if request.user.role == "manager" %}
+                        <div class="panel-box" id="assignSection">
+                            <div class="section-title">Assign Task</div>
 
-                <div class="row g-3">
-                    <div class="col-md-6">
-                        <label class="form-label">Due Date</label>
-                        <input type="date" name="due_date" class="form-control" required>
+                            <div class="mb-3">
+                                <label class="form-label" for="categorySelect">Select Category</label>
+                                <select name="category_id" id="categorySelect" class="form-select">
+                                    <option value="">-- Select Category --</option>
+                                    {% for cat in categories %}
+                                    <option value="{{ cat.id }}">{{ cat.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <div>
+                                <label class="form-label" for="categoryUsers">Staff in Category</label>
+                                <select name="assigned_to[]" id="categoryUsers" class="form-select" multiple size="5" disabled></select>
+                                <small class="text-muted">Select one or more staff members</small>
+                            </div>
+                        </div>
+                        {% endif %}
                     </div>
 
-                    <div class="col-md-6">
-                        <label class="form-label">Priority</label>
-                        <select name="priority" class="form-select">
-                            {% for value, label in PRIORITY_CHOICES %}
-                            <option value="{{ value }}">{{ label }}</option>
-                            {% endfor %}
-                        </select>
+                    <div class="stack-sm">
+                        <div class="panel-box">
+                            <div class="section-title">Schedule</div>
+
+                            <div class="meta-grid">
+                                <div>
+                                    <label class="form-label" for="dueDate">Due Date</label>
+                                    <input id="dueDate" type="date" name="due_date" class="form-control" required>
+                                </div>
+
+                                <div>
+                                    <label class="form-label" for="prioritySelect">Priority</label>
+                                    <select id="prioritySelect" name="priority" class="form-select">
+                                        {% for value, label in PRIORITY_CHOICES %}
+                                        <option value="{{ value }}">{{ label }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="panel-box">
+                            <div class="section-title">Attachment</div>
+
+                            <div class="attachment-panel">
+                                <div class="mb-3">
+                                    <label class="form-label" for="attachmentInput">Attach File</label>
+                                    <input id="attachmentInput" type="file" name="attachment" class="form-control">
+                                </div>
+
+                                <div class="attachment-meta">
+                                    <div>
+                                        <div id="attachmentName" class="attachment-name">No file selected</div>
+                                        <div class="attachment-hint">Preview is optional. Click the button only when you want to view the document.</div>
+                                    </div>
+                                    <button type="button" id="previewAttachmentBtn" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#attachmentPreviewModal" disabled>
+                                        <i class="bi bi-eye me-1"></i>Preview Attachment
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="helper-card">
+                            <div class="section-title">Quick Tips</div>
+                            <ul class="helper-list">
+                                <li>Use a short title so the task is easy to scan later.</li>
+                                <li>Pick the category first to load the correct staff list.</li>
+                                <li>Attach a file only when it helps someone complete the task.</li>
+                            </ul>
+                        </div>
                     </div>
                 </div>
 
-                <!-- FILE -->
-                <div class="section-title mt-4">Attachment</div>
-
-                <div class="mb-3">
-                    <input type="file" name="attachment" class="form-control">
+                <div class="form-actions">
+                    <button class="btn btn-primary" type="submit">
+                        <i class="bi bi-check2-circle me-1"></i>Create Task
+                    </button>
                 </div>
-
-                {% if request.user.role == "manager" %}
-                <!-- ASSIGN -->
-                <div class="mb-3" id="assignSection">
-    <label class="form-label">Select Category</label>
-    <select name="category_id" id="categorySelect" class="form-select">
-        <option value="">-- Select Category --</option>
-        {% for cat in categories %}
-        <option value="{{ cat.id }}">{{ cat.name }}</option>
-        {% endfor %}
-    </select>
-
-    <label class="form-label mt-2">Staff in Category</label>
-    <select name="assigned_to[]" id="categoryUsers" class="form-select" multiple size="4" disabled>
-        <!-- users will be populated via JS -->
-    </select>
-    <small class="text-muted">Select one or more staff</small>
-</div>
-                {% endif %}
-
-                <!-- SUBMIT -->
-                <div class="d-flex justify-content-end mt-4">
-                    <button class="btn btn-primary px-4">Create Task</button>
-                </div>
-
             </form>
         </div>
     </div>
+</div>
 
-    <!-- PREVIEW -->
-    <div class="col-lg-5">
-        <div class="form-card p-4 h-100">
-            <div class="section-title">File Preview</div>
-
-            <div id="filePreviewContainer" class="preview-box">
-                <span class="text-muted">No file selected</span>
+<div class="modal fade" id="attachmentPreviewModal" tabindex="-1" aria-labelledby="attachmentPreviewLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header">
+                <h5 class="modal-title" id="attachmentPreviewLabel">Attachment Preview</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="attachmentPreviewContent" class="preview-empty">
+                    Select a file first, then use the preview button.
+                </div>
             </div>
         </div>
     </div>
-
 </div>
 
-<!-- JS -->
 <script>
 $(function () {
     const today = new Date().toISOString().split('T')[0];
+    const attachmentInput = $('#attachmentInput');
+    const attachmentName = $('#attachmentName');
+    const previewButton = $('#previewAttachmentBtn');
+    const previewContent = $('#attachmentPreviewContent');
+    let previewUrl = null;
+
     $('input[name="due_date"]').attr('min', today);
 
-    $('.task-type').on('change', function () {
-        $('#assignSection').toggleClass('d-none', $(this).val() !== 'assign');
-    });
-
     $('#taskForm').on('submit', async function (e) {
-    e.preventDefault();
+        e.preventDefault();
 
-    const formData = new FormData(this);
-    const btn = $(this).find('button');   // 👈 here
-    btn.prop('disabled', true);           // 👈 disable immediately
+        const formData = new FormData(this);
+        const btn = $(this).find('button[type="submit"]');
+        btn.prop('disabled', true);
 
-    try {
-        const response = await $.ajax({
-            url: "{% url 'create_task' %}",
-            method: "POST",
-            data: formData,
-            processData: false,
-            contentType: false
-        });
+        try {
+            const response = await $.ajax({
+                url: "{% url 'create_task' %}",
+                method: "POST",
+                data: formData,
+                processData: false,
+                contentType: false
+            });
 
-        Swal.fire({
-            icon: 'success',
-            title: response.message || 'Task created',
-            timer: 1500,
-            showConfirmButton: false
-        }).then(() => {
-            window.location.href = response.redirect_url;
-        });
-
-    } catch (err) {
-        Swal.fire('Error', err.responseJSON?.error || 'Something went wrong', 'error');
-    }
+            Swal.fire({
+                icon: 'success',
+                title: response.message || 'Task created',
+                timer: 1500,
+                showConfirmButton: false
+            }).then(() => {
+                window.location.href = response.redirect_url;
+            });
+        } catch (err) {
+            btn.prop('disabled', false);
+            Swal.fire('Error', err.responseJSON?.error || 'Something went wrong', 'error');
+        }
     });
 
-    // Preview
-    $('input[name="attachment"]').on('change', function () {
-        const file = this.files[0];
-        const preview = $('#filePreviewContainer');
+    function resetPreview() {
+        previewContent.html('<div class="preview-empty">Select a file first, then use the preview button.</div>');
+        previewButton.prop('disabled', true);
+        attachmentName.text('No file selected');
+        if (previewUrl) {
+            URL.revokeObjectURL(previewUrl);
+            previewUrl = null;
+        }
+    }
 
-        if (!file) {
-            preview.html('<span class="text-muted">No file selected</span>');
+    function renderPreview(file) {
+        if (previewUrl) {
+            URL.revokeObjectURL(previewUrl);
+        }
+
+        previewUrl = URL.createObjectURL(file);
+
+        if (file.type.startsWith('image/')) {
+            previewContent.html(`<img src="${previewUrl}" class="img-fluid rounded" alt="Attachment preview">`);
             return;
         }
 
-        const url = URL.createObjectURL(file);
+        if (file.type === 'application/pdf') {
+            previewContent.html(`<iframe src="${previewUrl}" class="preview-frame" title="PDF preview"></iframe>`);
+            return;
+        }
 
-        if (file.type.startsWith('image/')) {
-            preview.html(`<img src="${url}" class="img-fluid rounded">`);
-        } else if (file.type === 'application/pdf') {
-            preview.html(`<iframe src="${url}" width="100%" height="300"></iframe>`);
-        } else {
-            preview.html(`<p>${file.name}</p>`);
+        previewContent.html(`
+            <div class="preview-empty">
+                <div>
+                    <div class="fw-semibold mb-2">${file.name}</div>
+                    <div class="text-muted">This file type cannot be displayed here, but it has been attached successfully.</div>
+                </div>
+            </div>
+        `);
+    }
+
+    attachmentInput.on('change', function () {
+        const file = this.files[0];
+
+        if (!file) {
+            resetPreview();
+            return;
+        }
+
+        attachmentName.text(file.name);
+        previewButton.prop('disabled', false);
+        renderPreview(file);
+    });
+
+    $('#attachmentPreviewModal').on('hidden.bs.modal', function () {
+        if (!attachmentInput.val()) {
+            resetPreview();
         }
     });
-});
-</script>
-<script>
-    $(function () {
+
     const categoryUsers = $('#categoryUsers');
 
     $('#categorySelect').on('change', async function () {
         const categoryId = $(this).val();
         categoryUsers.empty().prop('disabled', true);
 
-        if (!categoryId) return;
+        if (!categoryId) {
+            return;
+        }
 
         try {
             const res = await $.getJSON("{% url 'category_users_json' %}", { category_id: categoryId });

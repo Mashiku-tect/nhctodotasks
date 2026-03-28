@@ -40,7 +40,7 @@
                                 {% if assigned_staff %}
                                     <ul>
                                         {% for user in assigned_staff %}
-                                            <li>{{ user.email }}</li>
+                                            <li>{{ user.username }}</li>
                                         {% endfor %}
                                     </ul>
                                 {% else %}
@@ -53,7 +53,7 @@
                                 {% if major_comments %}
                                     {% for comment in major_comments %}
                                         <div class="border rounded p-2 mb-2">
-                                            <strong>{{ comment.user.email }}</strong>
+                                            <strong>{{ comment.user.username }}</strong>
                                             <small class="text-muted">{{ comment.created_at|date:"Y-m-d H:i" }}</small>
                                             <p>{{ comment.comment }}</p>
                                         </div>

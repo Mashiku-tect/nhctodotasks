@@ -29,8 +29,28 @@
                         {% csrf_token %}
                         
                         <div class="row g-3">
+                            <!-- Username -->
+                            <div class="col-md-6">
+                                <label for="username" class="form-label fw-semibold">Username</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="bi bi-person-badge"></i></span>
+                                    <input type="text"
+                                           class="form-control"
+                                           id="username"
+                                           name="username"
+                                           placeholder="Enter username"
+                                           required>
+                                    <div class="invalid-feedback">
+                                        Please enter a username.
+                                    </div>
+                                </div>
+                                <small class="form-text text-muted">
+                                    Staff will sign in with this username and their password.
+                                </small>
+                            </div>
+
                             <!-- Email -->
-                            <div class="col-md-12">
+                            <div class="col-md-6">
                                 <label for="email" class="form-label fw-semibold">Email Address</label>
                                 <div class="input-group">
                                     <span class="input-group-text"><i class="bi bi-envelope"></i></span>
@@ -38,7 +58,7 @@
                                            class="form-control" 
                                            id="email" 
                                            name="email" 
-                                           placeholder="Enter email address" 
+                                           placeholder="Enter email address"
                                            required>
                                     <div class="invalid-feedback">
                                         Please enter a valid email address.
@@ -102,7 +122,7 @@
                                     </div>
                                 </div>
                                 <small class="form-text text-muted">
-                                    Minimum 8 characters
+                                    This password will be used together with the username above.
                                 </small>
                             </div>
 

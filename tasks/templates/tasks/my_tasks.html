@@ -88,6 +88,7 @@
             <th>Title</th>
             <th>Description</th>
             <th>Due Date</th>
+            <th>Days Left</th>
             <th>Status</th>
             <th>Attachment</th>
             <th>Actions</th>
@@ -129,7 +130,20 @@
         </td>
    <td>{{ task.due_date|date:"Y-m-d" }}</td>
             <td>
-                {% with task.user_tasks.all.0 as ut %}
+                {% if task.user_task.status == 'completed' %}
+                    <span class="badge bg-success">Completed</span>
+                {% elif task.days_left == 0 %}
+                    <span class="badge bg-info text-dark">Today</span>
+                {% elif task.days_left > 0 %}
+                    <span class="badge bg-primary">{{ task.days_left }} day{{ task.days_left|pluralize }} left</span>
+                {% elif task.days_left < 0 %}
+                    <span class="badge bg-danger">Overdue</span>
+                {% else %}
+                    -
+                {% endif %}
+            </td>
+            <td>
+                {% with task.user_task as ut %}
                 <span class="badge
                     {% if ut.status == 'pending' %}bg-secondary
                     {% elif ut.status == 'in_progress' %}bg-warning
@@ -156,13 +170,19 @@
                 title="View Task Details">
                     <i class="bi bi-card-text"></i>
                 </a>
-                {% with task.user_tasks.all.0 as ut %}
+                {% with task.user_task as ut %}
                 {% if ut.status == 'pending' %}
                 <a href="{% url 'start_task' ut.id %}" class="btn btn-sm btn-warning">
                     Start
                 </a>
                 {% endif %}
                 {% endwith %}
+                <form method="post" action="{% url 'delete_task' task.id %}" class="d-inline delete-task-form">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-danger" title="Delete Task">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </form>
             </td>
         </tr>
         {% endfor %}
@@ -224,6 +244,29 @@ $(document).on('click', '.toggle-title', function(e) {
     fullText.toggle();
 
     $(this).text($(this).text() === 'Read more' ? 'Show less' : 'Read more');
+});
+</script>
+<script>
+$(document).on('submit', '.delete-task-form', function(e) {
+    e.preventDefault();
+
+    const form = this;
+
+    Swal.fire({
+        title: 'Delete this task?',
+        text: 'This action cannot be undone.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Yes, delete it',
+        cancelButtonText: 'Cancel',
+        confirmButtonColor: '#dc3545',
+        cancelButtonColor: '#6c757d',
+        reverseButtons: true
+    }).then((result) => {
+        if (result.isConfirmed) {
+            form.submit();
+        }
+    });
 });
 </script>
 {% endblock %}

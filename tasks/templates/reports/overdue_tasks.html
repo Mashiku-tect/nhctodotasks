@@ -31,7 +31,7 @@
                 <tr>
                     <td>{{ forloop.counter }}</td>
                     <td>{{ ut.task.title }}</td>
-                    <td>{{ ut.assigned_to.get_full_name|default:ut.assigned_to.email }}</td>
+                    <td>{{ ut.assigned_to.get_full_name|default:ut.assigned_to.username }}</td>
                     <td>{{ ut.task.due_date|date:"M d, Y" }}</td>
                     <td>
                         {% if ut.status == 'in_progress' %}

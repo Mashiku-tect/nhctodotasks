@@ -88,6 +88,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',  # needed for request.user
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'tasks.context_processors.notification_data',
             ],
         },
     },
