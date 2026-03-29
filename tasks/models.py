@@ -8,23 +8,6 @@ from accounts.models import User
 User = get_user_model()
 #User = settings.AUTH_USER_MODEL
 
-
-class Category(models.Model):
-    name = models.CharField(max_length=100)
-    section = models.CharField(
-        max_length=100,
-        choices=User.SECTION_CHOICES
-    )
-    members = models.ManyToManyField(
-        User,
-        through='CategoryMember',
-        related_name='categories_joined'  # avoid clash
-    )
-
-    def __str__(self):
-        return f"{self.name} ({self.section})"
-
-
 class Category(models.Model):
     name = models.CharField(max_length=100)
     section = models.CharField(
