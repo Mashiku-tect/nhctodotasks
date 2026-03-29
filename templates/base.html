@@ -18,6 +18,8 @@
 <style>
 :root {
     --nhc-primary: #2f8fc9;
+    --nhc-primary-dark: #2474a5;
+    --nhc-primary-soft: #e8f4fb;
     --nhc-accent: #8fd3ff;
     --nhc-light: #f1f5f9;
     --nhc-card: #ffffff;
@@ -37,6 +39,39 @@ body {
     overflow: hidden;
     background: var(--nhc-light);
     font-family: "Inter", sans-serif;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, var(--nhc-primary) 0%, var(--nhc-primary-dark) 100%);
+    border-color: var(--nhc-primary);
+    box-shadow: 0 8px 18px rgba(47, 143, 201, 0.18);
+}
+
+.btn-primary:hover,
+.btn-primary:focus,
+.btn-primary:active {
+    background: linear-gradient(135deg, #2a84bb 0%, var(--nhc-primary-dark) 100%);
+    border-color: var(--nhc-primary-dark);
+}
+
+.btn-outline-primary {
+    color: var(--nhc-primary);
+    border-color: var(--nhc-primary);
+}
+
+.btn-outline-primary:hover,
+.btn-outline-primary:focus,
+.btn-outline-primary:active {
+    background: var(--nhc-primary-soft);
+    color: var(--nhc-primary-dark);
+    border-color: var(--nhc-primary);
+}
+
+.btn-check:checked + .btn-primary,
+.btn-check:active + .btn-primary,
+.btn-primary:focus-visible,
+.btn-outline-primary:focus-visible {
+    box-shadow: 0 0 0 0.25rem rgba(47, 143, 201, 0.22);
 }
 
 /* SIDEBAR */

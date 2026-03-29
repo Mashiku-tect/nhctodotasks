@@ -14,6 +14,8 @@
 <style>
 :root {
     --nhc-primary: #2f8fc9;
+    --nhc-primary-dark: #2474a5;
+    --nhc-primary-soft: #e8f4fb;
     --nhc-accent: #8fd3ff;
     --nhc-accent-dark: #62b9f0;
     --nhc-light: #ffffff;         /* white */
@@ -84,9 +86,9 @@ body {
 .form-control { border-radius: 8px; border: 1px solid #cbd5e1; padding: 0.75rem 1rem; font-size: 1rem; }
 
 .btn-nhc {
-    background: var(--nhc-accent);
+    background: linear-gradient(135deg, var(--nhc-primary) 0%, var(--nhc-primary-dark) 100%);
     border: none;
-    color: var(--nhc-dark);
+    color: #ffffff;
     font-weight: 600;
     padding: 0.875rem;
     border-radius: 8px;
@@ -96,10 +98,10 @@ body {
 }
 
 .btn-nhc:hover {
-    background: var(--nhc-accent-dark);
+    background: linear-gradient(135deg, #2a84bb 0%, var(--nhc-primary-dark) 100%);
     transform: translateY(-2px);
-    box-shadow: 0 7px 20px rgba(245, 158, 11, 0.25);
-    color: var(--nhc-dark);
+    box-shadow: 0 7px 20px rgba(47, 143, 201, 0.28);
+    color: #ffffff;
 }
 
 .password-toggle {
@@ -112,9 +114,9 @@ body {
 }
 
 .password-toggle:hover {
-    background-color: var(--nhc-accent);
-    color: var(--nhc-dark);
-    border-color: var(--nhc-accent);
+    background-color: var(--nhc-primary-soft);
+    color: var(--nhc-primary-dark);
+    border-color: var(--nhc-primary);
 }
 
 /* Toast notification */
