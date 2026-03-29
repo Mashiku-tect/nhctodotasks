@@ -316,61 +316,10 @@ footer {
 
 
 {% if not request.user.is_superuser %}
-
-<li class="nav-item">
-    <a class="nav-link d-flex justify-content-between align-items-center"
-       data-bs-toggle="collapse"
-       href="#reportsMenu">
-
-
-    <span>
-        <i class="bi bi-bar-chart"></i> 
+    <li><a class="nav-link" href="{% url 'reports_home' %}">
+        <i class="bi bi-bar-chart"></i>
         <span>Reports</span>
-    </span>
-    <i class="bi bi-chevron-down"></i>
-</a>
-
-<div class="collapse" id="reportsMenu">
-    <ul class="nav flex-column ms-3">
-
-        <li>
-            <a class="nav-link" href="{% url 'report_my_tasks' %}">
-                <i class="bi bi-file-earmark-text"></i>
-                <span>My Task Report</span>
-            </a>
-        </li>
-
-        <li>
-            <a class="nav-link" href="{% url 'report_assigned_tasks' %}">
-                <i class="bi bi-journal-check"></i>
-                <span>Assigned Report</span>
-            </a>
-        </li>
-
-        {% if request.user.role == "manager" %}
-
-        <li>
-            <a class="nav-link" href="{% url 'reports_overdue' %}">
-                <i class="bi bi-exclamation-circle"></i> 
-                <span>Overdue Tasks</span>
-            </a>
-        </li>
-
-        <li>
-            <a class="nav-link" href="{% url 'reports_due_soon' %}">
-                <i class="bi bi-clock"></i>
-                <span>Due Soon</span>
-            </a>
-        </li>
-
-        {% endif %}
-
-    </ul>
-</div>
-
-
-</li>
-
+    </a></li>
 {% endif %}
 
 

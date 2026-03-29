@@ -6,7 +6,7 @@ from django.contrib.auth import get_user_model
 from .models import Task, UserTask, SubTask, Comment, TaskAttachment, Category, Notification, TaskReportRecord
 from django.utils import timezone
 from django.http import HttpResponseForbidden,JsonResponse
-from django.db.models import Q
+from django.db.models import F, Q
 from collections import defaultdict
 from django.views.decorators.http import require_POST
 import os
@@ -455,6 +455,45 @@ def my_task_report(request):
         'filters': filters,
         'report_kind': 'my',
         'show_counterparty': False,
+    })
+
+
+@login_required
+def reports_home(request):
+    report_cards = [
+        {
+            'title': 'My Task Report',
+            'description': 'See the history of tasks you created for yourself.',
+            'icon': 'bi-file-earmark-text',
+            'url': reverse('report_my_tasks'),
+        },
+        {
+            'title': 'Assigned Report',
+            'description': 'Review tasks shared between you and other staff members.',
+            'icon': 'bi-journal-check',
+            'url': reverse('report_assigned_tasks'),
+        },
+    ]
+
+    if request.user.role == 'manager':
+        report_cards.extend([
+            {
+                'title': 'Overdue Tasks',
+                'description': 'Focus on work that has passed the deadline and needs follow-up.',
+                'icon': 'bi-exclamation-circle',
+                'url': reverse('reports_overdue'),
+            },
+            {
+                'title': 'Due Soon',
+                'description': 'Catch tasks approaching the deadline before they become overdue.',
+                'icon': 'bi-clock',
+                'url': reverse('reports_due_soon'),
+            },
+        ])
+
+    return render(request, 'reports/reports_home.html', {
+        'report_cards': report_cards,
+        'show_performance_link': request.user.role == 'manager' or request.user.is_superuser,
     })
 
 
@@ -1325,101 +1364,196 @@ def due_soon_report(request):
 
 @login_required
 def staff_performance_report(request):
-    # # 🔒 Only manager can access
-    # if request.user.role != 'manager':
-    #     return HttpResponseForbidden()
-
-    # 📅 Tanzania time
     tanzania_tz = pytz.timezone('Africa/Dar_es_Salaam')
     today = timezone.now().astimezone(tanzania_tz).date()
 
-    # 👥 Get staff in same section
-    staff_users = User.objects.filter(
-        role='staff',
-        section=request.user.section
-    )
+    created_from = request.GET.get('created_from', '').strip()
+    created_to = request.GET.get('created_to', '').strip()
+    task_source = request.GET.get('task_source', 'all').strip() or 'all'
+    section_filter = request.GET.get('section', '').strip()
+
+    if task_source not in ['all', 'manager', 'self']:
+        task_source = 'all'
+
+    if request.user.is_superuser:
+        staff_users = User.objects.filter(role='staff')
+        if section_filter:
+            staff_users = staff_users.filter(section=section_filter)
+    elif request.user.role == 'staff':
+        section_filter = request.user.section
+        staff_users = User.objects.filter(
+            role='staff',
+            section=request.user.section
+        )
+    else:
+        section_filter = request.user.section
+        staff_users = User.objects.filter(
+            role='staff',
+            section=request.user.section
+        )
+
+    staff_users = staff_users.order_by('username')
+
+    def apply_date_filters(queryset):
+        if created_from:
+            queryset = queryset.filter(task__created_at__date__gte=created_from)
+        if created_to:
+            queryset = queryset.filter(task__created_at__date__lte=created_to)
+        return queryset
+
+    def summarize_tasks(queryset):
+        total = queryset.count()
+        completed_qs = queryset.filter(status='completed')
+        completed = completed_qs.count()
+        pending = queryset.filter(status__in=['pending', 'in_progress', 'accepted']).count()
+        overdue = queryset.filter(task__due_date__lt=today).exclude(
+            status__in=['completed', 'rejected']
+        ).count()
+        on_time_completed = completed_qs.filter(
+            completed_at__isnull=False,
+            completed_at__date__lte=F('task__due_date')
+        ).count()
+        late_completed = completed_qs.filter(
+            completed_at__isnull=False,
+            completed_at__date__gt=F('task__due_date')
+        ).count()
+        rejected = queryset.filter(review_status='rejected').count()
+        completion_rate = round((completed / total * 100), 1) if total else 0
+        on_time_rate = round((on_time_completed / completed * 100), 1) if completed else 0
+
+        return {
+            'total': total,
+            'completed': completed,
+            'pending': pending,
+            'overdue': overdue,
+            'on_time_completed': on_time_completed,
+            'late_completed': late_completed,
+            'rejected': rejected,
+            'completion_rate': completion_rate,
+            'on_time_rate': on_time_rate,
+        }
 
     performance_data = []
 
     for staff in staff_users:
-
-        # ✅ Manager → Staff tasks
         manager_tasks = UserTask.objects.filter(
-            assigned_to=staff,
-            assigned_by=request.user
-        ).select_related('task')
+            assigned_to=staff
+        ).select_related('task', 'assigned_by')
+        if request.user.is_superuser:
+            manager_tasks = manager_tasks.exclude(assigned_by=staff)
+        elif request.user.role == 'staff':
+            manager_tasks = manager_tasks.exclude(assigned_by=staff)
+        else:
+            manager_tasks = manager_tasks.filter(assigned_by=request.user)
+        manager_tasks = apply_date_filters(manager_tasks)
 
-        # ✅ Staff self tasks
         staff_tasks = UserTask.objects.filter(
             assigned_to=staff,
             assigned_by=staff
         ).select_related('task')
+        staff_tasks = apply_date_filters(staff_tasks)
 
-        # ---------------- MANAGER STATS ----------------
-        m_total = manager_tasks.count()
-        m_completed = manager_tasks.filter(status='completed').count()
-        m_pending = manager_tasks.filter(
-            status__in=['pending', 'in_progress', 'accepted']
-        ).count()
-        m_overdue = manager_tasks.filter(
-            task__due_date__lt=today
-        ).exclude(status__in=['completed', 'rejected']).count()
+        manager_stats = summarize_tasks(manager_tasks)
+        staff_stats = summarize_tasks(staff_tasks)
 
-        m_rate = (m_completed / m_total * 100) if m_total else 0
+        if task_source == 'manager':
+            combined_total = manager_stats['total']
+            combined_completed = manager_stats['completed']
+            combined_pending = manager_stats['pending']
+            combined_overdue = manager_stats['overdue']
+            combined_on_time = manager_stats['on_time_completed']
+            combined_late = manager_stats['late_completed']
+            combined_rejected = manager_stats['rejected']
+        elif task_source == 'self':
+            combined_total = staff_stats['total']
+            combined_completed = staff_stats['completed']
+            combined_pending = staff_stats['pending']
+            combined_overdue = staff_stats['overdue']
+            combined_on_time = staff_stats['on_time_completed']
+            combined_late = staff_stats['late_completed']
+            combined_rejected = staff_stats['rejected']
+        else:
+            combined_total = manager_stats['total'] + staff_stats['total']
+            combined_completed = manager_stats['completed'] + staff_stats['completed']
+            combined_pending = manager_stats['pending'] + staff_stats['pending']
+            combined_overdue = manager_stats['overdue'] + staff_stats['overdue']
+            combined_on_time = manager_stats['on_time_completed'] + staff_stats['on_time_completed']
+            combined_late = manager_stats['late_completed'] + staff_stats['late_completed']
+            combined_rejected = manager_stats['rejected'] + staff_stats['rejected']
 
-        # ---------------- STAFF STATS ----------------
-        s_total = staff_tasks.count()
-        s_completed = staff_tasks.filter(status='completed').count()
-        s_pending = staff_tasks.filter(
-            status__in=['pending', 'in_progress', 'accepted']
-        ).count()
-        s_overdue = staff_tasks.filter(
-            task__due_date__lt=today
-        ).exclude(status__in=['completed', 'rejected']).count()
-
-        s_rate = (s_completed / s_total * 100) if s_total else 0
-
-        # ---------------- COMBINED SUMMARY ----------------
-        total_tasks = m_total + s_total
-        completed_tasks = m_completed + s_completed
-        pending_tasks = m_pending + s_pending
-        overdue_tasks = m_overdue + s_overdue
-        completion_rate = (completed_tasks / total_tasks * 100) if total_tasks else 0
+        completion_rate = round((combined_completed / combined_total * 100), 1) if combined_total else 0
+        on_time_rate = round((combined_on_time / combined_completed * 100), 1) if combined_completed else 0
 
         performance_data.append({
             'staff': staff,
-
-            # 🔹 combined summary (used in main table)
-            'total_tasks': total_tasks,
-            'completed_tasks': completed_tasks,
-            'pending_tasks': pending_tasks,
-            'overdue_tasks': overdue_tasks,
-            'completion_rate': round(completion_rate, 1),
-
-            # 🔹 manager stats
-            'm_total': m_total,
-            'm_completed': m_completed,
-            'm_pending': m_pending,
-            'm_overdue': m_overdue,
-            'm_rate': round(m_rate, 1),
-
-            # 🔹 staff stats
-            's_total': s_total,
-            's_completed': s_completed,
-            's_pending': s_pending,
-            's_overdue': s_overdue,
-            's_rate': round(s_rate, 1),
-
-            # 🔹 task lists
+            'total_tasks': combined_total,
+            'completed_tasks': combined_completed,
+            'pending_tasks': combined_pending,
+            'overdue_tasks': combined_overdue,
+            'on_time_completed': combined_on_time,
+            'late_completed': combined_late,
+            'rejected_tasks': combined_rejected,
+            'completion_rate': completion_rate,
+            'on_time_rate': on_time_rate,
+            'm_total': manager_stats['total'],
+            'm_completed': manager_stats['completed'],
+            'm_pending': manager_stats['pending'],
+            'm_overdue': manager_stats['overdue'],
+            'm_on_time': manager_stats['on_time_completed'],
+            'm_late': manager_stats['late_completed'],
+            'm_rejected': manager_stats['rejected'],
+            'm_rate': manager_stats['completion_rate'],
+            'm_on_time_rate': manager_stats['on_time_rate'],
+            's_total': staff_stats['total'],
+            's_completed': staff_stats['completed'],
+            's_pending': staff_stats['pending'],
+            's_overdue': staff_stats['overdue'],
+            's_on_time': staff_stats['on_time_completed'],
+            's_late': staff_stats['late_completed'],
+            's_rejected': staff_stats['rejected'],
+            's_rate': staff_stats['completion_rate'],
+            's_on_time_rate': staff_stats['on_time_rate'],
             'manager_tasks': manager_tasks,
             'staff_tasks': staff_tasks,
         })
 
+    performance_data.sort(
+        key=lambda item: (
+            item['completion_rate'],
+            item['on_time_rate'],
+            item['completed_tasks'],
+            -item['overdue_tasks']
+        ),
+        reverse=True
+    )
 
+    summary = {
+        'staff_count': len(performance_data),
+        'total_tasks': sum(item['total_tasks'] for item in performance_data),
+        'completed_tasks': sum(item['completed_tasks'] for item in performance_data),
+        'pending_tasks': sum(item['pending_tasks'] for item in performance_data),
+        'overdue_tasks': sum(item['overdue_tasks'] for item in performance_data),
+        'on_time_completed': sum(item['on_time_completed'] for item in performance_data),
+        'late_completed': sum(item['late_completed'] for item in performance_data),
+        'rejected_tasks': sum(item['rejected_tasks'] for item in performance_data),
+    }
+    summary['completion_rate'] = round(
+        (summary['completed_tasks'] / summary['total_tasks'] * 100), 1
+    ) if summary['total_tasks'] else 0
+    summary['on_time_rate'] = round(
+        (summary['on_time_completed'] / summary['completed_tasks'] * 100), 1
+    ) if summary['completed_tasks'] else 0
 
     return render(request, 'reports/staff_performance.html', {
         'performance_data': performance_data,
-    
+        'summary': summary,
+        'filters': {
+            'created_from': created_from,
+            'created_to': created_to,
+            'task_source': task_source,
+            'section': section_filter,
+        },
+        'section_choices': User.SECTION_CHOICES,
     })
 
 @login_required
@@ -1456,11 +1590,18 @@ def staff_detail(request, staff_id):
 
 @login_required
 def manager_task_detail(request, staff_id):
-    # if request.user.role != 'manager':
-    #     return HttpResponseForbidden()
-
     staff = get_object_or_404(User, id=staff_id, role='staff', section=request.user.section)
-    tasks = UserTask.objects.filter(assigned_by=request.user, assigned_to=staff).select_related('task')
+
+    if request.user.is_superuser:
+        tasks = UserTask.objects.filter(assigned_to=staff).exclude(assigned_by=staff).select_related('task', 'assigned_by')
+    elif request.user.role == 'manager':
+        tasks = UserTask.objects.filter(assigned_by=request.user, assigned_to=staff).select_related('task', 'assigned_by')
+    elif request.user.role == 'staff':
+        if request.user.section != staff.section:
+            return HttpResponseForbidden()
+        tasks = UserTask.objects.filter(assigned_to=staff).exclude(assigned_by=staff).select_related('task', 'assigned_by')
+    else:
+        return HttpResponseForbidden()
 
     return render(request, 'reports/manager_task_detail.html', {
         'staff': staff,

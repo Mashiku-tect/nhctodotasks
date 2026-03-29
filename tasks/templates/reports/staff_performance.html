@@ -29,6 +29,150 @@
     margin: 0;
 }
 
+.filter-card {
+    background: #ffffff;
+    border: 1px solid #dbe9f3;
+    border-radius: 20px;
+    padding: 1.25rem;
+    box-shadow: 0 14px 28px rgba(15, 23, 42, 0.05);
+}
+
+.filter-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1rem;
+    align-items: end;
+}
+
+.summary-grid,
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1rem;
+}
+
+.summary-card,
+.staff-card {
+    background: white;
+    border: 1px solid #e2edf5;
+    border-radius: 20px;
+    padding: 1.15rem;
+    box-shadow: 0 14px 26px rgba(15, 23, 42, 0.05);
+}
+
+.summary-card {
+    cursor: default;
+}
+
+.staff-card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    cursor: pointer;
+}
+
+.staff-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 18px 30px rgba(47, 143, 201, 0.12);
+    border-color: #bfdcf0;
+}
+
+.staff-card-head,
+.summary-card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.staff-rank,
+.summary-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+    background: #e8f4fb;
+    color: #1f6f9f;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+}
+
+.staff-email,
+.summary-title {
+    font-weight: 700;
+    color: #0f172a;
+    word-break: break-word;
+    margin-bottom: 0.2rem;
+}
+
+.staff-label,
+.summary-label,
+.filter-note {
+    color: #64748b;
+    font-size: 0.9rem;
+}
+
+.rate-pill {
+    background: #f0f9f4;
+    color: #15803d;
+    border-radius: 999px;
+    padding: 0.35rem 0.65rem;
+    font-weight: 700;
+    font-size: 0.85rem;
+    white-space: nowrap;
+}
+
+.metric-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+}
+
+.metric-box {
+    border: 1px solid #edf2f7;
+    border-radius: 14px;
+    padding: 0.8rem;
+    background: #fbfdff;
+}
+
+.metric-title {
+    color: #64748b;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 0.25rem;
+}
+
+.metric-value {
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: #0f172a;
+    line-height: 1;
+}
+
+.metric-value.success {
+    color: #15803d;
+}
+
+.metric-value.warning {
+    color: #475569;
+}
+
+.metric-value.danger {
+    color: #dc2626;
+}
+
+.metric-value.info {
+    color: #0369a1;
+}
+
+.section-heading {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #486278;
+    margin-bottom: 1rem;
+}
+
 .dashboard-tabs {
     display: flex;
     flex-wrap: wrap;
@@ -60,138 +204,151 @@
     display: block;
 }
 
-.stats-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    gap: 1rem;
-}
-
-.staff-card {
-    background: white;
-    border: 1px solid #e2edf5;
-    border-radius: 20px;
-    padding: 1.15rem;
-    box-shadow: 0 14px 26px rgba(15, 23, 42, 0.05);
-    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
-    cursor: pointer;
-}
-
-.staff-card:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 18px 30px rgba(47, 143, 201, 0.12);
-    border-color: #bfdcf0;
-}
-
-.staff-card-head {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 0.75rem;
-    margin-bottom: 1rem;
-}
-
-.staff-rank {
-    width: 34px;
-    height: 34px;
-    border-radius: 10px;
-    background: #e8f4fb;
-    color: #1f6f9f;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 700;
-    font-size: 0.9rem;
-}
-
-.staff-email {
-    font-weight: 700;
-    color: #0f172a;
-    word-break: break-word;
-    margin-bottom: 0.2rem;
-}
-
-.staff-label {
-    color: #64748b;
-    font-size: 0.9rem;
-}
-
-.rate-pill {
-    background: #f0f9f4;
-    color: #15803d;
-    border-radius: 999px;
-    padding: 0.35rem 0.65rem;
-    font-weight: 700;
-    font-size: 0.85rem;
-    white-space: nowrap;
-}
-
-.metric-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.75rem;
-}
-
-.metric-box {
-    border: 1px solid #edf2f7;
-    border-radius: 14px;
-    padding: 0.8rem;
-    background: #fbfdff;
-}
-
-.metric-title {
-    color: #64748b;
-    font-size: 0.8rem;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    margin-bottom: 0.25rem;
-}
-
-.metric-value {
-    font-size: 1.35rem;
-    font-weight: 700;
-    color: #0f172a;
-    line-height: 1;
-}
-
-.metric-value.success {
-    color: #15803d;
-}
-
-.metric-value.warning {
-    color: #475569;
-}
-
-.metric-value.danger {
-    color: #dc2626;
-}
-
-.section-heading {
-    font-size: 1rem;
-    font-weight: 700;
-    color: #486278;
-    margin-bottom: 1rem;
+@media (max-width: 768px) {
+    .metric-grid {
+        grid-template-columns: 1fr;
+    }
 }
 </style>
 
 <div class="dashboard-shell">
     <div class="dashboard-hero">
         <div class="dashboard-title">
-            <i class="bi bi-graph-up-arrow me-2"></i>Dashboard
+            <i class="bi bi-graph-up-arrow me-2"></i>Staff Performance
         </div>
-        <p class="dashboard-subtitle">Track staff task progress using a cleaner card view instead of table rows.</p>
+        <p class="dashboard-subtitle">Review department output, overdue pressure, and on-time delivery for the selected period.</p>
     </div>
+    {% if request.user.role == "manager" %}
+    <form method="get" class="filter-card">
+        <div class="section-heading mb-2">Filter Report</div>
+        <div class="filter-grid">
+            <div>
+                <label class="form-label">Created From</label>
+                <input type="date" name="created_from" value="{{ filters.created_from }}" class="form-control">
+            </div>
+            <div>
+                <label class="form-label">Created To</label>
+                <input type="date" name="created_to" value="{{ filters.created_to }}" class="form-control">
+            </div>
+            <div>
+                <label class="form-label">Task Source</label>
+                <select name="task_source" class="form-select">
+                    <option value="all" {% if filters.task_source == 'all' %}selected{% endif %}>All Tasks</option>
+                    <option value="manager" {% if filters.task_source == 'manager' %}selected{% endif %}>Manager Assigned</option>
+                    <option value="self" {% if filters.task_source == 'self' %}selected{% endif %}>Staff Self Tasks</option>
+                </select>
+            </div>
+            {% if request.user.is_superuser %}
+            <div>
+                <label class="form-label">Section</label>
+                <select name="section" class="form-select">
+                    <option value="">All Sections</option>
+                    {% for value, label in section_choices %}
+                    <option value="{{ value }}" {% if filters.section == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary w-100">Apply</button>
+                <a href="{% url 'reports_performance' %}" class="btn btn-outline-secondary w-100">Reset</a>
+            </div>
+        </div>
+        <div class="filter-note mt-3">
+            Ranking is based on completion rate first, then on-time delivery and completed volume.
+        </div>
+    </form>
+
+    <div>
+        <div class="section-heading">Department Snapshot</div>
+        <div class="summary-grid">
+            <div class="summary-card">
+                <div class="summary-card-head">
+                    <div>
+                        <div class="summary-icon"><i class="bi bi-people"></i></div>
+                    </div>
+                    <div class="flex-grow-1">
+                        <div class="summary-title">Staff Covered</div>
+                        <div class="summary-label">People included in this report</div>
+                    </div>
+                </div>
+                <div class="metric-value">{{ summary.staff_count }}</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-card-head">
+                    <div>
+                        <div class="summary-icon"><i class="bi bi-list-check"></i></div>
+                    </div>
+                    <div class="flex-grow-1">
+                        <div class="summary-title">Total Tasks</div>
+                        <div class="summary-label">Tasks in the selected period</div>
+                    </div>
+                </div>
+                <div class="metric-value">{{ summary.total_tasks }}</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-card-head">
+                    <div>
+                        <div class="summary-icon"><i class="bi bi-check2-circle"></i></div>
+                    </div>
+                    <div class="flex-grow-1">
+                        <div class="summary-title">Completion Rate</div>
+                        <div class="summary-label">Completed out of total tasks</div>
+                    </div>
+                </div>
+                <div class="metric-value success">{{ summary.completion_rate }}%</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-card-head">
+                    <div>
+                        <div class="summary-icon"><i class="bi bi-alarm"></i></div>
+                    </div>
+                    <div class="flex-grow-1">
+                        <div class="summary-title">On-Time Rate</div>
+                        <div class="summary-label">Completed on or before due date</div>
+                    </div>
+                </div>
+                <div class="metric-value info">{{ summary.on_time_rate }}%</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-card-head">
+                    <div>
+                        <div class="summary-icon"><i class="bi bi-exclamation-triangle"></i></div>
+                    </div>
+                    <div class="flex-grow-1">
+                        <div class="summary-title">Overdue Open</div>
+                        <div class="summary-label">Still not completed on time</div>
+                    </div>
+                </div>
+                <div class="metric-value danger">{{ summary.overdue_tasks }}</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-card-head">
+                    <div>
+                        <div class="summary-icon"><i class="bi bi-hourglass-split"></i></div>
+                    </div>
+                    <div class="flex-grow-1">
+                        <div class="summary-title">Late Completions</div>
+                        <div class="summary-label">Finished after the deadline</div>
+                    </div>
+                </div>
+                <div class="metric-value warning">{{ summary.late_completed }}</div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 
     {% if performance_data %}
     <div class="dashboard-tabs">
-        <button class="dashboard-tab active" type="button" data-panel="summaryPanel">Total Summary</button>
+        <button class="dashboard-tab active" type="button" data-panel="summaryPanel">Overall Ranking</button>
         <button class="dashboard-tab" type="button" data-panel="managerPanel">
-            {% if request.user.role == "manager" or request.user.is_superuser %}Assigned by Me{% else %}Assigned by Manager{% endif %}
+            {% if request.user.role == "manager" or request.user.is_superuser %}Manager Assigned{% else %}Assigned by Manager{% endif %}
         </button>
-        <button class="dashboard-tab" type="button" data-panel="staffPanel">Staff Self Tasks</button>
+        <button class="dashboard-tab" type="button" data-panel="staffPanel">Self Tasks</button>
     </div>
 
     <div id="summaryPanel" class="dashboard-panel active">
-        <div class="section-heading">Total Summary</div>
+        <div class="section-heading">Overall Ranking</div>
         <div class="stats-grid">
             {% for item in performance_data %}
             <div class="staff-card" onclick="window.location.href='{% url 'staff_detail' item.staff.id %}'">
@@ -201,7 +358,7 @@
                     </div>
                     <div class="flex-grow-1">
                         <div class="staff-email">{{ item.staff.username }}</div>
-                        <div class="staff-label">Overall task performance</div>
+                        <div class="staff-label">Combined output for the selected view</div>
                     </div>
                     <div class="rate-pill">{{ item.completion_rate }}%</div>
                 </div>
@@ -223,6 +380,14 @@
                         <div class="metric-title">Overdue</div>
                         <div class="metric-value danger">{{ item.overdue_tasks }}</div>
                     </div>
+                    <div class="metric-box">
+                        <div class="metric-title">On Time</div>
+                        <div class="metric-value info">{{ item.on_time_completed }}</div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-title">Late</div>
+                        <div class="metric-value warning">{{ item.late_completed }}</div>
+                    </div>
                 </div>
             </div>
             {% endfor %}
@@ -230,9 +395,7 @@
     </div>
 
     <div id="managerPanel" class="dashboard-panel">
-        <div class="section-heading">
-            {% if request.user.role == "manager" or request.user.is_superuser %}Assigned by Me Summary{% else %}Assigned by Manager Summary{% endif %}
-        </div>
+        <div class="section-heading">Manager Assigned Summary</div>
         <div class="stats-grid">
             {% for item in performance_data %}
             <div class="staff-card" onclick="window.location.href='{% url 'manager_task_detail' item.staff.id %}'">
@@ -242,9 +405,7 @@
                     </div>
                     <div class="flex-grow-1">
                         <div class="staff-email">{{ item.staff.username }}</div>
-                        <div class="staff-label">
-                            {% if request.user.role == "manager" or request.user.is_superuser %}Tasks assigned by you{% else %}Tasks assigned by manager{% endif %}
-                        </div>
+                        <div class="staff-label">Tasks coming from management</div>
                     </div>
                     <div class="rate-pill">{{ item.m_rate }}%</div>
                 </div>
@@ -266,6 +427,14 @@
                         <div class="metric-title">Overdue</div>
                         <div class="metric-value danger">{{ item.m_overdue }}</div>
                     </div>
+                    <div class="metric-box">
+                        <div class="metric-title">On Time</div>
+                        <div class="metric-value info">{{ item.m_on_time }}</div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-title">Late</div>
+                        <div class="metric-value warning">{{ item.m_late }}</div>
+                    </div>
                 </div>
             </div>
             {% endfor %}
@@ -283,7 +452,7 @@
                     </div>
                     <div class="flex-grow-1">
                         <div class="staff-email">{{ item.staff.username }}</div>
-                        <div class="staff-label">Tasks created by staff themselves</div>
+                        <div class="staff-label">Tasks initiated by the staff member</div>
                     </div>
                     <div class="rate-pill">{{ item.s_rate }}%</div>
                 </div>
@@ -305,13 +474,21 @@
                         <div class="metric-title">Overdue</div>
                         <div class="metric-value danger">{{ item.s_overdue }}</div>
                     </div>
+                    <div class="metric-box">
+                        <div class="metric-title">On Time</div>
+                        <div class="metric-value info">{{ item.s_on_time }}</div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-title">Late</div>
+                        <div class="metric-value warning">{{ item.s_late }}</div>
+                    </div>
                 </div>
             </div>
             {% endfor %}
         </div>
     </div>
     {% else %}
-    <div class="alert alert-info">No staff tasks available.</div>
+    <div class="alert alert-info">No staff tasks match the selected filters.</div>
     {% endif %}
 </div>
 
