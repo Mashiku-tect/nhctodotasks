@@ -185,6 +185,14 @@ class Notification(models.Model):
     TYPE_CHOICES = [
         ('task_assigned', 'Task Assigned'),
         ('task_review', 'Task Review'),
+        ('task_due_soon', 'Task Due Soon'),
+        ('task_overdue', 'Task Overdue'),
+        ('task_updated', 'Task Updated'),
+        ('task_accepted', 'Task Accepted'),
+        ('task_rejected', 'Task Rejected'),
+        ('task_reassigned', 'Task Reassigned'),
+        ('assigned_task_overdue', 'Assigned Task Overdue'),
+        ('task_review_delay', 'Task Review Delay'),
     ]
 
     user = models.ForeignKey(

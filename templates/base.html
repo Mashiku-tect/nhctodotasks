@@ -172,6 +172,31 @@ body {
     padding: 1.5rem;
 }
 
+.alert.alert-dismissible {
+    position: relative;
+    overflow: hidden;
+}
+
+.alert-timebar {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 4px;
+    background: rgba(15, 23, 42, 0.12);
+    transform-origin: left center;
+    animation: alertCountdown 3s linear forwards;
+}
+
+@keyframes alertCountdown {
+    from {
+        transform: scaleX(1);
+    }
+    to {
+        transform: scaleX(0);
+    }
+}
+
 /* FOOTER */
 footer {
     background: white;
@@ -468,6 +493,20 @@ document.querySelectorAll('.nav-link').forEach(link => {
     if (link.href === window.location.href) {
         link.classList.add('active');
     }
+});
+
+document.querySelectorAll('.alert.alert-dismissible').forEach(alertEl => {
+    if (!alertEl.querySelector('.alert-timebar')) {
+        const timebar = document.createElement('div');
+        timebar.className = 'alert-timebar';
+        alertEl.appendChild(timebar);
+    }
+
+    window.setTimeout(() => {
+        if (!alertEl.isConnected) return;
+        const alertInstance = bootstrap.Alert.getOrCreateInstance(alertEl);
+        alertInstance.close();
+    }, 3000);
 });
 </script>
 

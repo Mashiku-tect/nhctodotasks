@@ -1,19 +1,19 @@
 # NHC To Do Tasks
 
-A Django-based departmental task management system for the National Housing Corporation. The project supports task assignment, self-managed work, staff transparency dashboards, task review, notifications, and operational reporting.
+A Django-based departmental task management system for the National Housing Corporation. The project supports task assignment, self-managed work, fair staff dashboards, task review, notifications, and operational reporting.
 
 ## Core Features
 - Role-based access for `manager`, `staff`, and `superuser`
 - Task creation for personal work and department assignments
 - Task status tracking: pending, in progress, completed, accepted, rejected
 - Subtasks, comments, and file attachments
-- Staff performance dashboard with section-wide visibility
+- Staff performance dashboard with section-wide visibility for manager-assigned work
 - Report pages for:
   - My Task Report
   - Assigned Report
   - Overdue Tasks
   - Due Soon Tasks
-- Notifications for task assignment and review actions
+- In-app notifications for assignment, deadline reminders, review, and reassignment
 - User management for managers and superusers
 
 ## User Roles
@@ -26,7 +26,7 @@ A Django-based departmental task management system for the National Housing Corp
 ### Staff
 - Creates personal tasks
 - Works on assigned tasks
-- Sees section dashboard for transparency across fellow staff
+- Sees section dashboard for transparency across fellow staff based on assigned work
 - Accesses report pages for personal and assigned task history
 
 ### Superuser
@@ -37,6 +37,49 @@ A Django-based departmental task management system for the National Housing Corp
 - Both manager and staff log in to the dashboard route: `reports_performance`
 - Managers see their section dashboard focused on work they assigned
 - Staff can see fellow staff in the same section for transparency
+- Shared ranking is based only on manager-assigned tasks
+- Self-created tasks are excluded from the shared performance dashboard
+- Fresh pending tasks do not reduce ranking until they become overdue or are completed late
+
+## Performance Ranking Calculation
+- Shared ranking uses only manager-assigned tasks
+- Self-created tasks are excluded from section ranking
+- Ranking is driven by a fair `performance_score`
+- Fresh pending tasks do not lower a staff member's rank
+- Tasks start affecting ranking when they are:
+  - completed on time
+  - completed late
+  - overdue and still open
+  - rejected after review
+- The current score gives:
+  - full weight to on-time completed tasks
+  - reduced weight to late completed tasks
+  - no positive credit to overdue or rejected tasks
+- Ranking order is based on:
+  - `performance_score`
+  - `on_time_rate`
+  - `completed_tasks`
+  - fewer overdue tasks
+
+## In-App Notifications
+### Staff Notifications
+- New task assigned
+- Task due soon
+- Task overdue
+- Task updated
+- Task accepted
+- Task rejected with reason
+
+### Manager Notifications
+- Task completed and waiting for review
+- Assigned task overdue
+- Task reassigned
+- Review pending too long
+
+### Notification Behavior
+- Notifications appear in the in-app header notification menu
+- Due soon, overdue, and review-delay reminders are generated in-app and limited to once per day per task
+- Action-based notifications are created immediately when the related event happens
 
 ## Tech Stack
 - Python
@@ -93,12 +136,13 @@ python manage.py test
 - Removed duplicate `Category` model definition
 - Fixed conflicting task routes by giving `do_task` its own URL
 - Added a dedicated reports landing page
-- Improved the staff performance dashboard with filters and summary metrics
+- Improved the staff performance dashboard with fairer ranking based on manager-assigned work only
+- Added in-app notifications for due soon, overdue, review, acceptance, rejection, updates, and reassignment
 - Made staff dashboard section-transparent
-- Added baseline automated tests for login and dashboard behavior
+- Added automated tests for dashboard fairness and visibility behavior
 
 ## Suggested Next Improvements
 - Add Excel or PDF export for reports
 - Add more automated tests for task review and reassignment
 - Improve README screenshots and deployment notes
-- Add scheduled reminders for due soon and overdue tasks
+- Add background scheduling so reminder notifications can be pushed even when users are not currently opening the app

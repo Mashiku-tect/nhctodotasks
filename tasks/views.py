@@ -4,6 +4,7 @@ from django.shortcuts import render, redirect,get_object_or_404
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from .models import Task, UserTask, SubTask, Comment, TaskAttachment, Category, Notification, TaskReportRecord
+from .notifications import create_notification
 from django.utils import timezone
 from django.http import HttpResponseForbidden,JsonResponse
 from django.db.models import F, Q
@@ -36,17 +37,6 @@ def compute_task_status(usertasks):
 
 
 from django.urls import reverse
-
-
-def create_notification(*, user, title, message, notification_type, task=None, target_url=''):
-    Notification.objects.create(
-        user=user,
-        task=task,
-        title=title,
-        message=message,
-        notification_type=notification_type,
-        target_url=target_url,
-    )
 
 
 def sync_task_report_records(task=None, usertasks=None, mark_deleted=False):
@@ -532,6 +522,9 @@ def reassign_task(request, task_id):
     if request.method == 'POST':
         new_user_id = request.POST.get('assigned_to')
         new_user = User.objects.get(id=new_user_id)
+        previous_assignees = list(
+            task.user_tasks.exclude(assigned_to=request.user).select_related('assigned_to')
+        )
 
         # Find existing usertask for this task
         existing_usertask = UserTask.objects.filter(task=task, assigned_to__in=[new_user, request.user]).first()
@@ -558,8 +551,20 @@ def reassign_task(request, task_id):
         create_notification(
             user=new_user,
             title='Task reassigned to you',
-            message=f'A task has been assigned to you: {task.title}.',
-            notification_type='task_assigned',
+            message=f'{task.title} has been reassigned to you.',
+            notification_type='task_reassigned',
+            task=task,
+            target_url=reverse('task_detail', args=[task.id]),
+        )
+
+        previous_usernames = ", ".join(
+            prev.assigned_to.username for prev in previous_assignees if prev.assigned_to_id != new_user.id
+        ) or 'another staff member'
+        create_notification(
+            user=request.user,
+            title='Task reassigned',
+            message=f'"{task.title}" was reassigned from {previous_usernames} to {new_user.username}.',
+            notification_type='task_reassigned',
             task=task,
             target_url=reverse('task_detail', args=[task.id]),
         )
@@ -1064,6 +1069,15 @@ def edit_task(request, id):
                     ut.assigned_by = request.user
                 ut.save(update_fields=['assigned_by'])
                 sync_task_report_records(usertasks=[ut])
+                if is_assigned_task and assignee != request.user:
+                    create_notification(
+                        user=assignee,
+                        title='Task updated',
+                        message=f'Task details were updated: {task.title}.',
+                        notification_type='task_updated',
+                        task=task,
+                        target_url=reverse('task_detail', args=[task.id]),
+                    )
             else:
                 ut = UserTask.objects.create(
                     task=task,
@@ -1076,8 +1090,8 @@ def edit_task(request, id):
                 if is_assigned_task:
                     create_notification(
                         user=assignee,
-                        title='Task updated',
-                        message=f'Task details were updated: {task.title}.',
+                        title='New task assigned',
+                        message=f'You have been assigned a new task: {task.title}.',
                         notification_type='task_assigned',
                         task=task,
                         target_url=reverse('task_detail', args=[task.id]),
@@ -1213,6 +1227,15 @@ def review_task(request, task_id):
             # UserTask.objects.filter(task=task, assigned_by=request.user).update(status='accepted')
             UserTask.objects.filter(task=task).update(review_status='accepted')
             sync_task_report_records(task=task)
+            for user_task in task.user_tasks.select_related('assigned_to').exclude(assigned_to=request.user):
+                create_notification(
+                    user=user_task.assigned_to,
+                    title='Task accepted',
+                    message=f'Your work on "{task.title}" was accepted.',
+                    notification_type='task_accepted',
+                    task=task,
+                    target_url=reverse('task_detail', args=[task.id]),
+                )
             messages.success(request, "Task accepted successfully.")
 
         elif action == 'reject':
@@ -1223,6 +1246,15 @@ def review_task(request, task_id):
                 task=task,
                 comment=reason
             )
+            for user_task in task.user_tasks.select_related('assigned_to').exclude(assigned_to=request.user):
+                create_notification(
+                    user=user_task.assigned_to,
+                    title='Task rejected',
+                    message=f'Your work on "{task.title}" was rejected. Reason: {reason}',
+                    notification_type='task_rejected',
+                    task=task,
+                    target_url=reverse('task_detail', args=[task.id]),
+                )
             messages.success(request, "Task rejected with reason.")
 
         return redirect('assigned_tasks')
@@ -1369,11 +1401,7 @@ def staff_performance_report(request):
 
     created_from = request.GET.get('created_from', '').strip()
     created_to = request.GET.get('created_to', '').strip()
-    task_source = request.GET.get('task_source', 'all').strip() or 'all'
     section_filter = request.GET.get('section', '').strip()
-
-    if task_source not in ['all', 'manager', 'self']:
-        task_source = 'all'
 
     if request.user.is_superuser:
         staff_users = User.objects.filter(role='staff')
@@ -1420,6 +1448,11 @@ def staff_performance_report(request):
         rejected = queryset.filter(review_status='rejected').count()
         completion_rate = round((completed / total * 100), 1) if total else 0
         on_time_rate = round((on_time_completed / completed * 100), 1) if completed else 0
+        eligible_for_scoring = completed + overdue + rejected
+        weighted_completed_points = (on_time_completed * 100) + (late_completed * 70)
+        performance_score = round(
+            (weighted_completed_points / eligible_for_scoring), 1
+        ) if eligible_for_scoring else 0
 
         return {
             'total': total,
@@ -1431,95 +1464,51 @@ def staff_performance_report(request):
             'rejected': rejected,
             'completion_rate': completion_rate,
             'on_time_rate': on_time_rate,
+            'eligible_for_scoring': eligible_for_scoring,
+            'performance_score': performance_score,
         }
 
     performance_data = []
 
     for staff in staff_users:
-        manager_tasks = UserTask.objects.filter(
+        assigned_tasks = UserTask.objects.filter(
             assigned_to=staff
         ).select_related('task', 'assigned_by')
         if request.user.is_superuser:
-            manager_tasks = manager_tasks.exclude(assigned_by=staff)
+            assigned_tasks = assigned_tasks.exclude(assigned_by=staff)
         elif request.user.role == 'staff':
-            manager_tasks = manager_tasks.exclude(assigned_by=staff)
+            assigned_tasks = assigned_tasks.exclude(assigned_by=staff)
         else:
-            manager_tasks = manager_tasks.filter(assigned_by=request.user)
-        manager_tasks = apply_date_filters(manager_tasks)
+            assigned_tasks = assigned_tasks.filter(assigned_by=request.user)
+        assigned_tasks = apply_date_filters(assigned_tasks)
 
-        staff_tasks = UserTask.objects.filter(
-            assigned_to=staff,
-            assigned_by=staff
-        ).select_related('task')
-        staff_tasks = apply_date_filters(staff_tasks)
+        assigned_stats = summarize_tasks(assigned_tasks)
 
-        manager_stats = summarize_tasks(manager_tasks)
-        staff_stats = summarize_tasks(staff_tasks)
-
-        if task_source == 'manager':
-            combined_total = manager_stats['total']
-            combined_completed = manager_stats['completed']
-            combined_pending = manager_stats['pending']
-            combined_overdue = manager_stats['overdue']
-            combined_on_time = manager_stats['on_time_completed']
-            combined_late = manager_stats['late_completed']
-            combined_rejected = manager_stats['rejected']
-        elif task_source == 'self':
-            combined_total = staff_stats['total']
-            combined_completed = staff_stats['completed']
-            combined_pending = staff_stats['pending']
-            combined_overdue = staff_stats['overdue']
-            combined_on_time = staff_stats['on_time_completed']
-            combined_late = staff_stats['late_completed']
-            combined_rejected = staff_stats['rejected']
-        else:
-            combined_total = manager_stats['total'] + staff_stats['total']
-            combined_completed = manager_stats['completed'] + staff_stats['completed']
-            combined_pending = manager_stats['pending'] + staff_stats['pending']
-            combined_overdue = manager_stats['overdue'] + staff_stats['overdue']
-            combined_on_time = manager_stats['on_time_completed'] + staff_stats['on_time_completed']
-            combined_late = manager_stats['late_completed'] + staff_stats['late_completed']
-            combined_rejected = manager_stats['rejected'] + staff_stats['rejected']
-
-        completion_rate = round((combined_completed / combined_total * 100), 1) if combined_total else 0
-        on_time_rate = round((combined_on_time / combined_completed * 100), 1) if combined_completed else 0
+        completion_rate = assigned_stats['completion_rate']
+        on_time_rate = assigned_stats['on_time_rate']
+        performance_score = round(
+            assigned_stats['performance_score'], 1
+        ) if assigned_stats['eligible_for_scoring'] else 0
 
         performance_data.append({
             'staff': staff,
-            'total_tasks': combined_total,
-            'completed_tasks': combined_completed,
-            'pending_tasks': combined_pending,
-            'overdue_tasks': combined_overdue,
-            'on_time_completed': combined_on_time,
-            'late_completed': combined_late,
-            'rejected_tasks': combined_rejected,
+            'total_tasks': assigned_stats['total'],
+            'completed_tasks': assigned_stats['completed'],
+            'pending_tasks': assigned_stats['pending'],
+            'overdue_tasks': assigned_stats['overdue'],
+            'on_time_completed': assigned_stats['on_time_completed'],
+            'late_completed': assigned_stats['late_completed'],
+            'rejected_tasks': assigned_stats['rejected'],
             'completion_rate': completion_rate,
             'on_time_rate': on_time_rate,
-            'm_total': manager_stats['total'],
-            'm_completed': manager_stats['completed'],
-            'm_pending': manager_stats['pending'],
-            'm_overdue': manager_stats['overdue'],
-            'm_on_time': manager_stats['on_time_completed'],
-            'm_late': manager_stats['late_completed'],
-            'm_rejected': manager_stats['rejected'],
-            'm_rate': manager_stats['completion_rate'],
-            'm_on_time_rate': manager_stats['on_time_rate'],
-            's_total': staff_stats['total'],
-            's_completed': staff_stats['completed'],
-            's_pending': staff_stats['pending'],
-            's_overdue': staff_stats['overdue'],
-            's_on_time': staff_stats['on_time_completed'],
-            's_late': staff_stats['late_completed'],
-            's_rejected': staff_stats['rejected'],
-            's_rate': staff_stats['completion_rate'],
-            's_on_time_rate': staff_stats['on_time_rate'],
-            'manager_tasks': manager_tasks,
-            'staff_tasks': staff_tasks,
+            'eligible_for_scoring': assigned_stats['eligible_for_scoring'],
+            'performance_score': performance_score,
+            'assigned_tasks': assigned_tasks,
         })
 
     performance_data.sort(
         key=lambda item: (
-            item['completion_rate'],
+            item['performance_score'],
             item['on_time_rate'],
             item['completed_tasks'],
             -item['overdue_tasks']
@@ -1550,7 +1539,6 @@ def staff_performance_report(request):
         'filters': {
             'created_from': created_from,
             'created_to': created_to,
-            'task_source': task_source,
             'section': section_filter,
         },
         'section_choices': User.SECTION_CHOICES,
