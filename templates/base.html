@@ -368,6 +368,11 @@ footer {
         <span>Assigned Tasks</span>
     </a></li>
 
+    <li><a class="nav-link" href="{% if request.user.role == 'manager' %}{% url 'daily_digest' %}{% else %}{% url 'daily_board' %}{% endif %}">
+        <i class="bi bi-calendar2-check"></i>
+        <span>{% if request.user.role == 'manager' %}Daily Digest{% else %}Daily Board{% endif %}</span>
+    </a></li>
+
     <li><a class="nav-link" href="{% url 'create_task' %}">
         <i class="bi bi-plus-circle"></i>
         <span>Create Task</span>

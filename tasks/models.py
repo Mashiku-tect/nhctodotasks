@@ -224,6 +224,46 @@ class Notification(models.Model):
         return f"{self.user.email} - {self.title}"
 
 
+class DailyCheckIn(models.Model):
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='daily_checkins'
+    )
+    entry_date = models.DateField()
+    priority_tasks = models.ManyToManyField(
+        'UserTask',
+        blank=True,
+        related_name='daily_checkins'
+    )
+    morning_focus = models.TextField(blank=True)
+    progress_update = models.TextField(blank=True)
+    end_of_day_summary = models.TextField(blank=True)
+    tomorrow_plan = models.TextField(blank=True)
+    blockers = models.TextField(blank=True)
+    proof_file = models.FileField(
+        upload_to='daily_checkins/',
+        blank=True,
+        null=True
+    )
+    is_submitted = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    submitted_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-entry_date', '-updated_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['user', 'entry_date'],
+                name='unique_daily_checkin_per_user_date'
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.user.username} - {self.entry_date}"
+
+
 #subtasks model
 class SubTask(models.Model):
 

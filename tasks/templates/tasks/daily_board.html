@@ -1,0 +1,136 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid px-0">
+    {% if messages %}
+    <div class="mb-3">
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show shadow-sm" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
+        <div>
+            <h2 class="mb-1">Daily Accountability Board</h2>
+            <p class="text-muted mb-0">Plan the day, show progress, and close work with proof.</p>
+        </div>
+        <div class="text-muted small">
+            <i class="bi bi-calendar-event me-1"></i>{{ today|date:"l, d M Y" }}
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-xl-8">
+            <div class="card shadow-sm border-0">
+                <div class="card-body p-4">
+                    <form method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold">Morning priorities</label>
+                            <div class="border rounded p-3 bg-light-subtle">
+                                {% for usertask in open_tasks %}
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="checkbox" name="priority_task_ids" value="{{ usertask.id }}" id="task-{{ usertask.id }}"
+                                           {% if usertask.id in selected_priority_ids %}checked{% endif %}>
+                                    <label class="form-check-label" for="task-{{ usertask.id }}">
+                                        <span class="fw-semibold">{{ usertask.task.title }}</span>
+                                        <span class="text-muted">, due {{ usertask.task.due_date|date:"d M Y" }}</span>
+                                    </label>
+                                </div>
+                                {% empty %}
+                                <div class="text-muted">No active tasks available for today. Overdue tasks stay hidden here until a manager reassigns them.</div>
+                                {% endfor %}
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold" for="morning_focus">What are your main priorities today?</label>
+                            <textarea class="form-control" id="morning_focus" name="morning_focus" rows="3" placeholder="List the key work you want to finish today.">{{ checkin.morning_focus }}</textarea>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold" for="progress_update">Progress update</label>
+                            <textarea class="form-control" id="progress_update" name="progress_update" rows="4" placeholder="Share the current progress of your work.">{{ checkin.progress_update }}</textarea>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold" for="blockers">Blockers or support needed</label>
+                            <textarea class="form-control" id="blockers" name="blockers" rows="3" placeholder="Mention any issue slowing you down or any support you need.">{{ checkin.blockers }}</textarea>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold" for="end_of_day_summary">End-of-day summary</label>
+                            <textarea class="form-control" id="end_of_day_summary" name="end_of_day_summary" rows="4" placeholder="What did you finish today?">{{ checkin.end_of_day_summary }}</textarea>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold" for="tomorrow_plan">Tomorrow plan</label>
+                            <textarea class="form-control" id="tomorrow_plan" name="tomorrow_plan" rows="3" placeholder="What comes next tomorrow?">{{ checkin.tomorrow_plan }}</textarea>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold" for="proof_file">Proof of work</label>
+                            <input class="form-control" type="file" id="proof_file" name="proof_file">
+                            {% if checkin.proof_file %}
+                            <div class="small mt-2">
+                                Current file:
+                                <a href="{{ checkin.proof_file.url }}" target="_blank" rel="noopener">{{ checkin.proof_file.name }}</a>
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="d-flex flex-wrap gap-2">
+                            <button type="submit" name="action" value="save" class="btn btn-outline-primary">Save Draft</button>
+                            <button type="submit" name="action" value="submit" class="btn btn-primary">Submit Daily Update</button>
+                            {% if checkin.is_submitted %}
+                            <span class="badge text-bg-success align-self-center">Submitted today</span>
+                            {% endif %}
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-4">
+            <div class="card shadow-sm border-0 mb-4">
+                <div class="card-body">
+                    <h5 class="card-title mb-3">Today at a glance</h5>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-muted">Open tasks</span>
+                        <span class="fw-semibold">{{ open_tasks|length }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-muted">Completed today</span>
+                        <span class="fw-semibold">{{ completed_today|length }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span class="text-muted">Status</span>
+                        <span class="fw-semibold">{% if checkin.is_submitted %}Submitted{% else %}Draft{% endif %}</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card shadow-sm border-0">
+                <div class="card-body">
+                    <h5 class="card-title mb-3">Completed today</h5>
+                    {% for usertask in completed_today %}
+                    <div class="border rounded p-3 mb-2">
+                        <div class="fw-semibold">{{ usertask.task.title }}</div>
+                        <div class="small text-muted">
+                            Completed {{ usertask.completed_at|date:"H:i" }}
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="text-muted">No completed tasks recorded yet today.</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

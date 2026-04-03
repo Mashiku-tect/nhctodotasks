@@ -1,6 +1,6 @@
 # tasks/admin.py
 from django.contrib import admin
-from .models import Task, UserTask, SubTask, TaskAttachment, Comment, Category, CategoryMember, Notification
+from .models import Task, UserTask, SubTask, TaskAttachment, Comment, Category, CategoryMember, Notification, DailyCheckIn
 
 
 @admin.register(Task)
@@ -104,3 +104,11 @@ class NotificationAdmin(admin.ModelAdmin):
     list_display = ('user', 'title', 'notification_type', 'is_read', 'created_at')
     list_filter = ('notification_type', 'is_read', 'created_at')
     search_fields = ('user__email', 'title', 'message', 'task__title')
+
+
+@admin.register(DailyCheckIn)
+class DailyCheckInAdmin(admin.ModelAdmin):
+    list_display = ('user', 'entry_date', 'is_submitted', 'submitted_at', 'updated_at')
+    list_filter = ('entry_date', 'is_submitted', 'user__section')
+    search_fields = ('user__username', 'morning_focus', 'progress_update', 'blockers')
+    autocomplete_fields = ('user', 'priority_tasks')

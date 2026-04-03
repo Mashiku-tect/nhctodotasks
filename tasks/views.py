@@ -3,7 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect,get_object_or_404
 from django.contrib import messages
 from django.contrib.auth import get_user_model
-from .models import Task, UserTask, SubTask, Comment, TaskAttachment, Category, Notification, TaskReportRecord
+from .models import Task, UserTask, SubTask, Comment, TaskAttachment, Category, Notification, TaskReportRecord, DailyCheckIn
 from .notifications import create_notification
 from django.utils import timezone
 from django.http import HttpResponseForbidden,JsonResponse
@@ -396,6 +396,202 @@ def assigned_tasks(request):
     return render(request, 'tasks/assigned_tasks.html', context)
 
 
+def get_local_today():
+    return timezone.now().astimezone(tanzania_tz).date()
+
+
+@login_required
+def daily_accountability_board(request):
+    if request.user.is_superuser:
+        return redirect('daily_digest')
+
+    today = get_local_today()
+    active_tasks = UserTask.objects.filter(
+        assigned_to=request.user
+    ).exclude(
+        status__in=['completed', 'accepted', 'rejected']
+    ).filter(
+        task__due_date__gte=today
+    ).select_related('task', 'assigned_by').order_by('task__due_date', '-task__priority', '-created_at')
+
+    completed_today = UserTask.objects.filter(
+        assigned_to=request.user,
+        completed_at__date=today
+    ).select_related('task').order_by('-completed_at')
+
+    checkin, _ = DailyCheckIn.objects.get_or_create(
+        user=request.user,
+        entry_date=today,
+    )
+
+    if request.method == 'POST':
+        selected_task_ids = [
+            int(task_id)
+            for task_id in request.POST.getlist('priority_task_ids')
+            if task_id.isdigit()
+        ]
+
+        allowed_task_ids = set(active_tasks.values_list('id', flat=True))
+        valid_selected_ids = [task_id for task_id in selected_task_ids if task_id in allowed_task_ids]
+
+        checkin.morning_focus = request.POST.get('morning_focus', '').strip()
+        checkin.progress_update = request.POST.get('progress_update', '').strip()
+        checkin.end_of_day_summary = request.POST.get('end_of_day_summary', '').strip()
+        checkin.tomorrow_plan = request.POST.get('tomorrow_plan', '').strip()
+        checkin.blockers = request.POST.get('blockers', '').strip()
+
+        uploaded_file = request.FILES.get('proof_file')
+        if uploaded_file:
+            checkin.proof_file = uploaded_file
+
+        action = request.POST.get('action')
+        if action == 'submit':
+            has_meaningful_content = any([
+                valid_selected_ids,
+                checkin.morning_focus,
+                checkin.progress_update,
+                checkin.end_of_day_summary,
+                checkin.tomorrow_plan,
+                checkin.blockers,
+                uploaded_file or checkin.proof_file,
+            ])
+
+            if not has_meaningful_content:
+                messages.error(
+                    request,
+                    'Add at least one update, priority task, blocker, summary, plan, or proof before submitting.'
+                )
+                return redirect('daily_board')
+
+            checkin.is_submitted = True
+            checkin.submitted_at = timezone.now()
+
+        checkin.save()
+        checkin.priority_tasks.set(valid_selected_ids)
+
+        if action == 'submit':
+            managers = User.objects.filter(
+                role='manager',
+                section=request.user.section,
+                is_active=True
+            )
+            target_url = reverse('daily_digest')
+            for manager in managers:
+                create_notification(
+                    user=manager,
+                    title='Daily check-in submitted',
+                    message=f'{request.user.username} submitted today\'s accountability update.',
+                    notification_type='task_updated',
+                    target_url=target_url,
+                )
+            messages.success(request, 'Daily accountability update submitted successfully.')
+        else:
+            messages.success(request, 'Daily accountability draft saved.')
+
+        return redirect('daily_board')
+
+    selected_priority_ids = set(checkin.priority_tasks.values_list('id', flat=True))
+
+    return render(request, 'tasks/daily_board.html', {
+        'today': today,
+        'open_tasks': active_tasks,
+        'completed_today': completed_today,
+        'checkin': checkin,
+        'selected_priority_ids': selected_priority_ids,
+    })
+
+
+@login_required
+def daily_digest(request):
+    today = get_local_today()
+    section_filter = request.GET.get('section', '').strip()
+
+    if request.user.is_superuser:
+        staff_qs = User.objects.filter(role='staff', is_active=True)
+        if section_filter:
+            staff_qs = staff_qs.filter(section=section_filter)
+    elif request.user.role == 'manager':
+        section_filter = request.user.section
+        staff_qs = User.objects.filter(
+            role='staff',
+            section=request.user.section,
+            is_active=True
+        )
+    else:
+        return redirect('daily_board')
+
+    checkins = {
+        checkin.user_id: checkin
+        for checkin in DailyCheckIn.objects.filter(
+            user__in=staff_qs,
+            entry_date=today
+        ).prefetch_related('priority_tasks__task')
+    }
+
+    digest_rows = []
+    for staff in staff_qs.order_by('username'):
+        checkin = checkins.get(staff.id)
+        completed_count = UserTask.objects.filter(
+            assigned_to=staff,
+            completed_at__date=today
+        ).count()
+
+        digest_rows.append({
+            'staff': staff,
+            'checkin': checkin,
+            'completed_count': completed_count,
+            'has_blocker': bool(checkin and checkin.blockers.strip()),
+            'is_silent': checkin is None or not checkin.is_submitted,
+        })
+
+    summary = {
+        'staff_count': len(digest_rows),
+        'submitted_count': sum(1 for row in digest_rows if row['checkin'] and row['checkin'].is_submitted),
+        'blocker_count': sum(1 for row in digest_rows if row['has_blocker']),
+        'silent_count': sum(1 for row in digest_rows if row['is_silent']),
+        'completed_count': sum(row['completed_count'] for row in digest_rows),
+    }
+
+    return render(request, 'reports/daily_digest.html', {
+        'today': today,
+        'digest_rows': digest_rows,
+        'summary': summary,
+        'filters': {'section': section_filter},
+        'section_choices': User.SECTION_CHOICES,
+    })
+
+
+@login_required
+def daily_checkin_detail(request, user_id):
+    target_user = get_object_or_404(User, id=user_id, role='staff')
+    today = get_local_today()
+
+    if request.user.is_superuser:
+        pass
+    elif request.user.role == 'manager':
+        if target_user.section != request.user.section:
+            return HttpResponseForbidden()
+    else:
+        return HttpResponseForbidden()
+
+    checkin = DailyCheckIn.objects.filter(
+        user=target_user,
+        entry_date=today
+    ).prefetch_related('priority_tasks__task').first()
+
+    completed_today = UserTask.objects.filter(
+        assigned_to=target_user,
+        completed_at__date=today
+    ).select_related('task').order_by('-completed_at')
+
+    return render(request, 'reports/daily_checkin_detail.html', {
+        'today': today,
+        'target_user': target_user,
+        'checkin': checkin,
+        'completed_today': completed_today,
+    })
+
+
 def filter_task_report_records(records, request):
     date_from = request.GET.get('date_from', '').strip()
     date_to = request.GET.get('date_to', '').strip()
@@ -519,9 +715,59 @@ def reassign_task(request, task_id):
     if request.user.role != 'manager':
         return redirect('assigned_tasks')
 
+    if not UserTask.objects.filter(task=task, assigned_by=request.user).exists():
+        return redirect('assigned_tasks')
+
+    categories = Category.objects.filter(section=request.user.section).order_by('name')
+    selected_category_id = task.category_id
+    staff_users = User.objects.none()
+
+    if selected_category_id:
+        staff_users = User.objects.filter(
+            role='staff',
+            section=request.user.section,
+            is_active=True,
+            categorymember__category_id=selected_category_id
+        ).distinct().order_by('username')
+
     if request.method == 'POST':
+        category_id = request.POST.get('category_id')
         new_user_id = request.POST.get('assigned_to')
-        new_user = User.objects.get(id=new_user_id)
+
+        category = Category.objects.filter(
+            id=category_id,
+            section=request.user.section
+        ).first()
+
+        if not category:
+            messages.error(request, 'Please select a valid category before reassigning.')
+            return render(request, 'tasks/reassign_task.html', {
+                'task': task,
+                'categories': categories,
+                'staff_users': staff_users,
+                'selected_category_id': selected_category_id,
+            })
+
+        selected_category_id = category.id
+        staff_users = User.objects.filter(
+            role='staff',
+            section=request.user.section,
+            is_active=True,
+            categorymember__category=category
+        ).distinct().order_by('username')
+
+        new_user = staff_users.filter(id=new_user_id).first()
+        if not new_user:
+            messages.error(request, 'Please select a valid staff member from the chosen category.')
+            return render(request, 'tasks/reassign_task.html', {
+                'task': task,
+                'categories': categories,
+                'staff_users': staff_users,
+                'selected_category_id': selected_category_id,
+            })
+
+        task.category = category
+        task.save(update_fields=['category', 'updated_at'])
         previous_assignees = list(
             task.user_tasks.exclude(assigned_to=request.user).select_related('assigned_to')
         )
@@ -571,11 +817,11 @@ def reassign_task(request, task_id):
 
         return redirect('assigned_tasks')
 
-    # GET request: show manager a dropdown to select user
-    staff_users = User.objects.filter(role='staff')
     return render(request, 'tasks/reassign_task.html', {
         'task': task,
-        'staff_users': staff_users
+        'staff_users': staff_users,
+        'categories': categories,
+        'selected_category_id': selected_category_id,
     })
 
 # #dashboard view
@@ -1599,6 +1845,7 @@ def manager_task_detail(request, staff_id):
 from django.http import JsonResponse
 from tasks.models import CategoryMember
 
+@login_required
 def category_users_json(request):
     category_id = request.GET.get('category_id')
 
@@ -1609,10 +1856,17 @@ def category_users_json(request):
             category_id=category_id
         ).select_related('user')
 
+        if request.user.is_authenticated and not request.user.is_superuser:
+            members = members.filter(
+                user__section=request.user.section,
+                user__role='staff',
+                user__is_active=True,
+            )
+
         users = [
             {
                 'id': m.user.id,
-                                'name': m.user.username
+                'name': m.user.username
             }
             for m in members
         ]

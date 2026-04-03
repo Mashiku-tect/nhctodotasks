@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import create_task, staff_detail, category_users_json, staff_task_detail, manager_task_detail, due_soon_report, do_task, my_tasks, assigned_tasks, overdue_tasks_report, reassign_task, staff_performance_report, task_detail, start_task, complete_subtask, complete_task, edit_task, delete_task, delete_subtask, review_task, reply_comment, ajax_save_subtask, subtask_json, delete_task_cascade, notification_redirect, mark_all_notifications_read, my_task_report, assigned_task_report, reports_home
+from .views import create_task, staff_detail, category_users_json, staff_task_detail, manager_task_detail, due_soon_report, do_task, my_tasks, assigned_tasks, overdue_tasks_report, reassign_task, staff_performance_report, task_detail, start_task, complete_subtask, complete_task, edit_task, delete_task, delete_subtask, review_task, reply_comment, ajax_save_subtask, subtask_json, delete_task_cascade, notification_redirect, mark_all_notifications_read, my_task_report, assigned_task_report, reports_home, daily_accountability_board, daily_digest, daily_checkin_detail
 from django.conf import settings
 from django.conf.urls.static import static
 
@@ -7,7 +7,10 @@ urlpatterns = [
     path('create/', create_task, name='create_task'),
      path('mytasks/', my_tasks, name='my_tasks'),
      path('assigned/', assigned_tasks, name='assigned_tasks'),
-     path('reports/', reports_home, name='reports_home'),
+    path('reports/', reports_home, name='reports_home'),
+     path('daily-board/', daily_accountability_board, name='daily_board'),
+     path('daily-digest/', daily_digest, name='daily_digest'),
+     path('daily-digest/<int:user_id>/', daily_checkin_detail, name='daily_checkin_detail'),
      path('reports/my-tasks/', my_task_report, name='report_my_tasks'),
      path('reports/assigned-tasks/', assigned_task_report, name='report_assigned_tasks'),
     #   path('', dashboard, name='dashboard'),
@@ -30,7 +33,7 @@ path('tasks/<int:task_id>/delete/', delete_task, name='delete_task'),
     path('tasks/<int:task_id>/subtask/save/', ajax_save_subtask, name='ajax_save_subtask'),
     path('subtasks/<int:subtask_id>/json/', subtask_json),
     path('subtasks/<int:subtask_id>/complete/', complete_subtask),
-path('subtasks/<int:subtask_id>/delete/', delete_subtask),
+    path('subtasks/<int:subtask_id>/delete/', delete_subtask),
 path(
     'tasks/delete-task/<int:task_id>/',
     delete_task_cascade,

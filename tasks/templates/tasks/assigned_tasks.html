@@ -196,7 +196,8 @@
                 {% elif user.role == 'staff' %}
                     {% if item.is_overdue %}
                         <!-- Staff sees task but cannot interact -->
-                        <span class="badge bg-danger">Overdue – Wait for Reassign</span>
+                        <span class="badge bg-danger">Waiting for Reassignment</span>
+                        <span class="badge bg-secondary">Manager Action Needed</span>
                     {% else %}
                         {% with ut=item.own_usertask %}
                             {% if ut.status == 'pending' and ut.review_status == 'pending' %}
