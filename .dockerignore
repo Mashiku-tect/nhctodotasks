@@ -6,8 +6,11 @@ __pycache__
 *.pyo
 *.pyd
 .env
+<<<<<<< HEAD
 .env.docker
 .env.*
+=======
+>>>>>>> 68fe5a0629c825caf0869fc3046de4b2c4bca222
 db.sqlite3
 media
 staticfiles

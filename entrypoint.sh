@@ -1,6 +1,7 @@
 #!/bin/sh
 set -e
 
+<<<<<<< HEAD
 mkdir -p /app/media /app/staticfiles
 
 if [ "${DJANGO_DB_ENGINE:-sqlite}" = "mysql" ]; then
@@ -30,8 +31,18 @@ for attempt in range(1, retries + 1):
         time.sleep(delay)
 PY
 fi
+=======
+mkdir -p /app/data /app/media /app/staticfiles
+>>>>>>> 68fe5a0629c825caf0869fc3046de4b2c4bca222
 
 python manage.py migrate --noinput
 python manage.py collectstatic --noinput
 
+<<<<<<< HEAD
 exec "$@"
+=======
+exec gunicorn nhctodo.wsgi:application \
+    --bind 0.0.0.0:${PORT:-8000} \
+    --workers ${GUNICORN_WORKERS:-3} \
+    --timeout ${GUNICORN_TIMEOUT:-120}
+>>>>>>> 68fe5a0629c825caf0869fc3046de4b2c4bca222

@@ -84,8 +84,12 @@ A Django-based departmental task management system for the National Housing Corp
 ## Tech Stack
 - Python
 - Django 4.2
+<<<<<<< HEAD
 - SQLite for local fallback
 - MySQL for production
+=======
+- SQLite
+>>>>>>> 68fe5a0629c825caf0869fc3046de4b2c4bca222
 - Bootstrap 5
 
 ## Project Structure
@@ -101,6 +105,7 @@ A Django-based departmental task management system for the National Housing Corp
    ```bash
    pip install -r requirements.txt
    ```
+<<<<<<< HEAD
 3. For local SQLite development, no database server is required.
 4. For MySQL, create a `.env` from `.env.example` and update the MySQL values.
 5. Apply migrations:
@@ -112,10 +117,22 @@ A Django-based departmental task management system for the National Housing Corp
    python manage.py createsuperuser
    ```
 7. Run the development server:
+=======
+3. Apply migrations:
+   ```bash
+   python manage.py migrate
+   ```
+4. Create a superuser if needed:
+   ```bash
+   python manage.py createsuperuser
+   ```
+5. Run the development server:
+>>>>>>> 68fe5a0629c825caf0869fc3046de4b2c4bca222
    ```bash
    python manage.py runserver
    ```
 
+<<<<<<< HEAD
 ## Database Configuration
 The project now supports two database modes through environment variables:
 
@@ -163,6 +180,8 @@ Then run:
 docker compose up --build -d
 ```
 
+=======
+>>>>>>> 68fe5a0629c825caf0869fc3046de4b2c4bca222
 ## Important URLs
 - Login: `/accounts/login/`
 - Dashboard: `/tasks/reports/staff-performance/`

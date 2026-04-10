@@ -1,0 +1,10 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Error</title>
+</head>
+<body>
+<pre>Cannot GET /api/payments/receipt/fe173774-ee24-4d51-b38e-7a2950b0e124</pre>
+</body>
+</html>
