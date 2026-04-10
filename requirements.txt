@@ -1,8 +1,6 @@
 Django==4.2.26
 gunicorn==23.0.0
-<<<<<<< HEAD
 mysqlclient==2.2.7
 python-dotenv==1.0.1
-=======
->>>>>>> 68fe5a0629c825caf0869fc3046de4b2c4bca222
 pytz==2025.2
+whitenoise==6.9.0
