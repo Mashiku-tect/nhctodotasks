@@ -1,0 +1,99 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid px-0">
+    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
+        <div>
+            <h2 class="mb-1">Daily Update Detail</h2>
+            <p class="text-muted mb-0">{{ target_user.username }} on {{ today|date:"l, d M Y" }}</p>
+        </div>
+        <a href="{% url 'daily_digest' %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i>Back to Digest
+        </a>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-xl-8">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body p-4">
+                    {% if checkin %}
+                    <div class="d-flex flex-wrap gap-2 mb-4">
+                        {% if checkin.is_submitted %}
+                        <span class="badge text-bg-success">Submitted</span>
+                        {% else %}
+                        <span class="badge text-bg-secondary">Draft only</span>
+                        {% endif %}
+                        {% if checkin.submitted_at %}
+                        <span class="badge text-bg-light">Submitted at {{ checkin.submitted_at|date:"H:i" }}</span>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-4">
+                        <h6 class="fw-semibold">Priority tasks</h6>
+                        <div class="small text-muted">
+                            {% for priority in checkin.priority_tasks.all %}
+                            <div class="mb-1">{{ priority.task.title }}</div>
+                            {% empty %}
+                            <div>No task priorities selected.</div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <h6 class="fw-semibold">Morning focus</h6>
+                        <div class="text-muted">{{ checkin.morning_focus|default:"No morning focus shared."|linebreaksbr }}</div>
+                    </div>
+
+                    <div class="mb-4">
+                        <h6 class="fw-semibold">Progress update</h6>
+                        <div class="text-muted">{{ checkin.progress_update|default:"No progress update shared."|linebreaksbr }}</div>
+                    </div>
+
+                    <div class="mb-4">
+                        <h6 class="fw-semibold">End-of-day summary</h6>
+                        <div class="text-muted">{{ checkin.end_of_day_summary|default:"No end-of-day summary shared."|linebreaksbr }}</div>
+                    </div>
+
+                    <div class="mb-4">
+                        <h6 class="fw-semibold">Tomorrow plan</h6>
+                        <div class="text-muted">{{ checkin.tomorrow_plan|default:"No tomorrow plan shared."|linebreaksbr }}</div>
+                    </div>
+
+                    <div class="mb-4">
+                        <h6 class="fw-semibold">Blockers</h6>
+                        <div class="text-muted">{{ checkin.blockers|default:"No blockers reported."|linebreaksbr }}</div>
+                    </div>
+
+                    <div>
+                        <h6 class="fw-semibold">Proof of work</h6>
+                        {% if checkin.proof_file %}
+                        <a href="{{ checkin.proof_file.url }}" target="_blank" rel="noopener">Open proof file</a>
+                        {% else %}
+                        <div class="text-muted">No proof file uploaded.</div>
+                        {% endif %}
+                    </div>
+                    {% else %}
+                    <div class="alert alert-info mb-0">No daily update has been created for this staff member today.</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title mb-3">Completed Today</h5>
+                    {% for usertask in completed_today %}
+                    <div class="border rounded p-3 mb-2">
+                        <div class="fw-semibold">{{ usertask.task.title }}</div>
+                        <div class="small text-muted">Completed {{ usertask.completed_at|date:"H:i" }}</div>
+                    </div>
+                    {% empty %}
+                    <div class="text-muted">No completed tasks recorded today.</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

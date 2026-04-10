@@ -1,0 +1,212 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row justify-content-center">
+        <div class="col-12 col-xl-11">
+
+            <!-- Header -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2 class="h3 mb-0"><i class="bi bi-people me-2"></i>Manage Users</h2>
+                <a href="{% url 'add_user' %}" class="btn btn-primary">
+                    <i class="bi bi-person-plus me-1"></i> Add New User
+                </a>
+            </div>
+
+            <!-- Messages -->
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert alert-{{ message.tags }} alert-dismissible fade show mb-4" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+
+            <!-- Filters -->
+            <form method="get" class="card shadow-sm border-0 mb-4">
+                <div class="card-body">
+                    <div class="row g-3 align-items-end">
+                        <!-- Search -->
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Search</label>
+                            <input type="text" name="q" value="{{ current_filters.q|default:'' }}"
+                                   class="form-control" placeholder="Username or email...">
+                        </div>
+
+                        <!-- Role -->
+                    <div class="col-md-2">
+                        <label class="form-label fw-semibold">Role</label>
+
+                        {% if request.user.is_superuser %}
+                            <!-- Superuser can select any role -->
+                            <select name="role" class="form-select">
+                                <option value="">All Roles</option>
+                                {% for value, label in role_choices %}
+                                    <option value="{{ value }}" {% if current_filters.role == value %}selected{% endif %}>
+                                        {{ label }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+
+                        {% elif request.user.role == "manager" %}
+                            <!-- Manager sees only staff -->
+                            <input type="text" class="form-control" value="Staff" disabled>
+                            <input type="hidden" name="role" value="staff">
+
+                        {% endif %}
+                    </div>
+
+                    <!-- Section -->
+                    <div class="col-md-2">
+                        <label class="form-label fw-semibold">Section</label>
+
+                        {% if request.user.is_superuser %}
+                            <!-- Superuser can select any section -->
+                            <select name="section" class="form-select">
+                                <option value="">All Sections</option>
+                                {% for value, label in section_choices %}
+                                    <option value="{{ value }}" {% if current_filters.section == value %}selected{% endif %}>
+                                        {{ label }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+
+                        {% elif request.user.role == "manager" %}
+                            <!-- Manager sees their section only, disabled -->
+                            <input type="text" class="form-control" value="{{ request.user.get_section_display }}" disabled>
+                            <input type="hidden" name="section" value="{{ request.user.section }}">
+
+                        {% endif %}
+                    </div>
+
+                        <!-- Status -->
+                        <div class="col-md-2">
+                            <label class="form-label fw-semibold">Status</label>
+                            <select name="status" class="form-select">
+                                <option value="">All</option>
+                                <option value="active" {% if current_filters.status == 'active' %}selected{% endif %}>Active</option>
+                                <option value="inactive" {% if current_filters.status == 'inactive' %}selected{% endif %}>Inactive</option>
+                            </select>
+                        </div>
+
+                        <!-- Buttons -->
+                        <div class="col-md-2 d-flex gap-2">
+                            <button type="submit" class="btn btn-primary w-100 mt-4">
+                                <i class="bi bi-funnel me-1"></i> Filter
+                            </button>
+                            <a href="{% url 'manage_users' %}" class="btn btn-outline-secondary w-100 mt-4">
+                                Reset
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </form>
+
+            <!-- Users Table -->
+            {% if users %}
+                <div class="card shadow-sm border-0">
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Id</th>
+                                        <th>Username</th>
+                                        <th>Role</th>
+                                        <th>Section</th>
+                                        <th>Status</th>
+                                        
+                                        <th class="text-end">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for u in users %}
+                                    <tr>
+                                        <td>{{ u.id }}</td>
+                                        <td>
+                                            <strong>{{ u.username }}</strong>
+                                        </td>
+                                        <td>
+                                            <span class="badge {% if u.role == 'manager' %}bg-primary{% else %}bg-info{% endif %}">
+                                                {{ u.get_role_display|default:u.role|capfirst }}
+                                            </span>
+                                        </td>
+                                        <td>{{ u.get_section_display|default:"—" }}</td>
+                                        <td>
+                                            {% if u.is_active %}
+                                                <span class="badge bg-success">Active</span>
+                                            {% else %}
+                                                <span class="badge bg-danger">Inactive</span>
+                                            {% endif %}
+                                        </td>
+                                        <td class="text-end">
+                                            <!-- Toggle Active -->
+                                            <form method="post" action="{% url 'toggle_user_active' u.id %}" class="d-inline">
+                                                {% csrf_token %}
+                                                {% if u.is_active %}
+                                                    <button type="submit" class="btn btn-sm btn-outline-warning" title="Deactivate">
+                                                        <i class="bi bi-toggle-off"></i>
+                                                    </button>
+                                                {% else %}
+                                                    <button type="submit" class="btn btn-sm btn-outline-success" title="Activate">
+                                                        <i class="bi bi-toggle-on"></i>
+                                                    </button>
+                                                {% endif %}
+                                            </form>
+
+                                            <!-- Delete -->
+                                            <button type="button" class="btn btn-sm btn-outline-danger ms-1" 
+                                                    data-bs-toggle="modal" data-bs-target="#deleteModal{{ u.id }}"
+                                                    title="Delete User">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+
+                                            <!-- Delete Modal -->
+                                            <div class="modal fade" id="deleteModal{{ u.id }}" tabindex="-1">
+                                                <div class="modal-dialog modal-dialog-centered">
+                                                    <div class="modal-content border-danger">
+                                                        <div class="modal-header bg-danger text-white">
+                                                            <h5 class="modal-title">Delete {{ u.username }}?</h5>
+                                                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                                        </div>
+                                                        <div class="modal-body">
+                                                            This action cannot be undone.
+                                                        </div>
+                                                        <div class="modal-footer">
+                                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                                            <form method="post" action="{% url 'delete_user' u.id %}">
+                                                                {% csrf_token %}
+                                                                <button type="submit" class="btn btn-danger">Delete</button>
+                                                            </form>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% empty %}
+                                    <tr>
+                                        <td colspan="6" class="text-center py-5 text-muted">
+                                            No users found matching your filters.
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            {% else %}
+                <div class="alert alert-info text-center py-5">
+                    <i class="bi bi-people fs-1 mb-3 d-block"></i>
+                    No users exist yet.
+                </div>
+            {% endif %}
+
+        </div>
+    </div>
+</div>
+
+{% endblock %}

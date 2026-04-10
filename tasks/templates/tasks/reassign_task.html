@@ -1,0 +1,218 @@
+{% extends 'base.html' %}
+{% block content %}
+
+<style>
+.reassign-shell {
+    max-width: 980px;
+    margin: 0 auto;
+}
+
+.reassign-card {
+    border: 1px solid #dbe7f0;
+    border-radius: 22px;
+    background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+    box-shadow: 0 18px 36px rgba(15, 23, 42, 0.06);
+    overflow: hidden;
+}
+
+.reassign-topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid #e7eef5;
+    background: linear-gradient(135deg, #fff8e7 0%, #fff3d1 100%);
+}
+
+.reassign-topbar h4 {
+    margin: 0;
+    color: #6d4b00;
+    font-weight: 700;
+}
+
+.reassign-topbar p {
+    margin: 0.25rem 0 0;
+    color: #8a6a20;
+}
+
+.reassign-body {
+    padding: 1.5rem;
+}
+
+.task-summary {
+    border: 1px solid #ece4c9;
+    border-radius: 18px;
+    background: #fffdf7;
+    padding: 1rem;
+    margin-bottom: 1.25rem;
+}
+
+.task-summary-label {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #8a7d53;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 0.5rem;
+}
+
+.reassign-form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+.panel-box {
+    border: 1px solid #e5edf4;
+    border-radius: 18px;
+    padding: 1rem;
+    background: #ffffff;
+}
+
+.form-label {
+    font-weight: 600;
+    color: #29465b;
+}
+
+.form-select {
+    border-radius: 12px;
+    border: 1px solid #ccdae7;
+    min-height: 46px;
+}
+
+.helper-list {
+    margin: 0;
+    padding-left: 1.1rem;
+    color: #587085;
+}
+
+.helper-list li + li {
+    margin-top: 0.5rem;
+}
+
+.form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    margin-top: 1.25rem;
+}
+
+@media (max-width: 767.98px) {
+    .reassign-form-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .reassign-topbar {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}
+</style>
+
+<div class="reassign-shell">
+    <div class="reassign-card">
+        <div class="reassign-topbar">
+            <div>
+                <h4>Reassign Task</h4>
+                <p>Move overdue or stuck work through the correct category before handing it to another staff member.</p>
+            </div>
+            <a href="{% url 'assigned_tasks' %}" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-arrow-left me-1"></i>Back
+            </a>
+        </div>
+
+        <div class="reassign-body">
+            {% if messages %}
+            <div class="mb-3">
+                {% for message in messages %}
+                <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show shadow-sm" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <div class="task-summary">
+                <div class="task-summary-label">Task Summary</div>
+                <div class="fw-semibold mb-1">{{ task.title }}</div>
+                <div class="text-muted small mb-2">Due date: {{ task.due_date|date:"d M Y" }}</div>
+                <div class="small">{{ task.description|default:"No task description provided." }}</div>
+            </div>
+
+            <form method="post" id="reassignForm">
+                {% csrf_token %}
+
+                <div class="reassign-form-grid">
+                    <div class="panel-box">
+                        <div class="mb-3">
+                            <label for="categorySelect" class="form-label">Select Category</label>
+                            <select name="category_id" id="categorySelect" class="form-select" required>
+                                <option value="">-- Select Category --</option>
+                                {% for cat in categories %}
+                                <option value="{{ cat.id }}" {% if selected_category_id == cat.id %}selected{% endif %}>
+                                    {{ cat.name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div>
+                            <label for="categoryUsers" class="form-label">Staff In Category</label>
+                            <select name="assigned_to" id="categoryUsers" class="form-select" size="7" {% if not staff_users %}disabled{% endif %} required>
+                                {% for staff in staff_users %}
+                                <option value="{{ staff.id }}">{{ staff.username }}</option>
+                                {% endfor %}
+                            </select>
+                            <small class="text-muted">Choose one staff member from the selected category.</small>
+                        </div>
+                    </div>
+
+                    <div class="panel-box">
+                        <div class="task-summary-label">Reassign Rules</div>
+                        <ul class="helper-list">
+                            <li>The new assignee must belong to the selected category.</li>
+                            <li>The category will also become the task category after reassignment.</li>
+                            <li>The reassigned task returns to pending review and pending progress.</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <a href="{% url 'assigned_tasks' %}" class="btn btn-outline-secondary">Cancel</a>
+                    <button type="submit" class="btn btn-warning">
+                        <i class="bi bi-arrow-repeat me-1"></i>Reassign Task
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+$(function () {
+    const categoryUsers = $('#categoryUsers');
+
+    $('#categorySelect').on('change', async function () {
+        const categoryId = $(this).val();
+        categoryUsers.empty().prop('disabled', true);
+
+        if (!categoryId) {
+            return;
+        }
+
+        try {
+            const res = await $.getJSON("{% url 'category_users_json' %}", { category_id: categoryId });
+            res.users.forEach(user => {
+                categoryUsers.append(`<option value="${user.id}">${user.name}</option>`);
+            });
+            categoryUsers.prop('disabled', false);
+        } catch (err) {
+            console.error(err);
+        }
+    });
+});
+</script>
+
+{% endblock %}

@@ -1,0 +1,252 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<style>
+.form-card {
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    background: white;
+}
+
+.section-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #6b7280;
+    margin-bottom: 10px;
+    text-transform: uppercase;
+}
+
+.preview-box {
+    border: 1px dashed #d1d5db;
+    border-radius: 10px;
+    height: 100%;
+    min-height: 300px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f9fafb;
+    overflow: hidden;
+}
+</style>
+
+<nav aria-label="breadcrumb" class="py-2 bg-light border-bottom">
+    <ol class="breadcrumb mb-0 px-3">
+        <li class="breadcrumb-item"><a href="{% url 'reports_performance' %}">Dashboard</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'my_tasks' %}">My Tasks</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'assigned_tasks' %}">Assigned Tasks</a></li>
+        <li class="breadcrumb-item active text-muted" aria-current="page">Edit Task</li>
+    </ol>
+</nav>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="mb-1">Edit Task</h4>
+        <small class="text-muted">
+            {% if is_assigned_task %}
+            Update task details and assigned staff
+            {% else %}
+            Update your personal task details
+            {% endif %}
+        </small>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-7">
+        <div class="form-card p-4">
+            <form id="taskForm" enctype="multipart/form-data" method="POST" novalidate>
+                {% csrf_token %}
+
+                <div class="section-title">Basic Info</div>
+
+                <div class="mb-3">
+                    <label class="form-label">Task Title</label>
+                    <input type="text" name="title" class="form-control" value="{{ task.title }}" placeholder="Enter task title" required>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Description</label>
+                    <textarea name="description" class="form-control" rows="3" placeholder="Optional details">{{ task.description }}</textarea>
+                </div>
+
+                <div class="section-title mt-4">Details</div>
+
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Due Date</label>
+                        <input type="date" name="due_date" class="form-control" value="{{ task.due_date|date:'Y-m-d' }}" required>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">Priority</label>
+                        <select name="priority" class="form-select">
+                            {% for value, label in PRIORITY_CHOICES %}
+                            <option value="{{ value }}" {% if task.priority == value %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <div class="section-title mt-4">Attachment</div>
+
+                <div class="mb-3">
+                    <input type="file" name="attachment" class="form-control" id="attachmentInput">
+                    {% if task.attachment %}
+                    <small class="text-muted d-block mt-2">
+                        Current: <a href="{{ task.attachment.url }}" target="_blank">{{ task.attachment.name|cut:"task_files/" }}</a>
+                    </small>
+                    {% endif %}
+                </div>
+
+                {% if is_assigned_task %}
+                <div class="section-title mt-4">Assignment</div>
+
+                <div class="mb-3" id="assignSection">
+                    <label class="form-label">Select Category</label>
+                    <select name="category_id" id="categorySelect" class="form-select">
+                        <option value="">-- Select Category --</option>
+                        {% for cat in categories %}
+                        <option value="{{ cat.id }}" {% if selected_category_id == cat.id %}selected{% endif %}>{{ cat.name }}</option>
+                        {% endfor %}
+                    </select>
+
+                    <label class="form-label mt-3">Staff in Category</label>
+                    <select name="assigned_to[]" id="categoryUsers" class="form-select" multiple size="5">
+                    </select>
+                    <small class="text-muted">Select one or more staff</small>
+                </div>
+                {% endif %}
+
+                <div class="d-flex justify-content-end gap-2 mt-4">
+                    <a href="{% if is_assigned_task %}{% url 'assigned_tasks' %}{% else %}{% url 'my_tasks' %}{% endif %}" class="btn btn-outline-secondary">
+                        Cancel
+                    </a>
+                    <button class="btn btn-primary px-4" type="submit">Update Task</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="col-lg-5">
+        <div class="form-card p-4 h-100">
+            <div class="section-title">File Preview</div>
+            <div id="filePreviewContainer" class="preview-box">
+                {% if task.attachment %}
+                    {% if ".pdf" in task.attachment.name|lower %}
+                    <iframe src="{{ task.attachment.url }}" width="100%" height="300"></iframe>
+                    {% else %}
+                    <div class="text-center px-3">
+                        <div class="fw-semibold mb-2">Current attachment</div>
+                        <a href="{{ task.attachment.url }}" target="_blank">{{ task.attachment.name|cut:"task_files/" }}</a>
+                    </div>
+                    {% endif %}
+                {% else %}
+                <span class="text-muted">No file selected</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+$(function () {
+    const today = new Date().toISOString().split('T')[0];
+    $('input[name="due_date"]').attr('min', today);
+
+    $('#taskForm').on('submit', async function (e) {
+        e.preventDefault();
+
+        const formData = new FormData(this);
+        const btn = $(this).find('button[type="submit"]');
+        btn.prop('disabled', true);
+
+        try {
+            const response = await $.ajax({
+                url: window.location.href,
+                method: "POST",
+                data: formData,
+                processData: false,
+                contentType: false
+            });
+
+            Swal.fire({
+                icon: 'success',
+                title: response.message || 'Task updated',
+                timer: 1500,
+                showConfirmButton: false
+            }).then(() => {
+                window.location.href = response.redirect_url;
+            });
+        } catch (err) {
+            btn.prop('disabled', false);
+            Swal.fire('Error', err.responseJSON?.error || 'Something went wrong', 'error');
+        }
+    });
+
+    $('#attachmentInput').on('change', function () {
+        const file = this.files[0];
+        const preview = $('#filePreviewContainer');
+
+        if (!file) {
+            {% if task.attachment %}
+            preview.html(`
+                <div class="text-center px-3">
+                    <div class="fw-semibold mb-2">Current attachment</div>
+                    <a href="{{ task.attachment.url }}" target="_blank">{{ task.attachment.name|cut:"task_files/" }}</a>
+                </div>
+            `);
+            {% else %}
+            preview.html('<span class="text-muted">No file selected</span>');
+            {% endif %}
+            return;
+        }
+
+        const url = URL.createObjectURL(file);
+
+        if (file.type.startsWith('image/')) {
+            preview.html(`<img src="${url}" class="img-fluid rounded">`);
+        } else if (file.type === 'application/pdf') {
+            preview.html(`<iframe src="${url}" width="100%" height="300"></iframe>`);
+        } else {
+            preview.html(`<p class="mb-0">${file.name}</p>`);
+        }
+    });
+
+    {% if is_assigned_task %}
+    const categoryUsers = $('#categoryUsers');
+    const preselectedUsers = {{ assigned_staff_ids|safe }};
+
+    async function loadCategoryUsers(categoryId) {
+        categoryUsers.empty().prop('disabled', true);
+
+        if (!categoryId) {
+            return;
+        }
+
+        try {
+            const res = await $.getJSON("{% url 'category_users_json' %}", { category_id: categoryId });
+            res.users.forEach(user => {
+                const selected = preselectedUsers.includes(user.id) ? 'selected' : '';
+                categoryUsers.append(`<option value="${user.id}" ${selected}>${user.name}</option>`);
+            });
+            categoryUsers.prop('disabled', false);
+        } catch (err) {
+            console.error(err);
+        }
+    }
+
+    $('#categorySelect').on('change', function () {
+        loadCategoryUsers($(this).val());
+    });
+
+    if ($('#categorySelect').val()) {
+        loadCategoryUsers($('#categorySelect').val());
+    } else {
+        categoryUsers.prop('disabled', true);
+    }
+    {% endif %}
+});
+</script>
+
+{% endblock %}

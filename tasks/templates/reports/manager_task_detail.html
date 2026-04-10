@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+
+    <!-- Page Header -->
+    <div class="d-flex align-items-center mb-3">
+    <a href="{% url 'reports_performance' %}" class="btn btn-outline-secondary btn-sm me-2">
+        <i class="bi bi-arrow-left"></i> Back
+    </a>
+    <h3 class="text-primary mb-0">
+        <i class="bi bi-person-circle"></i> Task assigned to {{ staff.username }}
+    </h3>
+</div>
+
+    {% if tasks %}
+
+    <!-- TABLE -->
+    <div class="table-responsive">
+        <table class="table table-bordered align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>S/N</th>
+                    <th>Task</th>
+                    <th>Status</th>
+                    <th>Due Date</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for t in tasks %}
+                <tr>
+                    <td>{{ forloop.counter }}</td>
+                    <td>{{ t.task.title }}</td>
+                    <td>
+                        {% if t.status == 'completed' %}
+                            <span class="badge bg-success">{{ t.status|capfirst }}</span>
+                        {% elif t.status == 'pending' or t.status == 'in_progress' %}
+                            <span class="badge bg-secondary">{{ t.status|capfirst }}</span>
+                        {% elif t.status == 'rejected' %}
+                            <span class="badge bg-danger">{{ t.status|capfirst }}</span>
+                        {% else %}
+                            <span class="badge bg-secondary">{{ t.status|capfirst }}</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ t.task.due_date|date:"d M Y" }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="4" class="text-center text-muted">No tasks assigned</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% else %}
+        <div class="alert alert-info">No tasks assigned</div>
+    {% endif %}
+
+</div>
+{% endblock %}

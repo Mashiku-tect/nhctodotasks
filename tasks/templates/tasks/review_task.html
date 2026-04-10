@@ -1,0 +1,170 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<nav aria-label="breadcrumb" class="py-2 bg-light border-bottom">
+    <ol class="breadcrumb mb-0 px-3">
+        <li class="breadcrumb-item"><a href="{% url 'reports_performance' %}">Dashboard</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'create_task' %}">Create Task</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'assigned_tasks' %}">Assigned Tasks</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'my_tasks' %}">My Tasks</a></li>
+        <li class="breadcrumb-item active text-muted">Review Task</li>
+    </ol>
+</nav>
+
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <div class="card shadow-sm border-1">
+                <div class="card-body">
+                    <h2 class="text-center text-primary mb-4">Review Task</h2>
+
+                    {% if messages %}
+                        {% for message in messages %}
+                            <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %} alert-dismissible fade show">
+                                {{ message }}
+                                <button class="btn-close" data-bs-dismiss="alert"></button>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+
+                    <div class="row">
+                        <!-- LEFT -->
+                        <div class="col-lg-7">
+                            <div class="mb-4">
+                                <h5 class="fw-bold">{{ task.title }}</h5>
+                                <p class="text-muted mb-0">{{ task.description }}</p>
+                            </div>
+
+                            <div class="mb-4">
+                                <h6 class="fw-bold">Assigned Staff</h6>
+                                {% if assigned_staff %}
+                                    <ul>
+                                        {% for user in assigned_staff %}
+                                            <li>{{ user.username }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% else %}
+                                    <p class="text-muted">No staff assigned.</p>
+                                {% endif %}
+                            </div>
+
+                            <div class="mb-4">
+                                <h6 class="fw-bold">Comments</h6>
+                                {% if major_comments %}
+                                    {% for comment in major_comments %}
+                                        <div class="border rounded p-2 mb-2">
+                                            <strong>{{ comment.user.username }}</strong>
+                                            <small class="text-muted">{{ comment.created_at|date:"Y-m-d H:i" }}</small>
+                                            <p>{{ comment.comment }}</p>
+                                        </div>
+                                    {% endfor %}
+                                {% else %}
+                                    <p class="text-muted">No comments yet.</p>
+                                {% endif %}
+                            </div>
+
+                            <form method="post">
+                                {% csrf_token %}
+                                <div class="mb-3">
+                                    <textarea name="reason" class="form-control" rows="3"
+                                              placeholder="Rejection reason (optional)"></textarea>
+                                </div>
+
+                                <div class="d-flex justify-content-between">
+                                    <a href="{% url 'assigned_tasks' %}" class="btn btn-outline-secondary">
+                                        Cancel
+                                    </a>
+                                    <div>
+                                        <button name="action" value="accept" class="btn btn-success">Accept</button>
+                                        <button name="action" value="reject" class="btn btn-danger">Reject</button>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+
+                        <!-- RIGHT -->
+                        <div class="col-lg-5">
+                            <h6 class="fw-bold mb-2">Attachments</h6>
+
+                            {% if attachments %}
+                                <ul class="list-group mb-3">
+                                    {% for file in attachments %}
+                                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                                            <span>{{ file.file.name|slice:"18:" }}</span>
+                                            <div class="d-flex gap-1">
+                                                <button type="button"
+                                                        class="btn btn-sm btn-outline-secondary preview-file-btn"
+                                                        data-file="{{ file.file.url }}">
+                                                    Preview
+                                                </button>
+                                                <a href="{{ file.file.url }}" download
+                                                   class="btn btn-sm btn-outline-primary">
+                                                    Download
+                                                </a>
+                                            </div>
+                                        </li>
+                                    {% endfor %}
+                                </ul>
+
+                                <!-- PREVIEW BOX -->
+                                <div class="card shadow-sm">
+                                    <div class="card-body">
+                                        <h6 class="text-secondary">File Preview</h6>
+                                        <div id="filePreviewContainer" style="height:450px; overflow:auto;">
+                                            <p class="text-muted text-center mt-4">Select a file</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% else %}
+                                <p class="text-muted">No attachments.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const buttons = document.querySelectorAll('.preview-file-btn');
+    const container = document.getElementById('filePreviewContainer');
+
+    buttons.forEach(btn => {
+        btn.addEventListener('click', function () {
+            const url = this.dataset.file;
+            container.innerHTML = '';
+
+           // PDF preview – use <object> with fallback (more reliable in many cases)
+if (url.endsWith('.pdf')) {
+    container.innerHTML = `
+        <object data="${url}" type="application/pdf" width="100%" height="450px">
+            <p class="text-center text-muted mt-4">
+                PDF preview not available in your browser.<br>
+                <a href="${url}" target="_blank">Open PDF in new tab</a> or 
+                <a href="${url}" download>Download</a>
+            </p>
+        </object>
+    `;
+}
+// Image preview (unchanged)
+else if (url.match(/\.(jpg|jpeg|png|gif)$/i)) {
+    const img = document.createElement('img');
+    img.src = url;
+    img.className = 'img-fluid';
+    img.style.maxHeight = '450px';
+    container.appendChild(img);
+}
+// Unsupported files
+else {
+    container.innerHTML = 
+        '<p class="text-center text-muted mt-4">Preview not supported for this file type.<br>Please download.</p>';
+}
+        });
+    });
+});
+</script>
+
+{% endblock %}

@@ -1,0 +1,156 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid px-0">
+    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
+        <div>
+            <h2 class="mb-1">Daily Digest</h2>
+            <p class="text-muted mb-0">See who checked in, who is blocked, and where follow-up is needed.</p>
+        </div>
+        <div class="text-muted small">
+            <i class="bi bi-calendar-event me-1"></i>{{ today|date:"l, d M Y" }}
+        </div>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <div class="text-muted small">Staff</div>
+                    <div class="fs-3 fw-bold">{{ summary.staff_count }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <div class="text-muted small">Submitted</div>
+                    <div class="fs-3 fw-bold text-success">{{ summary.submitted_count }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <div class="text-muted small">Blocked</div>
+                    <div class="fs-3 fw-bold text-warning">{{ summary.blocker_count }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <div class="text-muted small">Silent</div>
+                    <div class="fs-3 fw-bold text-danger">{{ summary.silent_count }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if request.user.is_superuser %}
+    <form method="get" class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <div class="row g-3 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label">Section</label>
+                    <select class="form-select" name="section">
+                        <option value="">All sections</option>
+                        {% for value, label in section_choices %}
+                        <option value="{{ value }}" {% if filters.section == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-auto">
+                    <button class="btn btn-primary" type="submit">Filter</button>
+                </div>
+            </div>
+        </div>
+    </form>
+    {% endif %}
+
+    <div class="card border-0 shadow-sm">
+        <div class="table-responsive">
+            <table class="table align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Staff</th>
+                        <th>Status</th>
+                        <th>Priorities</th>
+                        <th>Progress</th>
+                        <th>Blockers</th>
+                        <th>Completed Today</th>
+                        <th>Proof</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in digest_rows %}
+                    <tr>
+                        <td>
+                            <div class="fw-semibold">{{ row.staff.username }}</div>
+                            <div class="small text-muted">{{ row.staff.get_section_display }}</div>
+                        </td>
+                        <td>
+                            {% if row.checkin and row.checkin.is_submitted %}
+                            <span class="badge text-bg-success">Submitted</span>
+                            {% elif row.checkin %}
+                            <span class="badge text-bg-secondary">Draft only</span>
+                            {% else %}
+                            <span class="badge text-bg-danger">No update</span>
+                            {% endif %}
+                        </td>
+                        <td style="min-width: 220px;">
+                            {% if row.checkin %}
+                            <div class="small mb-2">{{ row.checkin.morning_focus|default:"No written priorities."|linebreaksbr }}</div>
+                            <div class="small text-muted">
+                                {% for priority in row.checkin.priority_tasks.all %}
+                                {{ priority.task.title }}{% if not forloop.last %}, {% endif %}
+                                {% empty %}
+                                No task priorities selected.
+                                {% endfor %}
+                            </div>
+                            {% else %}
+                            <span class="text-muted small">No daily board entry.</span>
+                            {% endif %}
+                        </td>
+                        <td style="min-width: 220px;">
+                            {% if row.checkin %}
+                            <div class="small">{{ row.checkin.progress_update|default:row.checkin.end_of_day_summary|default:"No progress shared."|linebreaksbr }}</div>
+                            {% else %}
+                            <span class="text-muted small">No progress shared.</span>
+                            {% endif %}
+                        </td>
+                        <td style="min-width: 220px;">
+                            {% if row.has_blocker %}
+                            <div class="small text-warning-emphasis">{{ row.checkin.blockers|linebreaksbr }}</div>
+                            {% else %}
+                            <span class="text-muted small">No blockers reported.</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="fw-semibold">{{ row.completed_count }}</span>
+                        </td>
+                        <td>
+                            {% if row.checkin and row.checkin.proof_file %}
+                            <a href="{{ row.checkin.proof_file.url }}" target="_blank" rel="noopener">Open file</a>
+                            {% else %}
+                            <span class="text-muted small">No file</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="{% url 'daily_checkin_detail' row.staff.id %}" class="btn btn-sm btn-outline-primary">
+                                View
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" class="text-center text-muted py-4">No staff found for this digest.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

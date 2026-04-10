@@ -1,0 +1,35 @@
+<li class="list-group-item">
+    <div class="d-flex justify-content-between">
+        <div>
+            <strong>{{ comment.user.username }}</strong>:
+            {{ comment.comment }}
+            <br>
+            <small class="text-muted">{{ comment.created_at|date:"M d, Y H:i" }}</small>
+        </div>
+
+        {% if is_assigned_task and request.user.role == "manager" %}
+    <div>
+        <button class="btn btn-sm btn-outline-primary"
+            onclick="document.getElementById('reply-form-{{ comment.id }}').classList.toggle('d-none')">
+            Reply
+        </button>
+    </div>
+    {% endif %}
+    </div>
+
+    {% if is_assigned_task %}
+    <form method="post" action="{% url 'reply_comment' comment.id %}" class="mt-2 d-none" id="reply-form-{{ comment.id }}">
+        {% csrf_token %}
+        <textarea name="comment" class="form-control mb-1" placeholder="Write a reply..." required></textarea>
+        <button class="btn btn-sm btn-primary">Reply</button>
+    </form>
+    {% endif %}
+
+    {% if comment.replies.all %}
+        <ul class="list-group ms-4 mt-2">
+            {% for reply in comment.replies.all %}
+                {% include 'tasks/_comment.html' with comment=reply is_assigned_task=is_assigned_task %}
+            {% endfor %}
+        </ul>
+    {% endif %}
+</li>

@@ -1,0 +1,272 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<nav aria-label="breadcrumb" class="py-2 bg-light border-bottom">
+    <ol class="breadcrumb mb-0 px-3">
+<li class="breadcrumb-item"><a href="{% url 'reports_performance' %}">Dashboard</a></li>
+<li class="breadcrumb-item"><a href="{% url 'create_task' %}">Create Task</a></li>
+<li class="breadcrumb-item"><a href="{% url 'assigned_tasks' %}">Assigned Tasks</a></li>
+<li class="breadcrumb-item active text-muted" aria-current="page">
+    My Tasks
+</li>
+      </ol>
+      
+  </nav>
+
+   <div>
+   <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="h4 mb-0">My Tasks</h2>
+        <small class="text-muted">Tasks you created and assigned to yourself</small>
+    </div>
+
+    <!-- Filters + Search -->
+    <form method="GET" class="row g-2 align-items-center mb-4">
+        <!-- Due Date -->
+        <div class="col-md-2">
+            <select name="due" class="form-select form-select-sm">
+                <option value="">All Due Dates</option>
+                <option value="today"    {% if current_filters.due == 'today'    %}selected{% endif %}>Today</option>
+                <option value="upcoming" {% if current_filters.due == 'upcoming' %}selected{% endif %}>Upcoming</option>
+                <option value="overdue"  {% if current_filters.due == 'overdue'  %}selected{% endif %}>Overdue</option>
+            </select>
+        </div>
+
+        <!-- Status -->
+        <div class="col-md-2">
+            <select name="status" class="form-select form-select-sm">
+                <option value="">All Status</option>
+                <option value="pending"     {% if current_filters.status == 'pending'     %}selected{% endif %}>Pending</option>
+                <option value="in_progress" {% if current_filters.status == 'in_progress' %}selected{% endif %}>In Progress</option>
+                <option value="completed"   {% if current_filters.status == 'completed'   %}selected{% endif %}>Completed</option>
+            </select>
+        </div>
+
+        <!-- Review -->
+        <div class="col-md-2">
+            <select name="review" class="form-select form-select-sm">
+                <option value="">All Reviews</option>
+                <option value="pending"  {% if current_filters.review == 'pending'  %}selected{% endif %}>Pending</option>
+                <option value="accepted" {% if current_filters.review == 'accepted' %}selected{% endif %}>Accepted</option>
+                <option value="rejected" {% if current_filters.review == 'rejected' %}selected{% endif %}>Rejected</option>
+            </select>
+        </div>
+
+        <!-- Search -->
+        <div class="col-md-3">
+            <input type="text" name="q" value="{{ current_filters.q|default:'' }}"
+                   placeholder="Search by title..." class="form-control form-control-sm">
+        </div>
+
+        <!-- Buttons -->
+        <div class="col-md-3 d-flex gap-2">
+            <button type="submit" class="btn btn-primary btn-sm">
+                <i class="bi bi-funnel-fill me-1"></i> Apply
+            </button>
+            <a href="{% url 'my_tasks' %}" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-arrow-repeat me-1"></i> Reset
+            </a>
+        </div>
+    </form>
+</div>
+
+<div id="messagesContainer">
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+</div>
+{% if tasks %}
+<table class="table table-striped table-bordered align-middle">
+    <thead class="table-light">
+        <tr>
+             <th>S/N</th>
+            <th>Title</th>
+            <th>Description</th>
+            <th>Due Date</th>
+            <th>Days Left</th>
+            <th>Status</th>
+            <th>Attachment</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for task in tasks %}
+        <tr>
+            <td>{{ tasks.start_index|add:forloop.counter0 }}</td>
+           <td style="max-width:200px; vertical-align:top;">
+            <!-- SHORT TITLE -->
+            <div class="short-title">
+                {{ task.title|truncatechars:20 }}
+            </div>
+
+            <!-- FULL TITLE (hidden initially, block element) -->
+            <div class="full-title" style="display:none; white-space:normal; word-break:break-word;">
+                {{ task.title }}
+            </div>
+
+            {% if task.title|length > 20 %}
+                <a href="#" class="toggle-title text-primary small">Read more</a>
+            {% endif %}
+        </td>
+      <td style="max-width:250px; vertical-align:top;">
+            <!-- SHORT TEXT -->
+            <div class="short-desc">
+                {{ task.description|truncatechars:40 }}
+            </div>
+
+            <!-- FULL TEXT (hidden initially, block element) -->
+            <div class="full-desc" style="display:none; white-space:normal; word-break:break-word;">
+                {{ task.description }}
+            </div>
+
+            {% if task.description|length > 40 %}
+                <a href="#" class="toggle-desc text-primary small">Read more</a>
+            {% endif %}
+        </td>
+   <td>{{ task.due_date|date:"Y-m-d" }}</td>
+            <td>
+                {% if task.user_task.status == 'completed' %}
+                    <span class="badge bg-success">Completed</span>
+                {% elif task.days_left == 0 %}
+                    <span class="badge bg-info text-dark">Today</span>
+                {% elif task.days_left > 0 %}
+                    <span class="badge bg-primary">{{ task.days_left }} day{{ task.days_left|pluralize }} left</span>
+                {% elif task.days_left < 0 %}
+                    <span class="badge bg-danger">Overdue</span>
+                {% else %}
+                    -
+                {% endif %}
+            </td>
+            <td>
+                {% with task.user_task as ut %}
+                <span class="badge
+                    {% if ut.status == 'pending' %}bg-secondary
+                    {% elif ut.status == 'in_progress' %}bg-warning
+                    {% elif ut.status == 'completed' %}bg-success
+                    {% endif %}">
+                    {{ ut.status|capfirst }}
+                </span>
+                {% endwith %}
+            </td>
+                 <td>
+                    {% if task.attachment %}
+                        <a href="{{ task.attachment.url }}" target="_blank">
+                            {{ task.attachment.name|cut:"task_files/" }}
+                        </a>
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
+            <td class="d-flex gap-2">
+                <a href="{% url 'task_detail' task.id %}" 
+                class="btn btn-sm btn-info" 
+                data-bs-toggle="tooltip" 
+                data-bs-placement="top" 
+                title="View Task Details">
+                    <i class="bi bi-card-text"></i>
+                </a>
+                {% with task.user_task as ut %}
+                {% if ut.status == 'pending' %}
+                <a href="{% url 'start_task' ut.id %}" class="btn btn-sm btn-warning">
+                    Start
+                </a>
+                {% endif %}
+                {% endwith %}
+                <form method="post" action="{% url 'delete_task' task.id %}" class="d-inline delete-task-form">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-danger" title="Delete Task">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<div class="alert alert-info">
+    You have not created any tasks yet.
+</div>
+{% endif %}
+{% if tasks.has_other_pages %}
+<nav class="mt-3">
+    <ul class="pagination justify-content-center">
+
+        {% if tasks.has_previous %}
+        <li class="page-item">
+            <a class="page-link" href="?page={{ tasks.previous_page_number }}&q={{ request.GET.q }}">Previous</a>
+        </li>
+        {% endif %}
+
+        {% for num in tasks.paginator.page_range %}
+        <li class="page-item {% if tasks.number == num %}active{% endif %}">
+            <a class="page-link" href="?page={{ num }}&q={{ request.GET.q }}">{{ num }}</a>
+        </li>
+        {% endfor %}
+
+        {% if tasks.has_next %}
+        <li class="page-item">
+            <a class="page-link" href="?page={{ tasks.next_page_number }}&q={{ request.GET.q }}">Next</a>
+        </li>
+        {% endif %}
+
+    </ul>
+</nav>
+{% endif %}
+<script>
+$(document).on('click', '.toggle-desc', function(e) {
+    e.preventDefault();
+
+    const td = $(this).closest('td');
+    const shortText = td.find('.short-desc');
+    const fullText = td.find('.full-desc');
+
+    shortText.toggle();
+    fullText.toggle();
+
+    $(this).text($(this).text() === 'Read more' ? 'Show less' : 'Read more');
+});
+</script>
+<script>
+$(document).on('click', '.toggle-title', function(e) {
+    e.preventDefault();
+
+    const td = $(this).closest('td');
+    const shortText = td.find('.short-title');
+    const fullText = td.find('.full-title');
+
+    shortText.toggle();
+    fullText.toggle();
+
+    $(this).text($(this).text() === 'Read more' ? 'Show less' : 'Read more');
+});
+</script>
+<script>
+$(document).on('submit', '.delete-task-form', function(e) {
+    e.preventDefault();
+
+    const form = this;
+
+    Swal.fire({
+        title: 'Delete this task?',
+        text: 'This action cannot be undone.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Yes, delete it',
+        cancelButtonText: 'Cancel',
+        confirmButtonColor: '#dc3545',
+        cancelButtonColor: '#6c757d',
+        reverseButtons: true
+    }).then((result) => {
+        if (result.isConfirmed) {
+            form.submit();
+        }
+    });
+});
+</script>
+{% endblock %}
