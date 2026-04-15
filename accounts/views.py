@@ -1,11 +1,13 @@
 # accounts/views.py
+import time
+
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import Q
 from django.http import HttpResponseForbidden
-from .models import User
+from .models import User, UserSession
 
 
 @login_required
@@ -158,6 +160,13 @@ def login_view(request):
 
         if user is not None:
             login(request, user)
+            if not request.session.session_key:
+                request.session.save()
+            request.session["last_activity_ts"] = int(time.time())
+            UserSession.objects.update_or_create(
+                user=user,
+                defaults={"session_key": request.session.session_key},
+            )
             return redirect("reports_performance")
         else:
             messages.error(
@@ -173,5 +182,10 @@ def login_view(request):
 
 
 def logout_view(request):
+    if request.user.is_authenticated and request.session.session_key:
+        UserSession.objects.filter(
+            user=request.user,
+            session_key=request.session.session_key,
+        ).delete()
     logout(request)
     return redirect("login")
