@@ -160,7 +160,14 @@ def login_view(request):
             login(request, user)
             return redirect("reports_performance")
         else:
-            messages.error(request, "Invalid username or password")
+            messages.error(
+                request,
+                getattr(
+                    request,
+                    "ad_auth_error",
+                    "Invalid username or password",
+                ),
+            )
 
     return render(request, "accounts/login.html")
 

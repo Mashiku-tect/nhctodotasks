@@ -46,6 +46,11 @@ LOGIN_URL = "login"
 LOGIN_REDIRECT_URL = "home"
 LOGOUT_REDIRECT_URL = "login"
 
+AUTHENTICATION_BACKENDS = [
+    'accounts.auth_backends.ActiveDirectoryBackend',
+    'accounts.auth_backends.LocalSuperuserBackend',
+]
+
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.environ.get('DJANGO_MEDIA_ROOT', os.path.join(BASE_DIR, 'media'))
