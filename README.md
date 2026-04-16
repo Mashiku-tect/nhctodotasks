@@ -174,14 +174,24 @@ Before deploying:
    - `MYSQL_ROOT_PASSWORD`
    - `DJANGO_SECRET_KEY`
    - `DJANGO_ALLOWED_HOSTS`
+3. Make sure Docker Engine and the Docker Compose plugin are installed on the server
 
 Then run:
 ```bash
+git pull
 docker compose up --build -d
 ```
 
-=======
->>>>>>> 68fe5a0629c825caf0869fc3046de4b2c4bca222
+Useful follow-up commands:
+```bash
+docker compose ps
+docker compose logs -f web
+```
+
+Notes:
+- The MySQL container is only exposed to other Docker services by default; it is no longer published on server port `3306`.
+- Persistent data is stored in Docker volumes: `mysql_data`, `media_data`, and `static_data`.
+
 ## Important URLs
 - Login: `/accounts/login/`
 - Dashboard: `/tasks/reports/staff-performance/`

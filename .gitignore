@@ -7,10 +7,7 @@ __pycache__/
 # Virtual environment
 venv/
 .env
-<<<<<<< HEAD
 .env.docker
-=======
->>>>>>> 68fe5a0629c825caf0869fc3046de4b2c4bca222
 
 # Django
 db.sqlite3
