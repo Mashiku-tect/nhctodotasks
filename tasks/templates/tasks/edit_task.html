@@ -30,15 +30,6 @@
 }
 </style>
 
-<nav aria-label="breadcrumb" class="py-2 bg-light border-bottom">
-    <ol class="breadcrumb mb-0 px-3">
-        <li class="breadcrumb-item"><a href="{% url 'reports_performance' %}">Dashboard</a></li>
-        <li class="breadcrumb-item"><a href="{% url 'my_tasks' %}">My Tasks</a></li>
-        <li class="breadcrumb-item"><a href="{% url 'assigned_tasks' %}">Assigned Tasks</a></li>
-        <li class="breadcrumb-item active text-muted" aria-current="page">Edit Task</li>
-    </ol>
-</nav>
-
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
         <h4 class="mb-1">Edit Task</h4>
@@ -152,7 +143,11 @@
 <script>
 $(function () {
     const today = new Date().toISOString().split('T')[0];
-    $('input[name="due_date"]').attr('min', today);
+    const dueDateInput = $('input[name="due_date"]');
+    const currentDueDate = dueDateInput.val();
+
+    // Keep existing overdue dates valid on load so the browser does not flag them in red.
+    dueDateInput.attr('min', currentDueDate && currentDueDate < today ? currentDueDate : today);
 
     $('#taskForm').on('submit', async function (e) {
         e.preventDefault();

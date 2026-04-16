@@ -76,7 +76,7 @@ body {
 
 /* SIDEBAR */
 #sidebar {
-    width: 250px;
+    width: 220px;
     background: var(--nhc-sidebar-bg);
     color: var(--nhc-sidebar-text);
     display: flex;
@@ -145,7 +145,7 @@ body {
 
 /* MAIN */
 #main {
-    margin-left: 250px;
+    margin-left: 220px;
     display: flex;
     flex-direction: column;
     width: 100%;
@@ -208,7 +208,7 @@ footer {
 
 /* COLLAPSE */
 #sidebar.collapsed {
-    width: 80px;
+    width: 70px;
 }
 
 #sidebar.collapsed .nav-link span,
@@ -221,7 +221,7 @@ footer {
 }
 
 #sidebar.collapsed ~ #main {
-    margin-left: 80px;
+    margin-left: 70px;
 }
 .welcome-box {
     display: flex;
@@ -314,7 +314,7 @@ footer {
 /* MOBILE */
 @media(max-width: 992px){
     #sidebar{
-        left: -250px;
+        left: -220px;
     }
 
     #sidebar.active{
@@ -358,6 +358,11 @@ footer {
        <span>Dashboard</span>
     </a></li>
 
+    <li><a class="nav-link" href="{% url 'create_task' %}">
+        <i class="bi bi-plus-circle"></i>
+        <span>Create Task</span>
+    </a></li>
+
     <li><a class="nav-link" href="{% url 'my_tasks' %}">
         <i class="bi bi-list-task"></i>
         <span>My Tasks</span> 
@@ -373,10 +378,6 @@ footer {
         <span>{% if request.user.role == 'manager' %}Daily Digest{% else %}Daily Board{% endif %}</span>
     </a></li>
 
-    <li><a class="nav-link" href="{% url 'create_task' %}">
-        <i class="bi bi-plus-circle"></i>
-        <span>Create Task</span>
-    </a></li>
     {% endif %}
 
 
