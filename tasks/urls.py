@@ -31,9 +31,9 @@ path('tasks/<int:task_id>/delete/', delete_task, name='delete_task'),
        # Add a major comment (manager only)
     path('tasks/<int:comment_id>/reply-comment/', reply_comment, name='reply_comment'),
     path('tasks/<int:task_id>/subtask/save/', ajax_save_subtask, name='ajax_save_subtask'),
-    path('subtasks/<int:subtask_id>/json/', subtask_json),
-    path('subtasks/<int:subtask_id>/complete/', complete_subtask),
-    path('subtasks/<int:subtask_id>/delete/', delete_subtask),
+    path('subtasks/<int:subtask_id>/json/', subtask_json, name='subtask_json'),
+    path('subtasks/<int:subtask_id>/complete/', complete_subtask, name='complete_subtask'),
+    path('subtasks/<int:subtask_id>/delete/', delete_subtask, name='delete_subtask'),
 path(
     'tasks/delete-task/<int:task_id>/',
     delete_task_cascade,

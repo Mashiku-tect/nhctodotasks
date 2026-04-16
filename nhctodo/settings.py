@@ -18,6 +18,11 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / '.env')
 
+
+def normalized_route_prefix(env_name, default):
+    value = os.environ.get(env_name, default).strip().strip("/")
+    return f"{value}/" if value else ""
+
 X_FRAME_OPTIONS = 'SAMEORIGIN'
 
 
@@ -39,6 +44,10 @@ ALLOWED_HOSTS = [
     for host in os.environ.get('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
     if host.strip()
 ]
+
+ADMIN_URL_PREFIX = normalized_route_prefix('DJANGO_ADMIN_URL_PREFIX', 'welcome-admin')
+ACCOUNTS_URL_PREFIX = normalized_route_prefix('DJANGO_ACCOUNTS_URL_PREFIX', 'ict-todolist')
+TASKS_URL_PREFIX = normalized_route_prefix('DJANGO_TASKS_URL_PREFIX', 'ict-todolist')
 
 AUTH_USER_MODEL = "accounts.User"
 

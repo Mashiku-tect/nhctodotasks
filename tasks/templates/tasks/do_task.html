@@ -224,6 +224,11 @@
 
 <script>
 $(function () {
+  const subtaskJsonUrlTemplate = "{% url 'subtask_json' 0 %}";
+  const deleteSubtaskUrlTemplate = "{% url 'delete_subtask' 0 %}";
+  const completeSubtaskUrlTemplate = "{% url 'complete_subtask' 0 %}";
+
+  const withId = (template, id) => template.replace('/0/', `/${id}/`);
 
   // ADD SUBTASK
   $('#addSubtaskBtn').click(() => {
@@ -237,7 +242,7 @@ $(function () {
   $('.edit-subtask').click(function () {
     const id = $(this).data('id');
 
-    $.get(`/tasks/subtasks/${id}/json/`, data => {
+    $.get(withId(subtaskJsonUrlTemplate, id), data => {
       $('#subtaskId').val(id);
       $('#subtaskTitle').val(data.title);
       $('#subtaskDescription').val(data.description);
@@ -277,7 +282,7 @@ $(document).on('click', '.delete-subtask', function () {
     }).then((result) => {
         if (result.isConfirmed) {
             $.post(
-                `/tasks/subtasks/${id}/delete/`,
+                withId(deleteSubtaskUrlTemplate, id),
                 { csrfmiddlewaretoken: '{{ csrf_token }}' },
                 () => {
                     Swal.fire({
@@ -311,7 +316,7 @@ $(document).on('click', '.complete-subtask', function () {
     }).then((result) => {
         if (result.isConfirmed) {
             $.post(
-                `/tasks/subtasks/${id}/complete/`,
+                withId(completeSubtaskUrlTemplate, id),
                 { csrfmiddlewaretoken: '{{ csrf_token }}' },
                 () => {
                     Swal.fire({

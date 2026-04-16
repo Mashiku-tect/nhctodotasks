@@ -239,6 +239,11 @@
 
 <script>
 $(function () {
+  const subtaskJsonUrlTemplate = "{% url 'subtask_json' 0 %}";
+  const deleteSubtaskUrlTemplate = "{% url 'delete_subtask' 0 %}";
+  const completeSubtaskUrlTemplate = "{% url 'complete_subtask' 0 %}";
+
+  const withId = (template, id) => template.replace('/0/', `/${id}/`);
 
   // ADD SUBTASK
   $('#addSubtaskBtn').click(() => {
@@ -252,7 +257,7 @@ $(function () {
   $('.edit-subtask').click(function () {
     const id = $(this).data('id');
 
-    $.get(`/tasks/subtasks/${id}/json/`, data => {
+    $.get(withId(subtaskJsonUrlTemplate, id), data => {
       $('#subtaskId').val(id);
       $('#subtaskTitle').val(data.title);
       $('#subtaskDescription').val(data.description);
@@ -292,7 +297,7 @@ $(function () {
     if (!confirm('Delete this subtask?')) return;
 
     $.post(
-      `/tasks/subtasks/${$(this).data('id')}/delete/`,
+      withId(deleteSubtaskUrlTemplate, $(this).data('id')),
       { csrfmiddlewaretoken: '{{ csrf_token }}' },
       () => location.reload()
     );
@@ -316,7 +321,7 @@ $(function () {
       if (!result.isConfirmed) return;
 
       $.ajax({
-        url: `/tasks/subtasks/${subtaskId}/complete/`,
+        url: withId(completeSubtaskUrlTemplate, subtaskId),
         method: 'POST',
         data: { csrfmiddlewaretoken: '{{ csrf_token }}' },
         success: function () {

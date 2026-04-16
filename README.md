@@ -192,13 +192,23 @@ Notes:
 - The MySQL container is only exposed to other Docker services by default; it is no longer published on server port `3306`.
 - Persistent data is stored in Docker volumes: `mysql_data`, `media_data`, and `static_data`.
 
-## Important URLs
-- Login: `/accounts/login/`
-- Dashboard: `/tasks/reports/staff-performance/`
-- Reports Home: `/tasks/reports/`
-- My Tasks: `/tasks/mytasks/`
-- Assigned Tasks: `/tasks/assigned/`
-- Create Task: `/tasks/create/`
+## Route Hardening
+Public route prefixes are configurable so the app does not have to expose predictable paths like `/accounts/login/` or `/tasks/...`.
+
+Set these in `.env` for deployment:
+```env
+DJANGO_ADMIN_URL_PREFIX=welcome-admin
+DJANGO_ACCOUNTS_URL_PREFIX=ict-todolist
+DJANGO_TASKS_URL_PREFIX=ict-todolist
+```
+
+Example resulting URLs:
+- Login: `/ict-todolist/`
+- Dashboard: `/ict-todolist/reports/staff-performance/`
+- Reports Home: `/ict-todolist/reports/`
+- My Tasks: `/ict-todolist/mytasks/`
+- Assigned Tasks: `/ict-todolist/assigned/`
+- Create Task: `/ict-todolist/create/`
 
 ## Test Commands
 Run the checks:

@@ -1,5 +1,6 @@
 from datetime import timedelta
 
+from django.conf import settings
 from django.test import TestCase
 from django.urls import resolve, reverse
 from django.utils import timezone
@@ -178,8 +179,8 @@ class StaffPerformanceReportTests(TestCase):
         detail_url = reverse("task_detail", args=[task.id])
         do_url = reverse("do_task", args=[task.id])
 
-        self.assertEqual(detail_url, f"/tasks/tasks/{task.id}/")
-        self.assertEqual(do_url, f"/tasks/tasks/{task.id}/do/")
+        self.assertEqual(detail_url, f"/{settings.TASKS_URL_PREFIX}tasks/{task.id}/")
+        self.assertEqual(do_url, f"/{settings.TASKS_URL_PREFIX}tasks/{task.id}/do/")
         self.assertEqual(resolve(detail_url).view_name, "task_detail")
         self.assertEqual(resolve(do_url).view_name, "do_task")
 
