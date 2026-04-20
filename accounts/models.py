@@ -63,10 +63,22 @@ class User(AbstractBaseUser, PermissionsMixin):
         ("staff", "Staff"),
     )
 
+    STAFF_TYPE_CHOICES = (
+        ("senior", "Senior"),
+        ("icto", "ICT Officer"),
+    )
+
     role = models.CharField(
         max_length=20,
         choices=ROLE_CHOICES,
         blank=True
+    )
+
+    staff_type = models.CharField(
+        max_length=20,
+        choices=STAFF_TYPE_CHOICES,
+        blank=True,
+        default="",
     )
 
     objects = CustomUserManager()

@@ -13,12 +13,14 @@ from .models import User, UserSession
 @login_required
 def add_user(request):
     section_choices = User.SECTION_CHOICES
+    staff_type_choices = User.STAFF_TYPE_CHOICES
 
     if request.method == 'POST':
         username = request.POST.get('username', '').strip()
         email = request.POST.get('email')
         password1 = request.POST.get('password1')
         password2 = request.POST.get('password2')
+        staff_type = request.POST.get('staff_type', '').strip()
 
         # Default role/section
         if request.user.is_superuser:
@@ -29,6 +31,9 @@ def add_user(request):
             role = 'staff'                   # force staff
         else:
             return HttpResponseForbidden("Not allowed")
+
+        if role != 'staff':
+            staff_type = ''
 
         # VALIDATIONS
         if not all([username, email, password1, password2]):
@@ -43,19 +48,24 @@ def add_user(request):
         elif User.objects.filter(email=email).exists():
             messages.error(request, "User already exists.")
 
+        elif role == 'staff' and staff_type not in dict(User.STAFF_TYPE_CHOICES):
+            messages.error(request, "Please select whether the staff member is Senior or ICT Officer.")
+
         else:
             User.objects.create_user(
                 username=username,
                 email=email,
                 section=section,
                 role=role,
+                staff_type=staff_type,
                 password=password1,
             )
             messages.success(request, f"User created successfully. Staff login credentials: username '{username}' and the password you set.")
             return redirect('add_user')
 
     return render(request, 'accounts/add_user.html', {
-        'section_choices': section_choices
+        'section_choices': section_choices,
+        'staff_type_choices': staff_type_choices,
     })
 
 
@@ -68,6 +78,7 @@ def manage_users(request):
     role_filter = request.GET.get('role')
     section_filter = request.GET.get('section')
     status_filter = request.GET.get('status')
+    staff_type_filter = request.GET.get('staff_type', '').strip()
 
     # Superuser sees all users, manager sees only their section staff
     if request.user.is_superuser:
@@ -85,6 +96,9 @@ def manage_users(request):
     if role_filter:
         users = users.filter(role=role_filter)
 
+    if staff_type_filter:
+        users = users.filter(staff_type=staff_type_filter)
+
     if section_filter and request.user.is_superuser:
         users = users.filter(section=section_filter)
 
@@ -97,9 +111,11 @@ def manage_users(request):
         'users': users,
         'section_choices': User.SECTION_CHOICES,
         'role_choices': [('manager', 'Manager'), ('staff', 'Staff')],
+        'staff_type_choices': User.STAFF_TYPE_CHOICES,
         'current_filters': {
             'q': query,
             'role': role_filter,
+            'staff_type': staff_type_filter,
             'section': section_filter if request.user.is_superuser else request.user.section,
             'status': status_filter,
         }

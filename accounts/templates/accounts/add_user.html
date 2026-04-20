@@ -105,6 +105,29 @@
                 {% endif %}
             </div>
 
+            <div class="col-md-6">
+                <label class="form-label fw-semibold">Staff Category</label>
+
+                {% if request.user.role == 'manager' and not request.user.is_superuser %}
+                    <select class="form-select" name="staff_type" required>
+                        <option value="" disabled selected>Select staff category</option>
+                        {% for value, label in staff_type_choices %}
+                            <option value="{{ value }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                {% else %}
+                    <select class="form-select" name="staff_type" id="staffTypeSelect">
+                        <option value="">Not applicable</option>
+                        {% for value, label in staff_type_choices %}
+                            <option value="{{ value }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                    <small class="form-text text-muted">
+                        Required only when the selected role is Staff.
+                    </small>
+                {% endif %}
+            </div>
+
                             <!-- Password 1 -->
                             <div class="col-md-6">
                                 <label for="password1" class="form-label fw-semibold">Password</label>
@@ -212,6 +235,26 @@
     
     password1Input.addEventListener('input', validatePasswordMatch);
     password2Input.addEventListener('input', validatePasswordMatch);
+
+    const roleSelect = document.querySelector('select[name="role"]');
+    const staffTypeSelect = document.getElementById('staffTypeSelect');
+
+    function syncStaffTypeRequirement() {
+        if (!roleSelect || !staffTypeSelect) {
+            return;
+        }
+
+        const isStaffRole = roleSelect.value === 'staff';
+        staffTypeSelect.required = isStaffRole;
+        if (!isStaffRole) {
+            staffTypeSelect.value = '';
+        }
+    }
+
+    if (roleSelect && staffTypeSelect) {
+        roleSelect.addEventListener('change', syncStaffTypeRequirement);
+        syncStaffTypeRequirement();
+    }
 })();
 
 // Show/Hide password toggle (optional enhancement)

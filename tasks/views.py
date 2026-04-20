@@ -1648,6 +1648,7 @@ def staff_performance_report(request):
     created_from = request.GET.get('created_from', '').strip()
     created_to = request.GET.get('created_to', '').strip()
     section_filter = request.GET.get('section', '').strip()
+    staff_type_filter = request.GET.get('staff_type', '').strip()
 
     if request.user.is_superuser:
         staff_users = User.objects.filter(role='staff')
@@ -1665,6 +1666,9 @@ def staff_performance_report(request):
             role='staff',
             section=request.user.section
         )
+
+    if staff_type_filter in dict(User.STAFF_TYPE_CHOICES):
+        staff_users = staff_users.filter(staff_type=staff_type_filter)
 
     staff_users = staff_users.order_by('username')
 
@@ -1762,6 +1766,42 @@ def staff_performance_report(request):
         reverse=True
     )
 
+    grouped_performance_data = []
+    for staff_type, label in User.STAFF_TYPE_CHOICES:
+        group_items = [item for item in performance_data if item['staff'].staff_type == staff_type]
+        if group_items:
+            grouped_performance_data.append({
+                'key': staff_type,
+                'label': label,
+                'items': group_items,
+                'summary': {
+                    'staff_count': len(group_items),
+                    'total_tasks': sum(item['total_tasks'] for item in group_items),
+                    'completed_tasks': sum(item['completed_tasks'] for item in group_items),
+                    'pending_tasks': sum(item['pending_tasks'] for item in group_items),
+                    'overdue_tasks': sum(item['overdue_tasks'] for item in group_items),
+                    'on_time_completed': sum(item['on_time_completed'] for item in group_items),
+                    'late_completed': sum(item['late_completed'] for item in group_items),
+                },
+            })
+
+    unclassified_items = [item for item in performance_data if not item['staff'].staff_type]
+    if unclassified_items:
+        grouped_performance_data.append({
+            'key': 'unclassified',
+            'label': 'Unclassified Staff',
+            'items': unclassified_items,
+            'summary': {
+                'staff_count': len(unclassified_items),
+                'total_tasks': sum(item['total_tasks'] for item in unclassified_items),
+                'completed_tasks': sum(item['completed_tasks'] for item in unclassified_items),
+                'pending_tasks': sum(item['pending_tasks'] for item in unclassified_items),
+                'overdue_tasks': sum(item['overdue_tasks'] for item in unclassified_items),
+                'on_time_completed': sum(item['on_time_completed'] for item in unclassified_items),
+                'late_completed': sum(item['late_completed'] for item in unclassified_items),
+            },
+        })
+
     summary = {
         'staff_count': len(performance_data),
         'total_tasks': sum(item['total_tasks'] for item in performance_data),
@@ -1786,8 +1826,11 @@ def staff_performance_report(request):
             'created_from': created_from,
             'created_to': created_to,
             'section': section_filter,
+            'staff_type': staff_type_filter,
         },
         'section_choices': User.SECTION_CHOICES,
+        'staff_type_choices': User.STAFF_TYPE_CHOICES,
+        'grouped_performance_data': grouped_performance_data,
     })
 
 @login_required

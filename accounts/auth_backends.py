@@ -162,6 +162,7 @@ class ActiveDirectoryBackend(BaseBackend):
                 email=email or f"{username}@{settings['email_domain']}",
                 section=settings["default_section"],
                 role=settings["default_role"],
+                staff_type=settings["default_staff_type"] if settings["default_role"] == "staff" else "",
                 is_active=True,
             )
             user.set_unusable_password()
@@ -191,6 +192,7 @@ class ActiveDirectoryBackend(BaseBackend):
             "auto_create": os.environ.get("AD_AUTO_CREATE_USERS", "False").lower() == "true",
             "default_section": os.environ.get("AD_DEFAULT_SECTION", ""),
             "default_role": os.environ.get("AD_DEFAULT_ROLE", "staff"),
+            "default_staff_type": os.environ.get("AD_DEFAULT_STAFF_TYPE", "icto"),
             "email_domain": os.environ.get("AD_EMAIL_DOMAIN", "nhctz.com"),
         }
 

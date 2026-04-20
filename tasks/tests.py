@@ -24,6 +24,7 @@ class StaffPerformanceReportTests(TestCase):
             password="StrongPass123!",
             section="ict",
             role="staff",
+            staff_type="senior",
         )
         self.staff_two = User.objects.create_user(
             username="bob",
@@ -31,6 +32,7 @@ class StaffPerformanceReportTests(TestCase):
             password="StrongPass123!",
             section="ict",
             role="staff",
+            staff_type="icto",
         )
         self.other_section_staff = User.objects.create_user(
             username="charles",
@@ -38,6 +40,7 @@ class StaffPerformanceReportTests(TestCase):
             password="StrongPass123!",
             section="finance_accounting",
             role="staff",
+            staff_type="senior",
         )
 
         today = timezone.localdate()
@@ -101,6 +104,31 @@ class StaffPerformanceReportTests(TestCase):
         self.assertContains(response, self.staff_one.username)
         self.assertContains(response, self.staff_two.username)
         self.assertNotContains(response, self.other_section_staff.username)
+
+    def test_dashboard_groups_staff_by_category(self):
+        self.client.force_login(self.manager)
+
+        response = self.client.get(reverse("reports_performance"))
+
+        self.assertEqual(response.status_code, 200)
+        grouped = response.context["grouped_performance_data"]
+        grouped_by_key = {group["key"]: group for group in grouped}
+
+        self.assertIn("senior", grouped_by_key)
+        self.assertIn("icto", grouped_by_key)
+        self.assertEqual([item["staff"] for item in grouped_by_key["senior"]["items"]], [self.staff_one])
+        self.assertEqual([item["staff"] for item in grouped_by_key["icto"]["items"]], [self.staff_two])
+
+    def test_dashboard_can_filter_single_staff_category(self):
+        self.client.force_login(self.manager)
+
+        response = self.client.get(reverse("reports_performance"), {"staff_type": "senior"})
+
+        self.assertEqual(response.status_code, 200)
+        performance_data = list(response.context["performance_data"])
+        self.assertEqual([item["staff"] for item in performance_data], [self.staff_one])
+        self.assertContains(response, "Senior")
+        self.assertNotContains(response, self.staff_two.username)
 
     def test_fresh_pending_task_does_not_reduce_staff_ranking_score(self):
         self.client.force_login(self.manager)
