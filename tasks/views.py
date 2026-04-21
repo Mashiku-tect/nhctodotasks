@@ -22,6 +22,40 @@ today = timezone.now().astimezone(tanzania_tz).date()
 
 User = get_user_model()
 
+
+def build_task_attachment_list(task):
+    attachments = []
+
+    if task.attachment:
+        attachments.append({
+            'name': os.path.basename(task.attachment.name),
+            'url': task.attachment.url,
+            'uploaded_by': None,
+            'created_at': task.created_at,
+            'is_legacy': True,
+        })
+
+    for attachment in task.attachments.select_related('uploaded_by').all():
+        attachments.append({
+            'name': os.path.basename(attachment.file.name),
+            'url': attachment.file.url,
+            'uploaded_by': attachment.uploaded_by,
+            'created_at': attachment.created_at,
+            'is_legacy': False,
+        })
+
+    attachments.sort(key=lambda item: item['created_at'] or timezone.now())
+    return attachments
+
+
+def create_task_attachments(task, files, uploaded_by):
+    for uploaded_file in files:
+        TaskAttachment.objects.create(
+            task=task,
+            uploaded_by=uploaded_by,
+            file=uploaded_file,
+        )
+
 def compute_task_status(usertasks):
     statuses = {ut.status for ut in usertasks}
 
@@ -103,7 +137,7 @@ def create_task(request):
     if request.method == 'POST':
         title = request.POST.get('title', '').strip()
         description = request.POST.get('description', '')
-        attachment = request.FILES.get("attachment")
+        attachments = request.FILES.getlist("attachments")
         due_date = request.POST.get('due_date')
         priority = request.POST.get('priority', 'normal')
         category_id = request.POST.get('category_id')
@@ -148,9 +182,9 @@ def create_task(request):
             description=description,
             due_date=due_date,
             priority=priority,
-            attachment=attachment,
             category=category
         )
+        create_task_attachments(task, attachments, user)
 
        # 🔹 Assign Users
         UserTask.objects.bulk_create([
@@ -252,6 +286,7 @@ def my_tasks(request):
         task = ut.task
         task.user_task = ut
         task.days_left = (task.due_date - today).days if task.due_date else None
+        task.attachment_files = build_task_attachment_list(task)
         tasks_list.append(task)
 
     # Pagination (10 per page)
@@ -372,6 +407,7 @@ def assigned_tasks(request):
             "reassign_needed": reassign_needed,
             "deadline_progress": deadline_progress,
             "completed_by": task.completed_by,
+            "attachment_files": build_task_attachment_list(task),
         }
         task_list.append(task_dict)
 
@@ -1007,8 +1043,7 @@ def task_detail(request, task_id):
     # ───────────────────────────────────────────────
     # Attachments (both main task attachment + extras)
     # ───────────────────────────────────────────────
-    main_attachment = task.attachment
-    extra_attachments = TaskAttachment.objects.filter(task=task).select_related('uploaded_by')
+    attachment_files = build_task_attachment_list(task)
 
     # ───────────────────────────────────────────────
     # Comments (all – including replies)
@@ -1060,8 +1095,7 @@ def task_detail(request, task_id):
         'is_overdue': is_overdue,
         'subtasks': subtasks,
         'incomplete_subtasks': incomplete_subtasks_exist,
-        'main_attachment': main_attachment,
-        'extra_attachments': extra_attachments,
+        'attachment_files': attachment_files,
         'comments': comments,
         'assigned_users': assigned_users,
         'today': today,
@@ -1255,7 +1289,7 @@ def edit_task(request, id):
         description = request.POST.get("description", "").strip()
         due_date = request.POST.get("due_date")
         priority = request.POST.get("priority", "normal")
-        attachment = request.FILES.get("attachment")
+        attachments = request.FILES.getlist("attachments")
 
         if not title or not due_date:
             return JsonResponse({"error": "Title and due date are required."}, status=400)
@@ -1264,9 +1298,6 @@ def edit_task(request, id):
         task.description = description
         task.due_date = due_date
         task.priority = priority
-
-        if attachment:
-            task.attachment = attachment
 
         redirect_url = reverse("my_tasks")
 
@@ -1302,6 +1333,7 @@ def edit_task(request, id):
             selected_users = [request.user]
 
         task.save()
+        create_task_attachments(task, attachments, request.user)
 
         existing_usertasks = {
             ut.assigned_to_id: ut for ut in task.user_tasks.all()
@@ -1359,6 +1391,7 @@ def edit_task(request, id):
 
     context = {
         "task": task,
+        "attachment_files": build_task_attachment_list(task),
         "categories": categories,
         "assigned_staff_ids": assigned_staff_ids,
         "selected_category_id": selected_category_id,
@@ -1455,7 +1488,7 @@ def review_task(request, task_id):
     )
 
     # Attachments uploaded for this task
-    attachments = task.attachments.all()
+    attachments = build_task_attachment_list(task)
 
     # Fetch all major comments for this task (parent is None)
     major_comments = Comment.objects.filter(task=task, parent=None).order_by('-created_at')

@@ -53,6 +53,31 @@
     </div>
   </div>
 
+  <div class="card mb-4 shadow-sm">
+    <div class="card-header bg-light">
+      <h5 class="mb-0">Attachments</h5>
+    </div>
+    <div class="card-body">
+      {% if attachment_files %}
+      <ul class="list-group list-group-flush">
+        {% for attachment in attachment_files %}
+        <li class="list-group-item d-flex justify-content-between align-items-center gap-3 px-0">
+          <div>
+            <a href="{{ attachment.url }}" target="_blank" rel="noopener">{{ attachment.name }}</a>
+            {% if attachment.uploaded_by %}
+            <div class="small text-muted">Uploaded by {{ attachment.uploaded_by.username }}</div>
+            {% endif %}
+          </div>
+          <a href="{{ attachment.url }}" class="btn btn-sm btn-outline-primary" download>Download</a>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <div class="text-muted">No attachments uploaded yet.</div>
+      {% endif %}
+    </div>
+  </div>
+
   <!-- ================= SUBTASKS ================= -->
   <div class="card mb-4 shadow-sm">
     <div class="card-header bg-light d-flex justify-content-between align-items-center">
@@ -219,7 +244,7 @@
 
         <div class="modal-body">
           <label class="form-label">Attachments (optional)</label>
-          <input type="file" name="attachments" class="form-control mb-2">
+          <input type="file" name="attachments" class="form-control mb-2" multiple>
         </div>
 
         <div class="modal-footer">

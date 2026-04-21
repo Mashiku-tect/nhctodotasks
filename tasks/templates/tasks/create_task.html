@@ -289,21 +289,21 @@ textarea.form-control {
                         </div>
 
                         <div class="panel-box">
-                            <div class="section-title">Attachment</div>
+                            <div class="section-title">Attachments</div>
 
                             <div class="attachment-panel">
                                 <div class="mb-3">
-                                    <label class="form-label" for="attachmentInput">Attach File</label>
-                                    <input id="attachmentInput" type="file" name="attachment" class="form-control">
+                                    <label class="form-label" for="attachmentInput">Attach Files</label>
+                                    <input id="attachmentInput" type="file" name="attachments" class="form-control" multiple>
                                 </div>
 
                                 <div class="attachment-meta">
                                     <div>
                                         <div id="attachmentName" class="attachment-name">No file selected</div>
-                                        <div class="attachment-hint">Preview is optional. Click the button only when you want to view the document.</div>
+                                        <div class="attachment-hint">You can upload multiple files of any type including Word, Excel, PowerPoint, PDFs, images, and more.</div>
                                     </div>
                                     <button type="button" id="previewAttachmentBtn" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#attachmentPreviewModal" disabled>
-                                        <i class="bi bi-eye me-1"></i>Preview Attachment
+                                        <i class="bi bi-eye me-1"></i>Preview First File
                                     </button>
                                 </div>
                             </div>
@@ -314,7 +314,7 @@ textarea.form-control {
                             <ul class="helper-list">
                                 <li>Use a short title so the task is easy to scan later.</li>
                                 <li>Pick the category first to load the correct staff list.</li>
-                                <li>Attach a file only when it helps someone complete the task.</li>
+                                <li>You can attach multiple supporting files when they help complete the task.</li>
                             </ul>
                         </div>
                     </div>
@@ -339,7 +339,7 @@ textarea.form-control {
             </div>
             <div class="modal-body">
                 <div id="attachmentPreviewContent" class="preview-empty">
-                    Select a file first, then use the preview button.
+                    Select one or more files first, then use the preview button.
                 </div>
             </div>
         </div>
@@ -388,7 +388,7 @@ $(function () {
     });
 
     function resetPreview() {
-        previewContent.html('<div class="preview-empty">Select a file first, then use the preview button.</div>');
+        previewContent.html('<div class="preview-empty">Select one or more files first, then use the preview button.</div>');
         previewButton.prop('disabled', true);
         attachmentName.text('No file selected');
         if (previewUrl) {
@@ -425,14 +425,15 @@ $(function () {
     }
 
     attachmentInput.on('change', function () {
-        const file = this.files[0];
+        const files = Array.from(this.files || []);
+        const file = files[0];
 
         if (!file) {
             resetPreview();
             return;
         }
 
-        attachmentName.text(file.name);
+        attachmentName.text(files.length === 1 ? file.name : `${files.length} files selected - previewing ${file.name}`);
         previewButton.prop('disabled', false);
         renderPreview(file);
     });

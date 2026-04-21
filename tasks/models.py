@@ -2,7 +2,6 @@ from django.db import models
 from django.contrib.auth import get_user_model
 
 from django.conf import settings
-from django.core.exceptions import ValidationError
 from accounts.models import User
 
 User = get_user_model()
@@ -338,17 +337,7 @@ class TaskAttachment(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
 
-    def clean(self):
-        """
-        Enforce max 3 attachments per task
-        """
-        if self.task.attachments.count() >= 3 and not self.pk:
-            raise ValidationError(
-                "A task can have a maximum of 3 attachments."
-            )
-
     def save(self, *args, **kwargs):
-        self.full_clean()  # calls clean()
         super().save(*args, **kwargs)
 
     def __str__(self):

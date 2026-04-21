@@ -142,10 +142,12 @@
                 {% endwith %}
             </td>
                  <td>
-                    {% if task.attachment %}
-                        <a href="{{ task.attachment.url }}" target="_blank">
-                            {{ task.attachment.name|cut:"task_files/" }}
-                        </a>
+                    {% if task.attachment_files %}
+                        {% for attachment in task.attachment_files %}
+                            <div>
+                                <a href="{{ attachment.url }}" target="_blank" rel="noopener">{{ attachment.name }}</a>
+                            </div>
+                        {% endfor %}
                     {% else %}
                         -
                     {% endif %}
