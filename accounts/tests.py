@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.test import TestCase
 from django.urls import reverse
 
@@ -104,3 +105,28 @@ class SessionSecurityTests(TestCase):
         self.assertEqual(get_user(self.client).is_authenticated, False)
         messages = [str(message) for message in get_messages(response.wsgi_request)]
         self.assertTrue(any("idle for too long" in message for message in messages))
+
+    def test_message_middleware_runs_before_session_security_middleware(self):
+        message_middleware = "django.contrib.messages.middleware.MessageMiddleware"
+        session_security_middleware = "accounts.middleware.SessionSecurityMiddleware"
+
+        self.assertLess(
+            settings.MIDDLEWARE.index(message_middleware),
+            settings.MIDDLEWARE.index(session_security_middleware),
+        )
+
+    def test_admin_requests_bypass_session_enforcement(self):
+        admin_user = User.objects.create_superuser(
+            username="adminuser",
+            email="admin@example.com",
+            password="AdminPass123!",
+            section="ict",
+            role="manager",
+        )
+        UserSession.objects.create(user=admin_user, session_key="stale-session-key")
+
+        self.client.force_login(admin_user)
+        response = self.client.get(f"/{settings.ADMIN_URL_PREFIX}")
+
+        self.assertNotEqual(response.status_code, 302)
+        self.assertTrue(get_user(self.client).is_authenticated)

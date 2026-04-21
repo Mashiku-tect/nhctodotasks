@@ -20,6 +20,9 @@ class SessionSecurityMiddleware:
         return self._add_no_cache_headers(response)
 
     def _process_request(self, request):
+        if self._is_admin_request(request):
+            return None
+
         if not getattr(request, "user", None) or not request.user.is_authenticated:
             return None
 
@@ -38,13 +41,16 @@ class SessionSecurityMiddleware:
                 session_key=session_key,
             ).delete()
             logout(request)
-            messages.warning(request, "You were logged out because your session was idle for too long.")
+            self._warn(
+                request,
+                "You were logged out because your session was idle for too long.",
+            )
             return redirect(settings.LOGIN_URL)
 
         active_session = UserSession.objects.filter(user=request.user).first()
         if active_session and active_session.session_key != session_key:
             logout(request)
-            messages.warning(
+            self._warn(
                 request,
                 "Your account was signed in from another browser or device. This session has been closed.",
             )
@@ -56,6 +62,15 @@ class SessionSecurityMiddleware:
             defaults={"session_key": session_key},
         )
         return None
+
+    def _warn(self, request, message):
+        # Keep session protection from turning into a 500 if message middleware
+        # is missing or misordered in a future config change.
+        messages.warning(request, message, fail_silently=True)
+
+    def _is_admin_request(self, request):
+        admin_prefix = f"/{getattr(settings, 'ADMIN_URL_PREFIX', 'admin/')}"
+        return request.path.startswith(admin_prefix)
 
     def _add_no_cache_headers(self, response):
         response["Cache-Control"] = "no-cache, no-store, must-revalidate, private"
