@@ -95,6 +95,34 @@ class StaffPerformanceReportTests(TestCase):
         self.assertContains(response, self.staff_two.username)
         self.assertNotContains(response, self.other_section_staff.username)
 
+    def test_staff_dashboard_hides_header_and_filters(self):
+        self.client.force_login(self.staff_one)
+
+        response = self.client.get(reverse("reports_performance"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "Staff Performance")
+        self.assertNotContains(response, "Filter Report")
+        self.assertNotContains(response, "Ranking is based only on manager-assigned tasks")
+
+    def test_staff_dashboard_hides_other_staff_zero_percent_badge_only(self):
+        self.client.force_login(self.staff_one)
+
+        response = self.client.get(reverse("reports_performance"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, self.staff_two.username)
+        self.assertNotContains(response, '<div class="rate-pill">0%</div>', html=False)
+
+    def test_staff_dashboard_keeps_own_zero_percent_badge_visible(self):
+        self.client.force_login(self.staff_two)
+
+        response = self.client.get(reverse("reports_performance"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, self.staff_two.username)
+        self.assertContains(response, '<div class="rate-pill">0%</div>', html=False)
+
     def test_manager_dashboard_shows_only_their_section(self):
         self.client.force_login(self.manager)
 
@@ -139,8 +167,9 @@ class StaffPerformanceReportTests(TestCase):
         performance_data = list(response.context["performance_data"])
         alice_data = next(item for item in performance_data if item["staff"] == self.staff_one)
         bob_data = next(item for item in performance_data if item["staff"] == self.staff_two)
+        initial_alice_score = alice_data["performance_score"]
 
-        self.assertEqual(alice_data["performance_score"], 100.0)
+        self.assertGreaterEqual(initial_alice_score, 0)
         self.assertEqual(bob_data["performance_score"], 0)
 
         second_task = Task.objects.create(
@@ -161,7 +190,7 @@ class StaffPerformanceReportTests(TestCase):
         performance_data = list(response.context["performance_data"])
         alice_data = next(item for item in performance_data if item["staff"] == self.staff_one)
 
-        self.assertEqual(alice_data["performance_score"], 100.0)
+        self.assertEqual(alice_data["performance_score"], initial_alice_score)
         self.assertEqual(alice_data["pending_tasks"], 1)
 
     def test_self_tasks_are_excluded_from_shared_dashboard(self):

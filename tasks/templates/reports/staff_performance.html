@@ -202,13 +202,16 @@
 </style>
 
 <div class="dashboard-shell">
+    {% if request.user.role != 'staff' %}
     <div class="dashboard-hero">
         <div class="dashboard-title">
             <i class="bi bi-graph-up-arrow me-2"></i>Staff Performance
         </div>
         <p class="dashboard-subtitle">Review department output by staff category so seniors and ICT officers are ranked separately.</p>
     </div>
+    {% endif %}
 
+    {% if request.user.role != 'staff' %}
     <form method="get" class="filter-card">
         <div class="section-heading mb-2">Filter Report</div>
         <div class="filter-grid">
@@ -249,6 +252,7 @@
             Ranking is based only on manager-assigned tasks. Self-created tasks are excluded, and seniors are kept separate from ICT officers.
         </div>
     </form>
+    {% endif %}
 
     <div>
         <div class="section-heading">Department Snapshot</div>
@@ -370,7 +374,9 @@
                                 {% endif %}
                             </div>
                         </div>
+                        {% if item.performance_score > 0 or item.staff.id == request.user.id or request.user.role != 'staff' %}
                         <div class="rate-pill">{{ item.performance_score }}%</div>
+                        {% endif %}
                     </div>
 
                     <div class="metric-grid">
