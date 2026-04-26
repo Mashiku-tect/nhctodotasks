@@ -1,0 +1,208 @@
+<style>
+.staff-panel-shell {
+    display: grid;
+    gap: 1rem;
+}
+
+.staff-panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.staff-panel-title {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #0f172a;
+    margin: 0;
+}
+
+.staff-panel-subtitle {
+    color: #64748b;
+    margin: 0.25rem 0 0;
+}
+
+.staff-panel-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 0.75rem;
+}
+
+.staff-panel-stat {
+    background: #f8fbfd;
+    border-radius: 14px;
+    padding: 0.85rem;
+}
+
+.staff-panel-stat-label {
+    font-size: 0.78rem;
+    color: #64748b;
+    margin-bottom: 0.35rem;
+}
+
+.staff-panel-stat-value {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #0f172a;
+    line-height: 1;
+}
+
+.staff-panel-section-title {
+    font-size: 0.98rem;
+    font-weight: 700;
+    color: #0f172a;
+    margin: 0 0 0.75rem;
+}
+
+.staff-panel-block {
+    background: #fbfdff;
+    border-radius: 16px;
+    padding: 1rem;
+}
+
+.staff-panel-stack {
+    display: grid;
+    gap: 0.75rem;
+}
+
+.staff-panel-task {
+    background: #ffffff;
+    border-radius: 14px;
+    padding: 0.9rem;
+    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.04);
+}
+
+.staff-panel-task-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 0.75rem;
+    margin-bottom: 0.5rem;
+}
+
+.staff-panel-task-title {
+    font-weight: 600;
+    color: #0f172a;
+}
+
+.staff-panel-task-meta {
+    display: grid;
+    gap: 0.28rem;
+    color: #64748b;
+    font-size: 0.86rem;
+}
+
+.staff-panel-status {
+    display: inline-block;
+    padding: 0.24rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    background: #eef2f7;
+    color: #334155;
+}
+
+.staff-panel-status.completed,
+.staff-panel-status.accepted {
+    background: #ecfdf3;
+    color: #15803d;
+}
+
+.staff-panel-status.rejected,
+.staff-panel-status.overdue {
+    background: #fef2f2;
+    color: #b91c1c;
+}
+
+.staff-panel-empty {
+    color: #64748b;
+    padding: 0.5rem 0;
+}
+
+.staff-panel-scroll {
+    max-height: 320px;
+    overflow-y: auto;
+    padding-right: 0.2rem;
+}
+</style>
+
+<div class="staff-panel-shell">
+    <div class="staff-panel-header">
+        <div>
+            <h2 class="staff-panel-title">{{ staff.username }}</h2>
+            <p class="staff-panel-subtitle">
+                {% if staff.staff_type %}{{ staff.get_staff_type_display }}{% else %}Staff category not set{% endif %}
+                {% if staff.section %} in {{ staff.get_section_display|default:staff.section }}{% endif %}
+            </p>
+        </div>
+        {% if not is_embedded_panel %}
+        <a href="{% url 'reports_performance' %}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left"></i> Back
+        </a>
+        {% endif %}
+    </div>
+
+    <div class="staff-panel-stats">
+        <div class="staff-panel-stat">
+            <div class="staff-panel-stat-label">All Tasks</div>
+            <div class="staff-panel-stat-value">{{ all_tasks|length }}</div>
+        </div>
+        <div class="staff-panel-stat">
+            <div class="staff-panel-stat-label">Completed</div>
+            <div class="staff-panel-stat-value">{{ completed_count }}</div>
+        </div>
+        <div class="staff-panel-stat">
+            <div class="staff-panel-stat-label">Pending</div>
+            <div class="staff-panel-stat-value">{{ pending_count }}</div>
+        </div>
+        <div class="staff-panel-stat">
+            <div class="staff-panel-stat-label">Overdue</div>
+            <div class="staff-panel-stat-value">{{ overdue_count }}</div>
+        </div>
+    </div>
+
+    <div class="staff-panel-block">
+        <h3 class="staff-panel-section-title">All Tasks</h3>
+        <div class="staff-panel-scroll">
+            <div class="staff-panel-stack">
+                {% for ut in all_tasks %}
+                <div class="staff-panel-task">
+                    <div class="staff-panel-task-head">
+                        <div class="staff-panel-task-title">{{ ut.task.title }}</div>
+                        <span class="staff-panel-status {{ ut.status }}">{{ ut.status|capfirst }}</span>
+                    </div>
+                    <div class="staff-panel-task-meta">
+                        <div>Assigned by: {{ ut.assigned_by.username }}</div>
+                        <div>Due date: {{ ut.task.due_date|date:"d M Y" }}</div>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="staff-panel-empty">No tasks available.</div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <div class="staff-panel-block">
+        <h3 class="staff-panel-section-title">{{ manager_tasks_heading }}</h3>
+        <div class="staff-panel-scroll">
+            <div class="staff-panel-stack">
+                {% for ut in manager_tasks %}
+                <div class="staff-panel-task">
+                    <div class="staff-panel-task-head">
+                        <div class="staff-panel-task-title">{{ ut.task.title }}</div>
+                        <span class="staff-panel-status {{ ut.status }}">{{ ut.status|capfirst }}</span>
+                    </div>
+                    <div class="staff-panel-task-meta">
+                        <div>Due date: {{ ut.task.due_date|date:"d M Y" }}</div>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="staff-panel-empty">No matching tasks available.</div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>

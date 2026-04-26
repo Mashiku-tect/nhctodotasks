@@ -11,7 +11,6 @@
     background:
         radial-gradient(circle at top right, rgba(143, 211, 255, 0.55), transparent 34%),
         linear-gradient(135deg, #ffffff 0%, #f5fbff 55%, #eef7fd 100%);
-    border: 1px solid #d9eaf5;
     border-radius: 22px;
     padding: 1.5rem;
     box-shadow: 0 18px 35px rgba(47, 143, 201, 0.08);
@@ -45,16 +44,14 @@
     text-decoration: none;
     color: #0f172a;
     background: #ffffff;
-    border: 1px solid #dbe9f3;
     border-radius: 18px;
     box-shadow: 0 14px 28px rgba(15, 23, 42, 0.05);
-    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .report-button:hover {
     transform: translateY(-3px);
     box-shadow: 0 18px 30px rgba(47, 143, 201, 0.12);
-    border-color: #bfdcf0;
     color: #0f172a;
 }
 
@@ -92,7 +89,6 @@
     text-decoration: none;
     color: #1b4f72;
     background: #edf7fd;
-    border: 1px solid #d1e9f7;
     font-weight: 600;
 }
 
@@ -128,13 +124,5 @@
         {% endfor %}
     </div>
 
-    {% if show_performance_link %}
-    <div>
-        <a href="{% url 'reports_performance' %}" class="manager-link">
-            <i class="bi bi-speedometer2"></i>
-            <span>Open Staff Performance Dashboard</span>
-        </a>
-    </div>
-    {% endif %}
 </div>
 {% endblock %}

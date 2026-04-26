@@ -585,3 +585,16 @@ class ReassignTaskCategoryTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["users"], [])
+
+    def test_staff_detail_can_render_embedded_panel_for_dashboard(self):
+        self.client.force_login(self.manager)
+
+        response = self.client.get(
+            reverse("staff_detail", args=[self.staff_one.id]),
+            {"panel": "1"},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, self.staff_one.username)
+        self.assertContains(response, "All Tasks")

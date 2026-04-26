@@ -1894,7 +1894,14 @@ def staff_detail(request, staff_id):
         'all_tasks': all_tasks,
         'manager_tasks': manager_tasks,
         'manager_tasks_heading': manager_tasks_heading,
+        'completed_count': all_tasks.filter(status='completed').count(),
+        'pending_count': all_tasks.filter(status__in=['pending', 'in_progress', 'accepted']).count(),
+        'overdue_count': all_tasks.filter(task__due_date__lt=today).exclude(status__in=['completed', 'rejected', 'accepted']).count(),
     }
+
+    if request.GET.get('panel') == '1' or request.headers.get('x-requested-with') == 'XMLHttpRequest':
+        context['is_embedded_panel'] = True
+        return render(request, 'reports/_staff_detail_panel.html', context)
 
     return render(request, 'reports/staff_detail.html', context)
 
