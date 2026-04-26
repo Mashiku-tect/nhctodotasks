@@ -12,6 +12,9 @@ from .models import User, UserSession
 
 @login_required
 def add_user(request):
+    if request.user.is_superuser or request.user.role != 'manager':
+        return HttpResponseForbidden("Use Django admin for superuser account management.")
+
     section_choices = User.SECTION_CHOICES
     staff_type_choices = User.STAFF_TYPE_CHOICES
 
@@ -22,15 +25,8 @@ def add_user(request):
         password2 = request.POST.get('password2')
         staff_type = request.POST.get('staff_type', '').strip()
 
-        # Default role/section
-        if request.user.is_superuser:
-            section = request.POST.get('section')
-            role = request.POST.get('role')
-        elif request.user.role == 'manager':
-            section = request.user.section   # force same section
-            role = 'staff'                   # force staff
-        else:
-            return HttpResponseForbidden("Not allowed")
+        section = request.user.section
+        role = 'staff'
 
         if role != 'staff':
             staff_type = ''
@@ -71,8 +67,8 @@ def add_user(request):
 
 @login_required
 def manage_users(request):
-    if request.user.role != 'manager' and not request.user.is_superuser:
-        return HttpResponseForbidden("You do not have permission to manage users.")
+    if request.user.is_superuser or request.user.role != 'manager':
+        return HttpResponseForbidden("Use Django admin for superuser account management.")
 
     query = request.GET.get('q', '').strip()
     role_filter = request.GET.get('role')
@@ -80,14 +76,10 @@ def manage_users(request):
     status_filter = request.GET.get('status')
     staff_type_filter = request.GET.get('staff_type', '').strip()
 
-    # Superuser sees all users, manager sees only their section staff
-    if request.user.is_superuser:
-        users = User.objects.all().order_by('-id')
-    else:
-        users = User.objects.filter(
-            section=request.user.section,
-            role='staff'
-        ).order_by('-id')
+    users = User.objects.filter(
+        section=request.user.section,
+        role='staff'
+    ).order_by('-id')
 
     # Apply filters
     if query:
@@ -98,9 +90,6 @@ def manage_users(request):
 
     if staff_type_filter:
         users = users.filter(staff_type=staff_type_filter)
-
-    if section_filter and request.user.is_superuser:
-        users = users.filter(section=section_filter)
 
     if status_filter == 'active':
         users = users.filter(is_active=True)
@@ -116,7 +105,7 @@ def manage_users(request):
             'q': query,
             'role': role_filter,
             'staff_type': staff_type_filter,
-            'section': section_filter if request.user.is_superuser else request.user.section,
+            'section': request.user.section,
             'status': status_filter,
         }
     }
@@ -126,14 +115,12 @@ def manage_users(request):
 
 @login_required
 def toggle_user_active(request, user_id):
-    if request.user.role != 'manager' and not request.user.is_superuser:
+    if request.user.is_superuser or request.user.role != 'manager':
         return HttpResponseForbidden()
 
     user = get_object_or_404(User, id=user_id)
-
-    if not request.user.is_superuser:
-        if user.section != request.user.section or user.role != 'staff':
-            return HttpResponseForbidden("Not allowed")
+    if user.section != request.user.section or user.role != 'staff':
+        return HttpResponseForbidden("Not allowed")
 
     if user == request.user:
         messages.error(request, "You cannot deactivate yourself.")
@@ -148,14 +135,12 @@ def toggle_user_active(request, user_id):
 
 @login_required
 def delete_user(request, user_id):
-    if request.user.role != 'manager' and not request.user.is_superuser:
+    if request.user.is_superuser or request.user.role != 'manager':
         return HttpResponseForbidden()
 
     user = get_object_or_404(User, id=user_id)
-
-    if not request.user.is_superuser:
-        if user.section != request.user.section or user.role != 'staff':
-            return HttpResponseForbidden("Not allowed")
+    if user.section != request.user.section or user.role != 'staff':
+        return HttpResponseForbidden("Not allowed")
 
     if user == request.user:
         messages.error(request, "You cannot delete yourself.")

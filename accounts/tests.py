@@ -130,3 +130,61 @@ class SessionSecurityTests(TestCase):
 
         self.assertNotEqual(response.status_code, 302)
         self.assertTrue(get_user(self.client).is_authenticated)
+
+
+class SuperuserAccessTests(TestCase):
+    def setUp(self):
+        self.password = "AdminPass123!"
+        self.superuser = User.objects.create_superuser(
+            username="localadmin",
+            email="localadmin@example.com",
+            password=self.password,
+            section="ict",
+            role="manager",
+        )
+
+    def test_superuser_can_login_without_active_directory_configuration(self):
+        response = self.client.post(reverse("login"), {
+            "username": self.superuser.username,
+            "password": self.password,
+        })
+
+        self.assertRedirects(response, reverse("reports_performance"))
+        self.superuser.refresh_from_db()
+        self.assertEqual(self.superuser.role, "manager")
+
+    def test_superuser_cannot_use_app_user_management_views(self):
+        self.client.force_login(self.superuser)
+
+        add_user_response = self.client.get(reverse("add_user"))
+        manage_users_response = self.client.get(reverse("manage_users"))
+
+        self.assertEqual(add_user_response.status_code, 403)
+        self.assertEqual(manage_users_response.status_code, 403)
+
+    def test_superuser_role_is_forced_to_manager(self):
+        user = User.objects.create_superuser(
+            username="anotheradmin",
+            email="anotheradmin@example.com",
+            password=self.password,
+            section="ict",
+            role="staff",
+            staff_type="senior",
+        )
+
+        self.assertEqual(user.role, "manager")
+        self.assertEqual(user.staff_type, "")
+
+    def test_superuser_sees_manager_navigation_links(self):
+        self.client.force_login(self.superuser)
+
+        response = self.client.get(reverse("reports_home"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Create Task")
+        self.assertContains(response, "My Tasks")
+        self.assertContains(response, "Assigned Tasks")
+        self.assertContains(response, "Daily Digest")
+        self.assertContains(response, "Django Admin")
+        self.assertNotContains(response, "Add Users")
+        self.assertNotContains(response, "Manage Users")

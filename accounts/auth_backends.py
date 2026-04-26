@@ -31,6 +31,17 @@ class ActiveDirectoryBackend(BaseBackend):
             self._set_request_error(request, "Username and password are required.")
             return None
 
+        # Superusers use Django-local authentication so they are not blocked
+        # when the domain controller is unavailable or the account is not in AD.
+        try:
+            local_user = UserModel.objects.get(username__iexact=username)
+        except UserModel.DoesNotExist:
+            local_user = None
+
+        if local_user and local_user.is_superuser:
+            self._clear_request_error(request)
+            return None
+
         if Connection is None:
             self._set_request_error(
                 request,
