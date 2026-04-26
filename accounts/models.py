@@ -19,7 +19,6 @@ class CustomUserManager(BaseUserManager):
         extra_fields.setdefault("is_staff", True)
         extra_fields.setdefault("is_superuser", True)
         extra_fields.setdefault("is_active", True)
-        extra_fields["role"] = "manager"
         extra_fields.setdefault("staff_type", "")
 
         if extra_fields.get("is_staff") is not True:
@@ -88,12 +87,6 @@ class User(AbstractBaseUser, PermissionsMixin):
     USERNAME_FIELD = "username"
     REQUIRED_FIELDS = ["email", "section", "role"]
 # username + password login, email retained for contact/reference
-
-    def save(self, *args, **kwargs):
-        if self.is_superuser:
-            self.role = "manager"
-            self.staff_type = ""
-        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.username

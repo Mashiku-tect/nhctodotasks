@@ -68,7 +68,17 @@ docker compose up -d --build
 
 ## Notes
 
-- CI uses SQLite so tests can run without the production MySQL server.
+- CI uses SQLite, so validation can run without the production MySQL server.
 - CD assumes the deployment branch is `main`.
 - If your server is Linux instead of Windows, the workflow and `scripts/deploy.ps1` should be replaced with a shell-based deploy script.
-- The current repository test suite is failing locally, so the starter workflow only runs `python manage.py check` for now. After the test failures are fixed, add `python manage.py test` back into `.github/workflows/ci-cd.yml`.
+- The current workflow runs `python manage.py check` only. Expanding CI to run `python manage.py test` is a recommended next step after dependencies are available in the validation environment.
+
+## Reproducibility checklist
+
+Before relying on CI/CD for deployment, confirm:
+
+- `.env.example` is kept in sync with local setup requirements
+- `.env.docker.example` is kept in sync with deployment requirements
+- `requirements.txt` is updated whenever dependencies change
+- `docker compose config` succeeds on the deployment host
+- `python manage.py check` succeeds in both local and CI environments

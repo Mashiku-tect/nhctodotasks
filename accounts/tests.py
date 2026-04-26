@@ -162,7 +162,7 @@ class SuperuserAccessTests(TestCase):
         self.assertEqual(add_user_response.status_code, 403)
         self.assertEqual(manage_users_response.status_code, 403)
 
-    def test_superuser_role_is_forced_to_manager(self):
+    def test_superuser_role_can_be_created_as_staff(self):
         user = User.objects.create_superuser(
             username="anotheradmin",
             email="anotheradmin@example.com",
@@ -172,8 +172,17 @@ class SuperuserAccessTests(TestCase):
             staff_type="senior",
         )
 
-        self.assertEqual(user.role, "manager")
-        self.assertEqual(user.staff_type, "")
+        self.assertEqual(user.role, "staff")
+        self.assertEqual(user.staff_type, "senior")
+
+    def test_superuser_role_can_be_changed_and_saved(self):
+        self.superuser.role = "staff"
+        self.superuser.staff_type = "senior"
+        self.superuser.save()
+        self.superuser.refresh_from_db()
+
+        self.assertEqual(self.superuser.role, "staff")
+        self.assertEqual(self.superuser.staff_type, "senior")
 
     def test_superuser_sees_manager_navigation_links(self):
         self.client.force_login(self.superuser)
