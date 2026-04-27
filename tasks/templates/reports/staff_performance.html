@@ -7,42 +7,6 @@
     gap: 1.25rem;
 }
 
-.perf-layout {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    gap: 1.25rem;
-    align-items: start;
-    transition: grid-template-columns 0.28s ease;
-}
-
-.perf-layout.has-detail {
-    grid-template-columns: minmax(0, 1fr) minmax(360px, 420px);
-}
-
-.perf-main {
-    display: grid;
-    gap: 1.25rem;
-    transition: transform 0.28s ease;
-}
-
-.perf-layout.has-detail .perf-main {
-    transform: translateX(-6px);
-}
-
-.perf-detail {
-    min-width: 0;
-    opacity: 0;
-    transform: translateX(28px);
-    pointer-events: none;
-    transition: opacity 0.28s ease, transform 0.28s ease;
-}
-
-.perf-layout.has-detail .perf-detail {
-    opacity: 1;
-    transform: translateX(0);
-    pointer-events: auto;
-}
-
 .perf-panel {
     background: #ffffff;
     border-radius: 16px;
@@ -144,40 +108,6 @@
     overflow-x: auto;
 }
 
-.perf-table {
-    width: 100%;
-    min-width: 760px;
-    border-collapse: separate;
-    border-spacing: 0;
-}
-
-.perf-table th {
-    font-size: 0.8rem;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: #64748b;
-    background: #f8fbfd;
-    padding: 0.85rem 0.75rem;
-}
-
-.perf-table td {
-    padding: 0.9rem 0.75rem;
-    vertical-align: middle;
-    color: #0f172a;
-}
-
-.perf-table tr[data-href] {
-    cursor: pointer;
-}
-
-.perf-table tr[data-staff-url]:hover {
-    background: #fafcff;
-}
-
-.perf-table tr.is-selected {
-    background: #eef7fd;
-}
-
 .perf-rank {
     width: 34px;
     height: 34px;
@@ -233,48 +163,71 @@
     margin-top: 0.35rem;
 }
 
-.perf-detail-panel {
-    position: sticky;
-    top: 1.5rem;
-    min-height: 240px;
-}
-
-.perf-detail-placeholder {
+.perf-card-grid {
     display: grid;
-    place-items: center;
-    min-height: 240px;
-    text-align: center;
-    color: #64748b;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 1rem;
 }
 
-.perf-detail-close {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.45rem;
+.perf-staff-card {
+    background: #fbfdff;
+    border-radius: 16px;
+    padding: 1rem;
+    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.04);
+    cursor: pointer;
+    transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+}
+
+.perf-staff-card:hover {
+    transform: translateY(-2px);
+    background: #f8fbfd;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+}
+
+.perf-staff-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 0.75rem;
+    margin-bottom: 0.9rem;
+}
+
+.perf-staff-score {
+    text-align: right;
+}
+
+.perf-staff-score-label {
+    font-size: 0.75rem;
+    color: #64748b;
+    margin-bottom: 0.2rem;
+}
+
+.perf-staff-metrics {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+}
+
+.perf-staff-metric {
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 0.75rem;
+}
+
+.perf-staff-metric-label {
+    font-size: 0.76rem;
+    color: #64748b;
+    margin-bottom: 0.2rem;
+}
+
+.perf-staff-metric-value {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #0f172a;
+    line-height: 1.1;
 }
 
 @media (max-width: 768px) {
-    .perf-layout,
-    .perf-layout.has-detail {
-        grid-template-columns: 1fr;
-    }
-
-    .perf-main,
-    .perf-layout.has-detail .perf-main {
-        transform: none;
-    }
-
-    .perf-detail,
-    .perf-layout.has-detail .perf-detail {
-        opacity: 1;
-        transform: none;
-        pointer-events: auto;
-    }
-
-    .perf-detail-panel {
-        position: static;
-    }
-
     .perf-panel {
         padding: 1rem;
     }
@@ -282,207 +235,152 @@
     .perf-title {
         font-size: 1.2rem;
     }
+
+    .perf-staff-metrics {
+        grid-template-columns: 1fr 1fr;
+    }
 }
 </style>
 
 <div class="perf-shell">
-    <div class="perf-layout" id="perfLayout">
-        <div class="perf-main">
-            <div class="perf-panel">
-                <div class="perf-header mb-3">
-                    <div>
-                        <h2 class="h5 mb-1">Summary of Senior Staff and ICTO Staff Performance</h2>
-                        <div class="perf-list-note">Click any staff row below to open their details on the right without leaving this page.</div>
-                    </div>
+    <div class="perf-panel">
+        <div class="perf-header mb-3">
+            <div>
+                <h2 class="h5 mb-1">Summary of Senior Staff and ICTO Staff Performance</h2>
+                <div class="perf-list-note">Click any staff row below to open the full staff detail page.</div>
+            </div>
+        </div>
+        <div class="perf-summary-grid">
+            <div class="perf-stat">
+                <div class="perf-stat-label">Staff Covered</div>
+                <div class="perf-stat-value">{{ summary.staff_count }}</div>
+            </div>
+            <div class="perf-stat">
+                <div class="perf-stat-label">Total Tasks</div>
+                <div class="perf-stat-value">{{ summary.total_tasks }}</div>
+            </div>
+            <div class="perf-stat">
+                <div class="perf-stat-label">Completion Rate</div>
+                <div class="perf-stat-value">{{ summary.completion_rate }}%</div>
+            </div>
+            <div class="perf-stat">
+                <div class="perf-stat-label">On-Time Rate</div>
+                <div class="perf-stat-value">{{ summary.on_time_rate }}%</div>
+            </div>
+            <div class="perf-stat">
+                <div class="perf-stat-label">Overdue Open</div>
+                <div class="perf-stat-value">{{ summary.overdue_tasks }}</div>
+            </div>
+            <div class="perf-stat">
+                <div class="perf-stat-label">Late Completions</div>
+                <div class="perf-stat-value">{{ summary.late_completed }}</div>
+            </div>
+        </div>
+    </div>
+
+    {% if grouped_performance_data %}
+        {% for group in grouped_performance_data %}
+        <div class="perf-panel">
+            <div class="perf-group-head">
+                <div>
+                    <h3 class="perf-group-title">{{ group.label }}</h3>
                 </div>
-                <div class="perf-summary-grid">
-                    <div class="perf-stat">
-                        <div class="perf-stat-label">Staff Covered</div>
-                        <div class="perf-stat-value">{{ summary.staff_count }}</div>
-                    </div>
-                    <div class="perf-stat">
-                        <div class="perf-stat-label">Total Tasks</div>
-                        <div class="perf-stat-value">{{ summary.total_tasks }}</div>
-                    </div>
-                    <div class="perf-stat">
-                        <div class="perf-stat-label">Completion Rate</div>
-                        <div class="perf-stat-value">{{ summary.completion_rate }}%</div>
-                    </div>
-                    <div class="perf-stat">
-                        <div class="perf-stat-label">On-Time Rate</div>
-                        <div class="perf-stat-value">{{ summary.on_time_rate }}%</div>
-                    </div>
-                    <div class="perf-stat">
-                        <div class="perf-stat-label">Overdue Open</div>
-                        <div class="perf-stat-value">{{ summary.overdue_tasks }}</div>
-                    </div>
-                    <div class="perf-stat">
-                        <div class="perf-stat-label">Late Completions</div>
-                        <div class="perf-stat-value">{{ summary.late_completed }}</div>
-                    </div>
+                <div class="perf-pill">{{ group.summary.staff_count }} staff</div>
+            </div>
+
+            <div class="perf-summary-grid mb-4">
+                <div class="perf-stat">
+                    <div class="perf-stat-label">Tasks</div>
+                    <div class="perf-stat-value">{{ group.summary.total_tasks }}</div>
+                </div>
+                <div class="perf-stat">
+                    <div class="perf-stat-label">Completed</div>
+                    <div class="perf-stat-value">{{ group.summary.completed_tasks }}</div>
+                </div>
+                <div class="perf-stat">
+                    <div class="perf-stat-label">Pending</div>
+                    <div class="perf-stat-value">{{ group.summary.pending_tasks }}</div>
+                </div>
+                <div class="perf-stat">
+                    <div class="perf-stat-label">Overdue</div>
+                    <div class="perf-stat-value">{{ group.summary.overdue_tasks }}</div>
                 </div>
             </div>
 
-            {% if grouped_performance_data %}
-                {% for group in grouped_performance_data %}
-                <div class="perf-panel">
-                    <div class="perf-group-head">
-                        <div>
-                            <h3 class="perf-group-title">{{ group.label }}</h3>
+            <div class="perf-card-grid">
+                {% for item in group.items %}
+                <div class="perf-staff-card" data-staff-url="{% url 'staff_detail' item.staff.id %}">
+                    <div class="perf-staff-head">
+                        <div class="d-flex gap-3">
+                            <span class="perf-rank">{{ forloop.counter }}</span>
+                            <div>
+                                <div class="perf-name">{{ item.staff.username }}</div>
+                                <div class="perf-type">
+                                    {% if item.staff.staff_type %}
+                                        {{ item.staff.get_staff_type_display }}
+                                    {% else %}
+                                        Staff category not set
+                                    {% endif %}
+                                </div>
+                            </div>
                         </div>
-                        <div class="perf-pill">{{ group.summary.staff_count }} staff</div>
-                    </div>
-
-                    <div class="perf-summary-grid mb-4">
-                        <div class="perf-stat">
-                            <div class="perf-stat-label">Tasks</div>
-                            <div class="perf-stat-value">{{ group.summary.total_tasks }}</div>
-                        </div>
-                        <div class="perf-stat">
-                            <div class="perf-stat-label">Completed</div>
-                            <div class="perf-stat-value">{{ group.summary.completed_tasks }}</div>
-                        </div>
-                        <div class="perf-stat">
-                            <div class="perf-stat-label">Pending</div>
-                            <div class="perf-stat-value">{{ group.summary.pending_tasks }}</div>
-                        </div>
-                        <div class="perf-stat">
-                            <div class="perf-stat-label">Overdue</div>
-                            <div class="perf-stat-value">{{ group.summary.overdue_tasks }}</div>
+                        <div class="perf-staff-score">
+                            <div class="perf-staff-score-label">Score</div>
+                            {% if item.performance_score > 0 or item.staff.id == request.user.id or request.user.role != 'staff' %}
+                            <div class="perf-score">{{ item.performance_score }}%</div>
+                            {% else %}
+                            <div class="perf-muted">Hidden</div>
+                            {% endif %}
                         </div>
                     </div>
 
-                    <div class="perf-table-wrap">
-                        <table class="perf-table">
-                            <thead>
-                                <tr>
-                                    <th>Rank</th>
-                                    <th>Staff</th>
-                                    <th>Score</th>
-                                    <th>Total</th>
-                                    <th>Completed</th>
-                                    <th>Pending</th>
-                                    <th>Overdue</th>
-                                    <th>On Time</th>
-                                    <th>Late</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for item in group.items %}
-                                <tr data-staff-url="{% url 'staff_detail' item.staff.id %}" data-staff-id="{{ item.staff.id }}">
-                                    <td><span class="perf-rank">{{ forloop.counter }}</span></td>
-                                    <td>
-                                        <div class="perf-name">{{ item.staff.username }}</div>
-                                        <div class="perf-type">
-                                            {% if item.staff.staff_type %}
-                                                {{ item.staff.get_staff_type_display }}
-                                            {% else %}
-                                                Staff category not set
-                                            {% endif %}
-                                        </div>
-                                    </td>
-                                    <td>
-                                        {% if item.performance_score > 0 or item.staff.id == request.user.id or request.user.role != 'staff' %}
-                                        <span class="perf-score">{{ item.performance_score }}%</span>
-                                        {% else %}
-                                        <span class="perf-muted">Hidden</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>{{ item.total_tasks }}</td>
-                                    <td>{{ item.completed_tasks }}</td>
-                                    <td>
-                                        <span class="perf-chip perf-chip-info">{{ item.pending_tasks }}</span>
-                                    </td>
-                                    <td>
-                                        <span class="perf-chip perf-chip-danger">{{ item.overdue_tasks }}</span>
-                                    </td>
-                                    <td>{{ item.on_time_completed }}</td>
-                                    <td>
-                                        <span class="perf-chip perf-chip-warning">{{ item.late_completed }}</span>
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
+                    <div class="perf-staff-metrics">
+                        <div class="perf-staff-metric">
+                            <div class="perf-staff-metric-label">Total</div>
+                            <div class="perf-staff-metric-value">{{ item.total_tasks }}</div>
+                        </div>
+                        <div class="perf-staff-metric">
+                            <div class="perf-staff-metric-label">Completed</div>
+                            <div class="perf-staff-metric-value">{{ item.completed_tasks }}</div>
+                        </div>
+                        <div class="perf-staff-metric">
+                            <div class="perf-staff-metric-label">Pending</div>
+                            <div class="perf-staff-metric-value">{{ item.pending_tasks }}</div>
+                        </div>
+                        <div class="perf-staff-metric">
+                            <div class="perf-staff-metric-label">Overdue</div>
+                            <div class="perf-staff-metric-value">{{ item.overdue_tasks }}</div>
+                        </div>
+                        <div class="perf-staff-metric">
+                            <div class="perf-staff-metric-label">On Time</div>
+                            <div class="perf-staff-metric-value">{{ item.on_time_completed }}</div>
+                        </div>
+                        <div class="perf-staff-metric">
+                            <div class="perf-staff-metric-label">Late</div>
+                            <div class="perf-staff-metric-value">{{ item.late_completed }}</div>
+                        </div>
                     </div>
                 </div>
                 {% endfor %}
-            {% else %}
-            <div class="perf-panel">
-                <div class="perf-empty">No staff tasks match the selected filters.</div>
             </div>
-            {% endif %}
         </div>
-
-        <aside class="perf-detail" id="perfDetail">
-            <div class="perf-panel perf-detail-panel">
-                <div class="d-flex justify-content-between align-items-center gap-2 mb-3">
-                    <div>
-                        <div class="h5 mb-1">Staff Details</div>
-                        <div class="perf-muted" id="perfDetailHint">Click any staff row on the left to view more details here.</div>
-                    </div>
-                    <button type="button" class="btn btn-outline-secondary btn-sm perf-detail-close" id="perfDetailClose" hidden>
-                        <i class="bi bi-x-lg"></i>
-                        <span>Close</span>
-                    </button>
-                </div>
-                <div id="perfDetailContent" class="perf-detail-placeholder">
-                    Select a staff member to open their details here.
-                </div>
-            </div>
-        </aside>
+        {% endfor %}
+    {% else %}
+    <div class="perf-panel">
+        <div class="perf-empty">No staff tasks match the selected filters.</div>
     </div>
+    {% endif %}
 </div>
 
 <script>
-const perfLayout = document.getElementById('perfLayout');
-const perfDetailContent = document.getElementById('perfDetailContent');
-const perfDetailClose = document.getElementById('perfDetailClose');
-const perfDetailHint = document.getElementById('perfDetailHint');
-let selectedRow = null;
-
-async function loadStaffDetail(url, row) {
-    if (selectedRow) {
-        selectedRow.classList.remove('is-selected');
-    }
-    selectedRow = row;
-    selectedRow.classList.add('is-selected');
-    perfDetailContent.innerHTML = '<div class="perf-muted">Loading details...</div>';
-    perfLayout.classList.add('has-detail');
-    perfDetailClose.hidden = false;
-    perfDetailHint.textContent = 'Review the selected staff member on the right. Use Close to return to the full-width list.';
-
-    try {
-        const response = await fetch(`${url}?panel=1`, {
-            headers: { 'X-Requested-With': 'XMLHttpRequest' }
-        });
-
-        if (!response.ok) {
-            throw new Error('Request failed');
-        }
-
-        const html = await response.text();
-        perfDetailContent.innerHTML = html;
-    } catch (error) {
-        perfDetailContent.innerHTML = '<div class="perf-muted">Could not load staff details. Please try again.</div>';
-    }
-}
-
-document.querySelectorAll('tr[data-staff-url]').forEach((row) => {
-    row.addEventListener('click', () => {
-        loadStaffDetail(row.dataset.staffUrl, row);
+document.querySelectorAll('[data-staff-url]').forEach((item) => {
+    item.addEventListener('click', () => {
+        window.location.href = item.dataset.staffUrl;
     });
 });
 
-perfDetailClose.addEventListener('click', () => {
-    perfLayout.classList.remove('has-detail');
-    perfDetailClose.hidden = true;
-    perfDetailHint.textContent = 'Click any staff row on the left to view more details here.';
-    if (selectedRow) {
-        selectedRow.classList.remove('is-selected');
-        selectedRow = null;
-    }
-    perfDetailContent.innerHTML = 'Select a staff member to open their details here.';
+document.querySelectorAll('[data-staff-url]').forEach((item) => {
+    item.style.cursor = 'pointer';
 });
 </script>
 {% endblock %}

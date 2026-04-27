@@ -101,9 +101,9 @@ class StaffPerformanceReportTests(TestCase):
         response = self.client.get(reverse("reports_performance"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertNotContains(response, "Staff Performance")
+        self.assertContains(response, "Summary of Senior Staff and ICTO Staff Performance")
         self.assertNotContains(response, "Filter Report")
-        self.assertNotContains(response, "Ranking is based only on manager-assigned tasks")
+        self.assertNotContains(response, "Click any staff row below to open their details on the right")
 
     def test_staff_dashboard_hides_other_staff_zero_percent_badge_only(self):
         self.client.force_login(self.staff_one)
@@ -121,7 +121,7 @@ class StaffPerformanceReportTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, self.staff_two.username)
-        self.assertContains(response, '<div class="rate-pill">0%</div>', html=False)
+        self.assertContains(response, '<div class="perf-score">0%</div>', html=False)
 
     def test_manager_dashboard_shows_only_their_section(self):
         self.client.force_login(self.manager)
@@ -193,7 +193,7 @@ class StaffPerformanceReportTests(TestCase):
         self.assertEqual(alice_data["performance_score"], initial_alice_score)
         self.assertEqual(alice_data["pending_tasks"], 1)
 
-    def test_self_tasks_are_excluded_from_shared_dashboard(self):
+    def test_self_tasks_are_included_in_shared_dashboard_counts(self):
         self.client.force_login(self.manager)
 
         self_task = Task.objects.create(
@@ -213,11 +213,54 @@ class StaffPerformanceReportTests(TestCase):
         response = self.client.get(reverse("reports_performance"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertNotContains(response, "Self Tasks")
-        self.assertNotContains(response, "Task Source")
         performance_data = list(response.context["performance_data"])
         alice_data = next(item for item in performance_data if item["staff"] == self.staff_one)
-        self.assertEqual(alice_data["total_tasks"], 1)
+        self.assertEqual(alice_data["total_tasks"], 2)
+        self.assertEqual(alice_data["completed_tasks"], 2)
+
+    def test_staff_detail_shows_task_descriptions_for_all_and_manager_tasks(self):
+        self.client.force_login(self.manager)
+
+        self_task = Task.objects.create(
+            title="Personal follow-up",
+            description="Staff created this task for own follow-up",
+            due_date=timezone.localdate() + timedelta(days=1),
+            priority="normal",
+        )
+        UserTask.objects.create(
+            task=self_task,
+            assigned_by=self.staff_one,
+            assigned_to=self.staff_one,
+            status="pending",
+        )
+
+        response = self.client.get(reverse("staff_detail", args=[self.staff_one.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Staff created this task for own follow-up")
+        self.assertContains(response, "Prepare weekly report")
+
+    def test_staff_detail_separates_own_tasks_from_manager_tasks(self):
+        self.client.force_login(self.manager)
+
+        own_task = Task.objects.create(
+            title="Personal follow-up",
+            description="Staff self-created item",
+            due_date=timezone.localdate() + timedelta(days=1),
+            priority="normal",
+        )
+        UserTask.objects.create(
+            task=own_task,
+            assigned_by=self.staff_one,
+            assigned_to=self.staff_one,
+            status="pending",
+        )
+
+        response = self.client.get(reverse("staff_detail", args=[self.staff_one.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(list(response.context["all_tasks"].values_list("task__title", flat=True)), ["Personal follow-up"])
+        self.assertEqual(list(response.context["manager_tasks"].values_list("task__title", flat=True)), ["Prepare weekly report"])
 
     def test_task_routes_are_not_conflicting(self):
         task = Task.objects.create(
@@ -585,16 +628,3 @@ class ReassignTaskCategoryTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["users"], [])
-
-    def test_staff_detail_can_render_embedded_panel_for_dashboard(self):
-        self.client.force_login(self.manager)
-
-        response = self.client.get(
-            reverse("staff_detail", args=[self.staff_one.id]),
-            {"panel": "1"},
-            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
-        )
-
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, self.staff_one.username)
-        self.assertContains(response, "All Tasks")

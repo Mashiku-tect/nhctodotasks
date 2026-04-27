@@ -147,24 +147,32 @@
     <div class="staff-panel-stats">
         <div class="staff-panel-stat">
             <div class="staff-panel-stat-label">All Tasks</div>
-            <div class="staff-panel-stat-value">{{ all_tasks|length }}</div>
+            <div class="staff-panel-stat-value">{{ total_task_count }}</div>
+        </div>
+        <div class="staff-panel-stat">
+            <div class="staff-panel-stat-label">Own Tasks</div>
+            <div class="staff-panel-stat-value">{{ own_task_count }}</div>
+        </div>
+        <div class="staff-panel-stat">
+            <div class="staff-panel-stat-label">Manager Tasks</div>
+            <div class="staff-panel-stat-value">{{ manager_task_count }}</div>
         </div>
         <div class="staff-panel-stat">
             <div class="staff-panel-stat-label">Completed</div>
             <div class="staff-panel-stat-value">{{ completed_count }}</div>
         </div>
         <div class="staff-panel-stat">
-            <div class="staff-panel-stat-label">Pending</div>
-            <div class="staff-panel-stat-value">{{ pending_count }}</div>
-        </div>
-        <div class="staff-panel-stat">
             <div class="staff-panel-stat-label">Overdue</div>
             <div class="staff-panel-stat-value">{{ overdue_count }}</div>
+        </div>
+        <div class="staff-panel-stat">
+            <div class="staff-panel-stat-label">Pending</div>
+            <div class="staff-panel-stat-value">{{ pending_count }}</div>
         </div>
     </div>
 
     <div class="staff-panel-block">
-        <h3 class="staff-panel-section-title">All Tasks</h3>
+        <h3 class="staff-panel-section-title">Staff's Own Tasks</h3>
         <div class="staff-panel-scroll">
             <div class="staff-panel-stack">
                 {% for ut in all_tasks %}
@@ -174,6 +182,9 @@
                         <span class="staff-panel-status {{ ut.status }}">{{ ut.status|capfirst }}</span>
                     </div>
                     <div class="staff-panel-task-meta">
+                        {% if ut.task.description %}
+                        <div>Description: {{ ut.task.description }}</div>
+                        {% endif %}
                         <div>Assigned by: {{ ut.assigned_by.username }}</div>
                         <div>Due date: {{ ut.task.due_date|date:"d M Y" }}</div>
                     </div>
@@ -196,6 +207,9 @@
                         <span class="staff-panel-status {{ ut.status }}">{{ ut.status|capfirst }}</span>
                     </div>
                     <div class="staff-panel-task-meta">
+                        {% if ut.task.description %}
+                        <div>Description: {{ ut.task.description }}</div>
+                        {% endif %}
                         <div>Due date: {{ ut.task.due_date|date:"d M Y" }}</div>
                     </div>
                 </div>

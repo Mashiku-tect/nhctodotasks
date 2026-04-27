@@ -1757,12 +1757,6 @@ def staff_performance_report(request):
         assigned_tasks = UserTask.objects.filter(
             assigned_to=staff
         ).select_related('task', 'assigned_by')
-        if request.user.is_superuser:
-            assigned_tasks = assigned_tasks.exclude(assigned_by=staff)
-        elif request.user.role == 'staff':
-            assigned_tasks = assigned_tasks.exclude(assigned_by=staff)
-        else:
-            assigned_tasks = assigned_tasks.filter(assigned_by=request.user)
         assigned_tasks = apply_date_filters(assigned_tasks)
 
         assigned_stats = summarize_tasks(assigned_tasks)
@@ -1869,39 +1863,47 @@ def staff_performance_report(request):
 @login_required
 def staff_detail(request, staff_id):
     staff = get_object_or_404(User, id=staff_id, role='staff')
+    own_tasks = UserTask.objects.filter(
+        assigned_to=staff,
+        assigned_by=staff,
+    ).select_related('task', 'assigned_by')
 
     if request.user.is_superuser:
-        all_tasks = UserTask.objects.filter(assigned_to=staff).select_related('task', 'assigned_by')
-        manager_tasks = all_tasks.filter(assigned_by=request.user)
+        manager_tasks = UserTask.objects.filter(
+            assigned_to=staff,
+            assigned_by=request.user,
+        ).select_related('task', 'assigned_by')
         manager_tasks_heading = "Tasks Assigned By You"
     elif request.user.role == 'manager':
         if staff.section != request.user.section:
             return HttpResponseForbidden()
-        all_tasks = UserTask.objects.filter(assigned_to=staff).select_related('task', 'assigned_by')
-        manager_tasks = all_tasks.filter(assigned_by=request.user)
+        manager_tasks = UserTask.objects.filter(
+            assigned_to=staff,
+            assigned_by=request.user,
+        ).select_related('task', 'assigned_by')
         manager_tasks_heading = "Tasks Assigned By You"
     elif request.user.role == 'staff':
         if staff.section != request.user.section:
             return HttpResponseForbidden()
-        all_tasks = UserTask.objects.filter(assigned_to=staff).select_related('task', 'assigned_by')
-        manager_tasks = all_tasks.exclude(assigned_by=staff)
+        manager_tasks = UserTask.objects.filter(
+            assigned_to=staff,
+        ).exclude(assigned_by=staff).select_related('task', 'assigned_by')
         manager_tasks_heading = "Tasks Assigned By Manager"
     else:
         return HttpResponseForbidden()
 
     context = {
         'staff': staff,
-        'all_tasks': all_tasks,
+        'all_tasks': own_tasks,
         'manager_tasks': manager_tasks,
         'manager_tasks_heading': manager_tasks_heading,
-        'completed_count': all_tasks.filter(status='completed').count(),
-        'pending_count': all_tasks.filter(status__in=['pending', 'in_progress', 'accepted']).count(),
-        'overdue_count': all_tasks.filter(task__due_date__lt=today).exclude(status__in=['completed', 'rejected', 'accepted']).count(),
+        'total_task_count': own_tasks.count() + manager_tasks.count(),
+        'own_task_count': own_tasks.count(),
+        'manager_task_count': manager_tasks.count(),
+        'completed_count': own_tasks.filter(status='completed').count() + manager_tasks.filter(status='completed').count(),
+        'pending_count': own_tasks.filter(status__in=['pending', 'in_progress', 'accepted']).count() + manager_tasks.filter(status__in=['pending', 'in_progress', 'accepted']).count(),
+        'overdue_count': own_tasks.filter(task__due_date__lt=today).exclude(status__in=['completed', 'rejected', 'accepted']).count() + manager_tasks.filter(task__due_date__lt=today).exclude(status__in=['completed', 'rejected', 'accepted']).count(),
     }
-
-    if request.GET.get('panel') == '1' or request.headers.get('x-requested-with') == 'XMLHttpRequest':
-        context['is_embedded_panel'] = True
-        return render(request, 'reports/_staff_detail_panel.html', context)
 
     return render(request, 'reports/staff_detail.html', context)
 
