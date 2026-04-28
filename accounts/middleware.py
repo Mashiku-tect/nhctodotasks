@@ -2,6 +2,7 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import logout
 from django.shortcuts import redirect
+from django.urls import reverse
 from django.utils import timezone
 
 from .models import UserSession
@@ -77,3 +78,32 @@ class SessionSecurityMiddleware:
         response["Pragma"] = "no-cache"
         response["Expires"] = "0"
         return response
+
+
+class AssignmentRequiredMiddleware:
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        if self._should_redirect_to_dashboard(request):
+            return redirect("dashboard")
+
+        return self.get_response(request)
+
+    def _should_redirect_to_dashboard(self, request):
+        user = getattr(request, "user", None)
+        if not user or not user.is_authenticated or not getattr(user, "needs_assignment", False):
+            return False
+
+        if self._is_admin_request(request):
+            return False
+
+        allowed_paths = {
+            reverse("dashboard"),
+            reverse("logout"),
+        }
+        return request.path not in allowed_paths
+
+    def _is_admin_request(self, request):
+        admin_prefix = f"/{getattr(settings, 'ADMIN_URL_PREFIX', 'admin/')}"
+        return request.path.startswith(admin_prefix)

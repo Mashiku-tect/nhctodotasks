@@ -1,12 +1,14 @@
 from django.conf import settings
 from django.test import TestCase
 from django.urls import reverse
+from unittest.mock import patch
 
 from django.contrib.auth import get_user
 from django.contrib.messages import get_messages
 from django.utils import timezone
 
 from accounts.models import User, UserSession
+from accounts.auth_backends import ActiveDirectoryBackend
 
 
 class LoginViewTests(TestCase):
@@ -197,3 +199,61 @@ class SuperuserAccessTests(TestCase):
         self.assertContains(response, "Django Admin")
         self.assertNotContains(response, "Add Users")
         self.assertNotContains(response, "Manage Users")
+
+
+class UnassignedAccessTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="waitinguser",
+            email="waitinguser@example.com",
+            password="StrongPass123!",
+            section="",
+            role="",
+            staff_type="",
+        )
+
+    def test_unassigned_user_is_redirected_back_to_dashboard_from_other_pages(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("my_tasks"))
+
+        self.assertRedirects(response, reverse("dashboard"))
+
+    def test_dashboard_shows_assignment_overlay_for_unassigned_user(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Account Pending Assignment")
+
+
+class ActiveDirectoryBackendTests(TestCase):
+    @patch.object(ActiveDirectoryBackend, "_load_settings")
+    def test_auto_created_ad_user_starts_without_assignment(self, mock_load_settings):
+        mock_load_settings.return_value = {
+            "server_uri": "ldap://example.com",
+            "port": "389",
+            "base_dn": "DC=example,DC=com",
+            "bind_user": "bind@example.com",
+            "bind_password": "secret",
+            "username_attr": "sAMAccountName",
+            "timeout": "10",
+            "auto_create": True,
+            "default_section": "ict",
+            "default_role": "staff",
+            "default_staff_type": "icto",
+            "email_domain": "example.com",
+        }
+
+        backend = ActiveDirectoryBackend()
+        user = backend._get_or_build_local_user(
+            username="dcuser",
+            email="dcuser@example.com",
+            settings=mock_load_settings.return_value,
+        )
+
+        self.assertEqual(user.role, "")
+        self.assertEqual(user.section, "")
+        self.assertEqual(user.staff_type, "")
+        self.assertTrue(user.needs_assignment)

@@ -171,9 +171,9 @@ class ActiveDirectoryBackend(BaseBackend):
             user = UserModel(
                 username=username,
                 email=email or f"{username}@{settings['email_domain']}",
-                section=settings["default_section"],
-                role=settings["default_role"],
-                staff_type=settings["default_staff_type"] if settings["default_role"] == "staff" else "",
+                section="",
+                role="",
+                staff_type="",
                 is_active=True,
             )
             user.set_unusable_password()

@@ -91,6 +91,19 @@ class User(AbstractBaseUser, PermissionsMixin):
     def __str__(self):
         return self.username
 
+    @property
+    def needs_assignment(self):
+        if self.is_superuser:
+            return False
+
+        if not self.role or not self.section:
+            return True
+
+        if self.role == "staff" and not self.staff_type:
+            return True
+
+        return False
+
 
 class UserSession(models.Model):
     user = models.OneToOneField(

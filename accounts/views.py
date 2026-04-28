@@ -168,6 +168,11 @@ def login_view(request):
                 user=user,
                 defaults={"session_key": request.session.session_key},
             )
+            if user.needs_assignment:
+                messages.warning(
+                    request,
+                    "Your account is waiting for role assignment. Contact the administrator so they can assign your section and role.",
+                )
             return redirect("dashboard")
         else:
             messages.error(

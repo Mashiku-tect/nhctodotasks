@@ -45,6 +45,59 @@ body {
     font-family: "Inter", sans-serif;
 }
 
+body.assignment-locked #sidebar,
+body.assignment-locked #main {
+    filter: grayscale(0.2) opacity(0.4);
+}
+
+.assignment-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 2500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+    background: rgba(15, 23, 42, 0.28);
+    backdrop-filter: blur(4px);
+}
+
+.assignment-overlay-card {
+    width: min(560px, 100%);
+    border-radius: 24px;
+    background: #ffffff;
+    border: 1px solid #dbe7f0;
+    box-shadow: 0 24px 60px rgba(15, 23, 42, 0.18);
+    padding: 1.5rem;
+    text-align: center;
+}
+
+.assignment-overlay-icon {
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 1rem;
+    border-radius: 18px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(245, 158, 11, 0.14);
+    color: #d97706;
+    font-size: 1.6rem;
+}
+
+.assignment-overlay-title {
+    font-size: 1.35rem;
+    font-weight: 800;
+    color: #0f172a;
+    margin-bottom: 0.6rem;
+}
+
+.assignment-overlay-text {
+    color: #475569;
+    margin: 0 auto 1.25rem;
+    max-width: 440px;
+}
+
 .card {
     border: none !important;
 }
@@ -499,7 +552,7 @@ footer {
 
 </head>
 
-<body>
+<body class="{% if request.user.is_authenticated and request.user.needs_assignment %}assignment-locked{% endif %}">
 
 <!-- SIDEBAR -->
 
@@ -640,6 +693,25 @@ footer {
 
 
 </div>
+
+{% if request.user.is_authenticated and request.user.needs_assignment %}
+<div class="assignment-overlay">
+    <div class="assignment-overlay-card">
+        <div class="assignment-overlay-icon">
+            <i class="bi bi-person-lock"></i>
+        </div>
+        <div class="assignment-overlay-title">Account Pending Assignment</div>
+        <p class="assignment-overlay-text">
+            You have signed in successfully, but your account has not been assigned a section and role yet.
+            Please contact the administrator to assign you as Manager or Staff, and set your staff category if needed.
+        </p>
+        <form method="post" action="{% url 'logout' %}">
+            {% csrf_token %}
+            <button class="btn btn-primary">Sign Out</button>
+        </form>
+    </div>
+</div>
+{% endif %}
 
 <script>
 const sidebar = document.getElementById('sidebar');
