@@ -195,6 +195,8 @@
                         {% with ut=item.own_usertask %}
                             {% if ut.status == 'pending' and ut.review_status == 'pending' %}
                                 <a href="{% url 'start_task' ut.id %}" class="btn btn-sm btn-primary">Start</a>
+                            {% elif ut.status == 'completed' %}
+                                <span class="btn btn-sm btn-success disabled" aria-disabled="true">Done</span>
                             {% endif %}
                             <a href="{% url 'task_detail' item.task.id %}" class="btn btn-sm btn-outline-secondary">View</a>
                             {% if ut.status == 'pending' and ut.review_status == 'rejected' %}
@@ -216,7 +218,9 @@
 
             <!-- Days Left -->
             <td class="text-center">
-                {% if item.is_overdue %}
+                {% if item.countdown_stopped %}
+                    <span class="badge bg-success">Accepted</span>
+                {% elif item.is_overdue %}
                     <span class="badge bg-danger">Overdue</span>
                 {% else %}
                     <span class="badge {% if item.days_left <= 2 %}bg-warning{% else %}bg-success{% endif %}">

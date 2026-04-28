@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+.notif-shell {
+    display: grid;
+    gap: 1.25rem;
+}
+
+.notif-panel {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 20px;
+    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.05);
+}
+
+.notif-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    padding: 1.2rem 1.3rem;
+    border-bottom: 1px solid #e2e8f0;
+    flex-wrap: wrap;
+}
+
+.notif-title {
+    font-size: 1.35rem;
+    font-weight: 800;
+    color: #0f172a;
+    margin: 0;
+}
+
+.notif-subtitle {
+    color: #64748b;
+    margin: 0.25rem 0 0;
+}
+
+.notif-list {
+    padding: 1rem;
+    display: grid;
+    gap: 0.9rem;
+}
+
+.notif-card {
+    display: block;
+    padding: 1rem 1.05rem;
+    border-radius: 16px;
+    background: #f8fbfd;
+    border: 1px solid #e2e8f0;
+    text-decoration: none;
+    color: inherit;
+}
+
+.notif-card:hover {
+    background: #f1f7fb;
+    border-color: #cbdbe7;
+    color: inherit;
+}
+
+.notif-card.unread {
+    background: #eef7ff;
+    border-color: #bfdbfe;
+}
+
+.notif-card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 0.75rem;
+    margin-bottom: 0.35rem;
+}
+
+.notif-card-title {
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.notif-card-time {
+    color: #64748b;
+    font-size: 0.85rem;
+    white-space: nowrap;
+}
+
+.notif-card-message {
+    color: #475569;
+    margin: 0;
+}
+
+.notif-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin-top: 0.75rem;
+    padding: 0.28rem 0.58rem;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    background: #dbeafe;
+    color: #1d4ed8;
+}
+
+.notif-empty {
+    padding: 1.3rem;
+    color: #64748b;
+}
+</style>
+
+<div class="notif-shell">
+    <div class="notif-panel">
+        <div class="notif-header">
+            <div>
+                <h1 class="notif-title">Notifications</h1>
+                <p class="notif-subtitle">Track task reminders, reviews, reassignments, and recent system updates.</p>
+            </div>
+            {% if unread_notifications_count %}
+            <form method="post" action="{% url 'mark_all_notifications_read' %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-outline-primary btn-sm">Mark all as read</button>
+            </form>
+            {% endif %}
+        </div>
+
+        {% if notifications %}
+        <div class="notif-list">
+            {% for notification in notifications %}
+            <a href="{% url 'notification_redirect' notification.id %}" class="notif-card {% if not notification.is_read %}unread{% endif %}">
+                <div class="notif-card-top">
+                    <div class="notif-card-title">{{ notification.title }}</div>
+                    <div class="notif-card-time">{{ notification.created_at|timesince }} ago</div>
+                </div>
+                <p class="notif-card-message">{{ notification.message }}</p>
+                <div class="notif-badge">{{ notification.get_notification_type_display }}</div>
+            </a>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="notif-empty">No notifications yet.</div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

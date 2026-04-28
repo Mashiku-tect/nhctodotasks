@@ -285,7 +285,8 @@ def my_tasks(request):
     for ut in qs:
         task = ut.task
         task.user_task = ut
-        task.days_left = (task.due_date - today).days if task.due_date else None
+        task.countdown_stopped = ut.status == 'completed'
+        task.days_left = None if task.countdown_stopped or not task.due_date else (task.due_date - today).days
         task.attachment_files = build_task_attachment_list(task)
         tasks_list.append(task)
 
@@ -384,8 +385,19 @@ def assigned_tasks(request):
             display_usertasks = task.user_tasks.select_related('assigned_to', 'assigned_by').all()
             computed_status = own_usertask.status if own_usertask else compute_task_status(usertasks)
 
-        days_left = (task.due_date - today).days
-        is_overdue = days_left < 0 and computed_status in ['pending', 'in_progress']
+        is_review_accepted = False
+        if user.role == 'manager':
+            is_review_accepted = display_usertasks.exists() and all(
+                ut.review_status == 'accepted' for ut in display_usertasks
+            )
+        elif own_usertask:
+            is_review_accepted = (
+                own_usertask.status == 'completed' and own_usertask.review_status == 'accepted'
+            )
+
+        countdown_stopped = is_review_accepted
+        days_left = None if countdown_stopped else (task.due_date - today).days
+        is_overdue = days_left is not None and days_left < 0 and computed_status in ['pending', 'in_progress']
         reassign_needed = is_overdue
 
         if is_overdue:
@@ -403,6 +415,7 @@ def assigned_tasks(request):
             "own_usertask": own_usertask,
             "computed_status": computed_status,
             "days_left": days_left,
+            "countdown_stopped": countdown_stopped,
             "is_overdue": is_overdue,
             "reassign_needed": reassign_needed,
             "deadline_progress": deadline_progress,
@@ -684,6 +697,12 @@ def my_task_report(request):
 def reports_home(request):
     report_cards = [
         {
+            'title': 'Performance Dashboard',
+            'description': 'Track staff performance, rankings, and section productivity trends.',
+            'icon': 'bi-trophy',
+            'url': reverse('reports_performance'),
+        },
+        {
             'title': 'My Task Report',
             'description': 'See the history of tasks you created for yourself.',
             'icon': 'bi-file-earmark-text',
@@ -860,58 +879,160 @@ def reassign_task(request, task_id):
         'selected_category_id': selected_category_id,
     })
 
-# #dashboard view
-# @login_required
-# def dashboard(request):
-#     user = request.user
-#     today = timezone.localdate()  # Tanzanian date if timezone set
+@login_required
+def dashboard(request):
+    user = request.user
+    today = timezone.now().astimezone(tanzania_tz).date()
 
-#     if user.role == "manager":
-#         # Tasks assigned to staff in this manager's section
-#         section_staff_tasks = UserTask.objects.filter(
-#             assigned_to__role='staff',
-#             assigned_to__section=user.section
-#         )
+    if user.is_superuser:
+        visible_tasks = UserTask.objects.select_related('task', 'assigned_to', 'assigned_by')
+        active_staff_count = User.objects.filter(role='staff', is_active=True).count()
+        scope_label = 'All sections overview'
+        headline = 'System-wide task overview'
+    elif user.role == 'manager':
+        visible_tasks = UserTask.objects.filter(
+            Q(assigned_by=user) | Q(assigned_to=user)
+        ).select_related('task', 'assigned_to', 'assigned_by').distinct()
+        active_staff_count = User.objects.filter(
+            role='staff',
+            section=user.section,
+            is_active=True
+        ).count()
+        scope_label = f'{user.get_section_display()} section'
+        headline = 'Overview of your section tasks'
+    else:
+        visible_tasks = UserTask.objects.filter(
+            assigned_to=user
+        ).select_related('task', 'assigned_to', 'assigned_by')
+        active_staff_count = None
+        scope_label = 'My work overview'
+        headline = 'Overview of your tasks and updates'
 
-#         my_open_tasks_count = section_staff_tasks.exclude(status__in=['completed', 'rejected']).count()
-#         overdue_tasks_count = section_staff_tasks.filter(
-#             task__due_date__lt=today
-#         ).exclude(status__in=['completed', 'rejected']).count()
+    total_tasks = visible_tasks.count()
+    completed_tasks = visible_tasks.filter(status='completed').count()
+    in_progress_tasks = visible_tasks.filter(status='in_progress').count()
+    pending_tasks = visible_tasks.filter(status='pending').count()
+    overdue_tasks = visible_tasks.filter(task__due_date__lt=today).exclude(
+        status__in=['completed', 'rejected', 'accepted']
+    ).count()
+    review_pending = visible_tasks.filter(
+        status='completed',
+        review_status='pending'
+    ).exclude(
+        assigned_by=F('assigned_to')
+    ).count()
 
-#         rejected_tasks_count = UserTask.objects.filter(
-#             assigned_by=request.user,
-#             review_status='rejected'
-#         ).count()
+    recent_tasks = visible_tasks.order_by('-task__updated_at', '-created_at')[:6]
+    recent_notifications = Notification.objects.filter(
+        user=user
+    ).order_by('-created_at')[:6]
 
-#         completed_tasks_count = section_staff_tasks.filter(status='completed').count()
+    quick_links = [
+        {
+            'title': 'My Tasks',
+            'description': 'Open your personal task list.',
+            'icon': 'bi-list-task',
+            'url': reverse('my_tasks'),
+        },
+        {
+            'title': 'Assigned Tasks',
+            'description': 'See tasks shared between you and others.',
+            'icon': 'bi-person-check',
+            'url': reverse('assigned_tasks'),
+        },
+        {
+            'title': 'Create Task',
+            'description': 'Create a new task or assignment.',
+            'icon': 'bi-plus-circle',
+            'url': reverse('create_task'),
+        },
+        {
+            'title': 'Performance',
+            'description': 'Open the staff performance dashboard.',
+            'icon': 'bi-trophy',
+            'url': reverse('reports_performance'),
+        },
+    ]
 
-#     else:
-#         # Staff sees only their own tasks
-#         my_open_tasks_count = UserTask.objects.filter(
-#             assigned_to=user
-#         ).exclude(status__in=['completed', 'rejected']).count()
+    if user.role == 'manager' or user.is_superuser:
+        quick_links.append({
+            'title': 'Daily Digest',
+            'description': 'Review section check-ins and blockers.',
+            'icon': 'bi-calendar2-check',
+            'url': reverse('daily_digest'),
+        })
+    else:
+        quick_links.append({
+            'title': 'Daily Board',
+            'description': 'Update today’s focus and progress.',
+            'icon': 'bi-calendar2-check',
+            'url': reverse('daily_board'),
+        })
 
-#         overdue_tasks_count = UserTask.objects.filter(
-#             assigned_to=user,
-#             task__due_date__lt=today
-#         ).exclude(status__in=['completed', 'rejected']).count()
+    stat_cards = [
+        {
+            'label': 'Total Tasks',
+            'value': total_tasks,
+            'meta': scope_label,
+            'icon': 'bi-journal-text',
+            'tone': 'cyan',
+        },
+        {
+            'label': 'Completed',
+            'value': completed_tasks,
+            'meta': 'Finished work',
+            'icon': 'bi-check2-square',
+            'tone': 'green',
+        },
+        {
+            'label': 'In Progress',
+            'value': in_progress_tasks,
+            'meta': 'Active right now',
+            'icon': 'bi-hourglass-split',
+            'tone': 'blue',
+        },
+        {
+            'label': 'Pending',
+            'value': pending_tasks,
+            'meta': 'Waiting to start',
+            'icon': 'bi-stopwatch',
+            'tone': 'amber',
+        },
+        {
+            'label': 'Overdue',
+            'value': overdue_tasks,
+            'meta': 'Needs attention',
+            'icon': 'bi-alarm',
+            'tone': 'red',
+        },
+    ]
 
-#         rejected_tasks_count = UserTask.objects.filter(
-#         assigned_to=request.user,
-#         review_status='rejected'
-#          ).count()
+    if active_staff_count is not None:
+        stat_cards.append({
+            'label': 'Active Staff',
+            'value': active_staff_count,
+            'meta': scope_label,
+            'icon': 'bi-people',
+            'tone': 'violet',
+        })
+    else:
+        stat_cards.append({
+            'label': 'Awaiting Review',
+            'value': review_pending,
+            'meta': 'Completed tasks pending feedback',
+            'icon': 'bi-chat-square-text',
+            'tone': 'violet',
+        })
 
-#         completed_tasks_count = UserTask.objects.filter(
-#             assigned_to=user,
-#             status='completed'
-#         ).count()
-
-#     return render(request, "tasks/dashboard.html", {
-#         'my_open_tasks_count': my_open_tasks_count,
-#         'overdue_tasks_count': overdue_tasks_count,
-#         'rejected_tasks_count': rejected_tasks_count,
-#         'completed_tasks_count': completed_tasks_count,
-#     })
+    return render(request, "tasks/dashboard.html", {
+        'headline': headline,
+        'scope_label': scope_label,
+        'stat_cards': stat_cards,
+        'recent_tasks': recent_tasks,
+        'recent_notifications': recent_notifications,
+        'quick_links': quick_links,
+        'today': today,
+    })
 
 
 @login_required
@@ -1556,6 +1677,19 @@ def notification_redirect(request, notification_id):
         return redirect(notification.target_url)
 
     return redirect('assigned_tasks')
+
+
+@login_required
+def notifications_list(request):
+    notifications = request.user.notifications.order_by('-created_at')
+    paginator = Paginator(notifications, 12)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    return render(request, 'tasks/notifications.html', {
+        'page_obj': page_obj,
+        'notifications': page_obj,
+    })
 
 
 @login_required

@@ -1,96 +1,516 @@
-{% comment %} {% extends "base.html" %}
+{% extends "base.html" %}
 
 {% block content %}
-<div class="container-fluid py-4">
-    <h3 class="mb-4 text-primary"><i class="bi bi-speedometer2"></i> Dashboard</h3>
+<style>
+.dash-shell {
+    display: grid;
+    gap: 1.5rem;
+    color: #0f172a;
+}
 
-    <div class="row g-4">
+.dash-hero,
+.dash-panel {
+    background: #ffffff;
+    border: 1px solid #dbe7f0;
+    border-radius: 22px;
+    box-shadow: 0 16px 36px rgba(15, 23, 42, 0.06);
+}
 
-        <!-- Open Tasks -->
-        <div class="col-md-3 col-sm-6">
-            <div class="card shadow-sm border-0">
-                <div class="card-body d-flex justify-content-between align-items-center">
-                    <div>
-                        <small class="text-muted">
-                            {% if request.user.role == "manager" %}
-                                Open Tasks in Section
-                            {% else %}
-                                My Open Tasks
-                            {% endif %}
-                        </small>
-                        <h3 class="fw-bold mb-0">{{ my_open_tasks_count }}</h3>
-                    </div>
-                    <div class="text-warning fs-3">
-                        <i class="bi bi-list-task"></i>
-                    </div>
+.dash-hero {
+    padding: 1.5rem;
+    background:
+        radial-gradient(circle at top right, rgba(143, 211, 255, 0.3), transparent 28%),
+        linear-gradient(180deg, #ffffff 0%, #f8fbfd 100%);
+}
+
+.dash-kicker {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.35rem 0.7rem;
+    border-radius: 999px;
+    background: rgba(20, 184, 166, 0.14);
+    color: #6ee7de;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+}
+
+.dash-title {
+    font-size: 2rem;
+    font-weight: 800;
+    color: #0f172a;
+    margin: 0.9rem 0 0.45rem;
+}
+
+.dash-subtitle {
+    color: #64748b;
+    margin: 0;
+    max-width: 720px;
+}
+
+.dash-section-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #0f172a;
+    margin: 0;
+}
+
+.dash-section-note {
+    color: #64748b;
+    font-size: 0.92rem;
+}
+
+.dash-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(205px, 1fr));
+    gap: 1rem;
+}
+
+.dash-stat-card {
+    padding: 1.2rem;
+    border-radius: 20px;
+    background: linear-gradient(180deg, #ffffff 0%, #f8fbfd 100%);
+    border: 1px solid #dbe7f0;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
+}
+
+.dash-stat-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.dash-stat-icon {
+    width: 50px;
+    height: 50px;
+    border-radius: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.3rem;
+}
+
+.dash-stat-meta {
+    font-size: 0.82rem;
+    font-weight: 700;
+}
+
+.dash-stat-value {
+    font-size: 2.15rem;
+    font-weight: 800;
+    line-height: 1;
+    color: #0f172a;
+    margin-bottom: 0.45rem;
+}
+
+.dash-stat-label {
+    font-size: 1rem;
+    color: #64748b;
+}
+
+.tone-cyan .dash-stat-icon {
+    background: rgba(45, 212, 191, 0.16);
+    color: #5eead4;
+}
+
+.tone-cyan .dash-stat-meta {
+    color: #5eead4;
+}
+
+.tone-green .dash-stat-icon {
+    background: rgba(34, 197, 94, 0.16);
+    color: #86efac;
+}
+
+.tone-green .dash-stat-meta {
+    color: #4ade80;
+}
+
+.tone-blue .dash-stat-icon {
+    background: rgba(59, 130, 246, 0.16);
+    color: #93c5fd;
+}
+
+.tone-blue .dash-stat-meta {
+    color: #60a5fa;
+}
+
+.tone-amber .dash-stat-icon {
+    background: rgba(245, 158, 11, 0.16);
+    color: #fcd34d;
+}
+
+.tone-amber .dash-stat-meta {
+    color: #fbbf24;
+}
+
+.tone-red .dash-stat-icon {
+    background: rgba(239, 68, 68, 0.16);
+    color: #fca5a5;
+}
+
+.tone-red .dash-stat-meta {
+    color: #f87171;
+}
+
+.tone-violet .dash-stat-icon {
+    background: rgba(168, 85, 247, 0.16);
+    color: #d8b4fe;
+}
+
+.tone-violet .dash-stat-meta {
+    color: #c084fc;
+}
+
+.dash-grid {
+    display: grid;
+    grid-template-columns: 1.55fr 1fr;
+    gap: 1.5rem;
+}
+
+.dash-panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    padding: 1.2rem 1.35rem;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.dash-panel-body {
+    padding: 1.15rem 1.35rem 1.35rem;
+}
+
+.dash-link-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.55rem 0.9rem;
+    border-radius: 12px;
+    background: #f8fbfd;
+    border: 1px solid #dbe7f0;
+    color: #2f8fc9;
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.dash-link-chip:hover {
+    color: #2474a5;
+    border-color: #9fd0ee;
+    background: #eef7fd;
+}
+
+.dash-task-list,
+.dash-activity-list {
+    display: grid;
+    gap: 0.9rem;
+}
+
+.dash-task-row,
+.dash-activity-row {
+    display: block;
+    border-radius: 18px;
+    padding: 1rem 1.05rem;
+    background: #fbfdff;
+    border: 1px solid #e2e8f0;
+    text-decoration: none;
+}
+
+.dash-task-row:hover,
+.dash-activity-row:hover {
+    border-color: #b6d8ee;
+    background: #f4faff;
+}
+
+.dash-task-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 0.75rem;
+    margin-bottom: 0.55rem;
+}
+
+.dash-task-main {
+    display: flex;
+    align-items: flex-start;
+    min-width: 0;
+}
+
+.dash-task-title,
+.dash-activity-title {
+    color: #0f172a;
+    font-weight: 700;
+    font-size: 1rem;
+}
+
+.dash-task-title-completed {
+    color: #64748b;
+    text-decoration: line-through;
+}
+
+.dash-task-meta,
+.dash-activity-meta {
+    color: #64748b;
+    font-size: 0.9rem;
+}
+
+.dash-task-check {
+    width: 28px;
+    height: 28px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 0.95rem;
+    margin-right: 0.7rem;
+    border: 1px solid #cbd5e1;
+    color: #94a3b8;
+    background: #ffffff;
+}
+
+.dash-task-check-completed {
+    background: #dcfce7;
+    border-color: #86efac;
+    color: #15803d;
+}
+
+.dash-task-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.55rem;
+    margin-top: 0.7rem;
+}
+
+.dash-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.3rem 0.62rem;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+.dash-tag-status-pending {
+    background: rgba(245, 158, 11, 0.16);
+    color: #fbbf24;
+}
+
+.dash-tag-status-in_progress {
+    background: rgba(59, 130, 246, 0.16);
+    color: #60a5fa;
+}
+
+.dash-tag-status-completed,
+.dash-tag-status-accepted {
+    background: rgba(34, 197, 94, 0.16);
+    color: #4ade80;
+}
+
+.dash-tag-status-rejected {
+    background: rgba(239, 68, 68, 0.16);
+    color: #f87171;
+}
+
+.dash-tag-priority-high {
+    background: rgba(239, 68, 68, 0.16);
+    color: #fca5a5;
+}
+
+.dash-tag-priority-normal {
+    background: #eef2f7;
+    color: #64748b;
+}
+
+.dash-quick-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 0.85rem;
+}
+
+.dash-quick-card {
+    display: block;
+    border-radius: 18px;
+    padding: 1rem;
+    background: #fbfdff;
+    border: 1px solid #e2e8f0;
+    color: inherit;
+    text-decoration: none;
+    transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+}
+
+.dash-quick-card:hover {
+    transform: translateY(-2px);
+    border-color: #b6d8ee;
+    background: #f2f9fe;
+    color: inherit;
+}
+
+.dash-quick-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(47, 143, 201, 0.16);
+    color: #8fd3ff;
+    font-size: 1.15rem;
+    margin-bottom: 0.85rem;
+}
+
+.dash-quick-title {
+    color: #0f172a;
+    font-weight: 700;
+    margin-bottom: 0.3rem;
+}
+
+.dash-quick-desc {
+    color: #64748b;
+    font-size: 0.88rem;
+    margin: 0;
+}
+
+.dash-empty {
+    color: #64748b;
+    padding: 0.4rem 0;
+}
+
+@media (max-width: 1100px) {
+    .dash-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 768px) {
+    .dash-title {
+        font-size: 1.5rem;
+    }
+
+    .dash-hero,
+    .dash-panel {
+        border-radius: 18px;
+    }
+
+    .dash-panel-header,
+    .dash-panel-body {
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+}
+</style>
+
+<div class="dash-shell">
+    <section class="dash-hero">
+        <div class="dash-kicker">
+            <i class="bi bi-speedometer2"></i>
+            Dashboard Overview
+        </div>
+        <h1 class="dash-title">{{ headline }}</h1>
+        <p class="dash-subtitle">
+            This page is now focused on quick monitoring and navigation. Staff performance stays in its own dedicated performance view.
+        </p>
+    </section>
+
+    <section class="dash-stats">
+        {% for card in stat_cards %}
+        <article class="dash-stat-card tone-{{ card.tone }}">
+            <div class="dash-stat-top">
+                <span class="dash-stat-icon">
+                    <i class="bi {{ card.icon }}"></i>
+                </span>
+                <span class="dash-stat-meta">{{ card.meta }}</span>
+            </div>
+            <div class="dash-stat-value">{{ card.value }}</div>
+            <div class="dash-stat-label">{{ card.label }}</div>
+        </article>
+        {% endfor %}
+    </section>
+
+    <section class="dash-grid">
+        <div class="dash-panel">
+            <div class="dash-panel-header">
+                <div>
+                    <h2 class="dash-section-title">Recent Tasks</h2>
+                    <div class="dash-section-note">A quick look at the work that changed most recently.</div>
                 </div>
+                <a href="{% url 'assigned_tasks' %}" class="dash-link-chip">
+                    View Tasks <i class="bi bi-arrow-right"></i>
+                </a>
+            </div>
+            <div class="dash-panel-body">
+                {% if recent_tasks %}
+                <div class="dash-task-list">
+                    {% for item in recent_tasks %}
+                    <a href="{% url 'task_detail' item.task.id %}" class="dash-task-row">
+                        <div class="dash-task-top">
+                            <div class="dash-task-main">
+                                <span class="dash-task-check {% if item.assigned_by_id == item.assigned_to_id and item.status == 'completed' or item.assigned_by_id != item.assigned_to_id and item.review_status == 'accepted' %}dash-task-check-completed{% endif %}">
+                                    {% if item.assigned_by_id == item.assigned_to_id and item.status == 'completed' or item.assigned_by_id != item.assigned_to_id and item.review_status == 'accepted' %}
+                                        <i class="bi bi-check-lg"></i>
+                                    {% else %}
+                                        <i class="bi bi-square"></i>
+                                    {% endif %}
+                                </span>
+                                <div>
+                                    <div class="dash-task-title {% if item.assigned_by_id == item.assigned_to_id and item.status == 'completed' or item.assigned_by_id != item.assigned_to_id and item.review_status == 'accepted' %}dash-task-title-completed{% endif %}">{{ item.task.title }}</div>
+                                    <div class="dash-task-meta">
+                                        {% if item.assigned_by_id == item.assigned_to_id %}
+                                            Personal task
+                                        {% elif request.user.role == 'manager' or request.user.is_superuser %}
+                                            Assigned to {{ item.assigned_to.username }}
+                                        {% else %}
+                                            Assigned by {{ item.assigned_by.username }}
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="dash-task-meta">{{ item.task.due_date }}</div>
+                        </div>
+                        <div class="dash-task-tags">
+                            <span class="dash-tag dash-tag-status-{{ item.status }}">{{ item.get_status_display }}</span>
+                            <span class="dash-tag dash-tag-priority-{{ item.task.priority }}">{{ item.task.get_priority_display }}</span>
+                            {% if item.review_status == 'pending' and item.status == 'completed' and item.assigned_by_id != item.assigned_to_id %}
+                            <span class="dash-tag dash-tag-status-in_progress">Review pending</span>
+                            {% endif %}
+                        </div>
+                    </a>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="dash-empty">No recent tasks available yet.</div>
+                {% endif %}
             </div>
         </div>
 
-        <!-- Completed Tasks -->
-        <div class="col-md-3 col-sm-6">
-            <div class="card shadow-sm border-0">
-                <div class="card-body d-flex justify-content-between align-items-center">
-                    <div>
-                        <small class="text-muted">
-                            {% if request.user.role == "manager" %}
-                                Completed in Section
-                            {% else %}
-                                My Completed Tasks
-                            {% endif %}
-                        </small>
-                        <h3 class="fw-bold mb-0">{{ completed_tasks_count }}</h3>
-                    </div>
-                    <div class="text-success fs-3">
-                        <i class="bi bi-check-circle"></i>
-                    </div>
+        <div class="dash-panel">
+            <div class="dash-panel-header">
+                <div>
+                    <h2 class="dash-section-title">Activity Feed</h2>
+                    <div class="dash-section-note">Recent updates from your task notifications.</div>
                 </div>
             </div>
-        </div>
-
-        <!-- Overdue Tasks -->
-        <div class="col-md-3 col-sm-6">
-            <div class="card shadow-sm border-0">
-                <div class="card-body d-flex justify-content-between align-items-center">
-                    <div>
-                        <small class="text-muted">
-                            {% if request.user.role == "manager" %}
-                                Overdue Tasks in Section
-                            {% else %}
-                                My Overdue Tasks
-                            {% endif %}
-                        </small>
-                        <h3 class="fw-bold mb-0">{{ overdue_tasks_count }}</h3>
-                    </div>
-                    <div class="text-danger fs-3">
-                        <i class="bi bi-exclamation-circle"></i>
-                    </div>
+            <div class="dash-panel-body">
+                {% if recent_notifications %}
+                <div class="dash-activity-list">
+                    {% for notification in recent_notifications %}
+                    <a href="{% url 'notification_redirect' notification.id %}" class="dash-activity-row">
+                        <div class="dash-activity-title">{{ notification.title }}</div>
+                        <div class="dash-activity-meta">{{ notification.message }}</div>
+                        <div class="dash-activity-meta mt-2">{{ notification.created_at|timesince }} ago</div>
+                    </a>
+                    {% endfor %}
                 </div>
+                {% else %}
+                <div class="dash-empty">No recent activity yet.</div>
+                {% endif %}
             </div>
         </div>
-
-        <!-- Rejected Tasks -->
-        <div class="col-md-3 col-sm-6">
-            <div class="card shadow-sm border-0">
-                <div class="card-body d-flex justify-content-between align-items-center">
-                    <div>
-                        <small class="text-muted">
-                            {% if request.user.role == "manager" %}
-                                Rejected Tasks in Section
-                            {% else %}
-                                Tasks Rejected by Manager
-                            {% endif %}
-                        </small>
-                        <h3 class="fw-bold mb-0">{{ rejected_tasks_count }}</h3>
-                    </div>
-                    <div class="text-secondary fs-3">
-                        <i class="bi bi-x-circle"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-    </div>
-    
+    </section>
 </div>
-{% endblock %} {% endcomment %}
+{% endblock %}

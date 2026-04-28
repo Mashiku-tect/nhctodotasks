@@ -168,7 +168,7 @@ def login_view(request):
                 user=user,
                 defaults={"session_key": request.session.session_key},
             )
-            return redirect("reports_performance")
+            return redirect("dashboard")
         else:
             messages.error(
                 request,

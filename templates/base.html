@@ -5,7 +5,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>NHC to do list</title>
+<title>NHC ICT to do list</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" type="image/png" href="{% static 'images/nhclogo.png' %}">
 <link rel="shortcut icon" href="{% static 'images/nhclogo.png' %}">
@@ -26,11 +26,13 @@
     --nhc-light: #f1f5f9;
     --nhc-card: #ffffff;
     --nhc-sidebar-bg: linear-gradient(180deg, #2f8fc9 0%, #2a84bb 55%, #2474a5 100%);
+    --nhc-sidebar-border: rgba(255,255,255,0.14);
     --nhc-sidebar-text: #f4fbff;
     --nhc-sidebar-muted: #d8efff;
     --nhc-sidebar-hover: rgba(255,255,255,0.12);
     --nhc-sidebar-active: #ffffff;
     --nhc-sidebar-active-text: #2474a5;
+    --nhc-sidebar-accent: #8fd3ff;
 }
 
 /* BASE */
@@ -87,7 +89,7 @@ body {
 
 /* SIDEBAR */
 #sidebar {
-    width: 220px;
+    width: 296px;
     background: var(--nhc-sidebar-bg);
     color: var(--nhc-sidebar-text);
     display: flex;
@@ -99,36 +101,70 @@ body {
     z-index: 1000;
     overflow-y: auto;
     transition: all 0.3s ease;
+    border-right: 1px solid var(--nhc-sidebar-border);
 }
 
 /* PROFILE */
 .profile-section {
-    padding: 1.2rem 1rem;
-    text-align: center;
-    border-bottom: 1px solid rgba(255,255,255,0.12);
+    display: flex;
+    align-items: center;
+    gap: 0.95rem;
+    padding: 1rem 1.25rem 1.35rem;
+    border-bottom: 1px solid var(--nhc-sidebar-border);
 }
 
 .profile-img {
-    width: 55px;
-    border-radius: 12px;
-    background: white;
-    padding: 6px;
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
+    background: #ffffff;
+    padding: 7px;
+    flex-shrink: 0;
+}
+
+.brand-meta {
+    min-width: 0;
+}
+
+.brand-title {
+    font-size: 1.05rem;
+    font-weight: 800;
+    line-height: 1.1;
+    color: #ffffff;
+}
+
+.brand-subtitle {
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: var(--nhc-sidebar-accent);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin-top: 0.2rem;
 }
 
 /* NAV */
+.nav {
+    padding: 1rem 0 1.15rem;
+    flex: 1;
+}
+
 .nav-link {
     color: var(--nhc-sidebar-text);
-    padding: 0.75rem 1rem;
-    margin: 0.2rem 0.6rem;
-    border-radius: 8px;
+    padding: 0.95rem 1.25rem;
+    margin: 0.12rem 0;
+    border-radius: 0;
     display: flex;
     align-items: center;
     transition: all 0.2s ease;
+    font-size: 0.98rem;
+    font-weight: 500;
+    position: relative;
 }
 
 .nav-link i {
-    width: 28px;
-    font-size: 1.1rem;
+    width: 30px;
+    font-size: 1.2rem;
+    margin-right: 0.35rem;
 }
 
 .nav-link:hover {
@@ -139,8 +175,18 @@ body {
 .nav-link.active {
     background: var(--nhc-sidebar-active);
     color: var(--nhc-sidebar-active-text);
-    font-weight: 500;
-    box-shadow: 0 8px 20px rgba(36, 116, 165, 0.2);
+    font-weight: 700;
+    box-shadow: none;
+}
+
+.nav-link.active::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background: #10d1c7;
 }
 
 .nav-link.active i,
@@ -154,9 +200,19 @@ body {
     color: var(--nhc-sidebar-muted);
 }
 
+.nav-section-label {
+    padding: 1rem 1.25rem 0.45rem;
+    margin: 0.3rem 0 0.1rem;
+    color: var(--nhc-sidebar-muted);
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+}
+
 /* MAIN */
 #main {
-    margin-left: 220px;
+    margin-left: 296px;
     display: flex;
     flex-direction: column;
     width: 100%;
@@ -223,12 +279,41 @@ footer {
 }
 
 #sidebar.collapsed .nav-link span,
-#sidebar.collapsed .profile-section div {
+#sidebar.collapsed .profile-section .brand-meta,
+#sidebar.collapsed .sidebar-user-card .sidebar-user-meta,
+#sidebar.collapsed .nav-section-label,
+#sidebar.collapsed .sidebar-logout {
     display: none;
 }
 
 #sidebar.collapsed .profile-img {
     width: 40px;
+    height: 40px;
+}
+
+#sidebar.collapsed .profile-section {
+    justify-content: center;
+}
+
+#sidebar.collapsed .nav-link {
+    justify-content: center;
+    padding-left: 0;
+    padding-right: 0;
+}
+
+#sidebar.collapsed .nav-link i {
+    margin-right: 0;
+}
+
+#sidebar.collapsed .sidebar-bottom {
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+}
+
+#sidebar.collapsed .sidebar-user-card {
+    justify-content: center;
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
 }
 
 #sidebar.collapsed ~ #main {
@@ -322,10 +407,83 @@ footer {
     color: #64748b;
 }
 
+.sidebar-badge {
+    min-width: 24px;
+    height: 24px;
+    border-radius: 999px;
+    background: #ef4444;
+    color: #ffffff;
+    font-size: 0.76rem;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 7px;
+}
+
+.sidebar-bottom {
+    margin-top: auto;
+    padding: 1rem 1rem 1.1rem;
+    border-top: 1px solid var(--nhc-sidebar-border);
+}
+
+.sidebar-user-card {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    padding: 0.9rem 0.95rem;
+    border-radius: 18px;
+    background: rgba(255,255,255,0.09);
+}
+
+.sidebar-user-avatar {
+    width: 42px;
+    height: 42px;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #10d1c7 0%, #149ec7 100%);
+    color: #ffffff;
+    font-weight: 800;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.sidebar-user-meta {
+    min-width: 0;
+}
+
+.sidebar-user-name {
+    color: #ffffff;
+    font-weight: 700;
+    line-height: 1.15;
+}
+
+.sidebar-user-role {
+    color: var(--nhc-sidebar-accent);
+    font-size: 0.88rem;
+    margin-top: 0.2rem;
+}
+
+.sidebar-logout {
+    margin-left: auto;
+}
+
+.sidebar-logout button {
+    border: none;
+    background: transparent;
+    color: #d8efff;
+    padding: 0.2rem;
+}
+
+.sidebar-logout button:hover {
+    color: #ffffff;
+}
+
 /* MOBILE */
 @media(max-width: 992px){
     #sidebar{
-        left: -220px;
+        left: -296px;
     }
 
     #sidebar.active{
@@ -350,23 +508,30 @@ footer {
 
 <div class="profile-section">
     <img src="{% static 'images/nhclogo.png' %}" class="profile-img">
-    <div class="mt-2" style="color: var(--nhc-sidebar-text);">
-        <div class="fw-bold">ICT DEPARTMENT TO DO TASKS</div>
-        <small style="color: var(--nhc-sidebar-muted);">Manage Your Tasks Efficiently</small>
+    <div class="brand-meta">
+        <div class="brand-title">NHC ICT to do list</div>
+        <div class="brand-subtitle">National Housing Corp.</div>
     </div>
 </div>
 
 <ul class="nav flex-column mt-3">
 
-    <li><a class="nav-link" href="{% url 'reports_performance' %}">
+    <li class="nav-section-label">Overview</li>
+
+    <li><a class="nav-link" href="{% url 'dashboard' %}">
         <i class="bi bi-speedometer2"></i> 
        <span>Dashboard</span>
     </a></li>
 
-    <li><a class="nav-link" href="{% url 'create_task' %}">
-        <i class="bi bi-plus-circle"></i>
-        <span>Create Task</span>
+    <li><a class="nav-link" href="{% url 'notifications_list' %}">
+        <i class="bi bi-bell"></i>
+        <span>Notifications</span>
+        {% if unread_notifications_count %}
+        <span class="ms-auto sidebar-badge">{{ unread_notifications_count }}</span>
+        {% endif %}
     </a></li>
+
+    <li class="nav-section-label">Tasks</li>
 
     <li><a class="nav-link" href="{% url 'my_tasks' %}">
         <i class="bi bi-list-task"></i>
@@ -378,29 +543,27 @@ footer {
         <span>Assigned Tasks</span>
     </a></li>
 
-    <li><a class="nav-link" href="{% if request.user.role == 'manager' %}{% url 'daily_digest' %}{% else %}{% url 'daily_board' %}{% endif %}">
-        <i class="bi bi-calendar2-check"></i>
-        <span>{% if request.user.role == 'manager' %}Daily Digest{% else %}Daily Board{% endif %}</span>
+    <li><a class="nav-link" href="{% url 'create_task' %}">
+        <i class="bi bi-plus-circle"></i>
+        <span>Create Task</span>
     </a></li>
 
+    <li class="nav-section-label">Reports</li>
+
+    <li><a class="nav-link" href="{% url 'reports_performance' %}">
+        <i class="bi bi-trophy"></i>
+        <span>Performance</span>
+    </a></li>
 
     <li><a class="nav-link" href="{% url 'reports_home' %}">
         <i class="bi bi-bar-chart"></i>
         <span>Reports</span>
     </a></li>
 
-
-    {% if request.user.is_superuser %}
-    <li class="mt-3 px-3" style="color: var(--nhc-sidebar-muted);">ADMIN</li>
-
-    <li><a class="nav-link" href="{% url 'admin:index' %}">
-        <i class="bi bi-shield-lock"></i> <span>Django Admin</span>
+    <li><a class="nav-link" href="{% if request.user.role == 'manager' %}{% url 'daily_digest' %}{% else %}{% url 'daily_board' %}{% endif %}">
+        <i class="bi bi-pencil-square"></i>
+        <span>{% if request.user.role == 'manager' %}Daily Check-In{% else %}Daily Check-In{% endif %}</span>
     </a></li>
-    {% endif %}
-
-</ul>
-
-
 </div>
 
 <!-- MAIN -->
