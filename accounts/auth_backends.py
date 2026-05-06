@@ -204,7 +204,7 @@ class ActiveDirectoryBackend(BaseBackend):
             "default_section": os.environ.get("AD_DEFAULT_SECTION", ""),
             "default_role": os.environ.get("AD_DEFAULT_ROLE", "staff"),
             "default_staff_type": os.environ.get("AD_DEFAULT_STAFF_TYPE", "icto"),
-            "email_domain": os.environ.get("AD_EMAIL_DOMAIN", "nhctz.com"),
+            "email_domain": os.environ.get("AD_EMAIL_DOMAIN", "nhc.co.tz"),
         }
 
     def _set_request_error(self, request, message):

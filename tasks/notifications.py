@@ -1,6 +1,9 @@
+import logging
 from datetime import timedelta
 
 import pytz
+from django.conf import settings
+from django.core.mail import send_mail
 from django.urls import reverse
 from django.utils import timezone
 
@@ -10,6 +13,7 @@ from .models import Notification, UserTask
 TANZANIA_TZ = pytz.timezone("Africa/Dar_es_Salaam")
 DUE_SOON_WINDOW_DAYS = 2
 REVIEW_DELAY_DAYS = 2
+logger = logging.getLogger(__name__)
 
 
 def local_today():
@@ -17,7 +21,7 @@ def local_today():
 
 
 def create_notification(*, user, title, message, notification_type, task=None, target_url=""):
-    Notification.objects.create(
+    notification = Notification.objects.create(
         user=user,
         task=task,
         title=title,
@@ -25,6 +29,89 @@ def create_notification(*, user, title, message, notification_type, task=None, t
         notification_type=notification_type,
         target_url=target_url,
     )
+    send_notification_email(notification)
+    return notification
+
+
+def build_notification_email_body(notification):
+    lines = [
+        f"Hello {notification.user.username},",
+        "",
+        notification.title,
+        notification.message,
+    ]
+
+    if notification.task:
+        lines.extend([
+            "",
+            f"Task: {notification.task.title}",
+            f"Due date: {notification.task.due_date}",
+        ])
+
+    if notification.target_url:
+        full_url = build_absolute_notification_url(notification.target_url)
+        if full_url:
+            lines.extend([
+                "",
+                f"Open in system: {full_url}",
+            ])
+
+    lines.extend([
+        "",
+        "This email was sent automatically by NHC To Do Tasks.",
+    ])
+    return "\n".join(lines)
+
+
+def build_absolute_notification_url(target_url):
+    if not target_url:
+        return ""
+    if target_url.startswith("http://") or target_url.startswith("https://"):
+        return target_url
+    if not settings.DJANGO_SITE_BASE_URL:
+        return target_url
+    if target_url.startswith("/"):
+        return f"{settings.DJANGO_SITE_BASE_URL}{target_url}"
+    return f"{settings.DJANGO_SITE_BASE_URL}/{target_url}"
+
+
+def send_notification_email(notification):
+    if not settings.NOTIFICATION_EMAILS_ENABLED:
+        return
+
+    recipient_email = (getattr(notification.user, "email", "") or "").strip().lower()
+    if not recipient_email:
+        return
+
+    allowed_domain = getattr(settings, "NOTIFICATION_EMAIL_ALLOWED_DOMAIN", "").strip().lower()
+    if allowed_domain and not recipient_email.endswith(f"@{allowed_domain}"):
+        logger.info(
+            "Notification email skipped for notification_id=%s because recipient domain is not allowed: %s",
+            notification.id,
+            recipient_email,
+        )
+        return
+
+    if not settings.EMAIL_HOST_USER or not settings.EMAIL_HOST_PASSWORD:
+        logger.warning(
+            "Notification email skipped because EMAIL_HOST_USER or EMAIL_HOST_PASSWORD is missing."
+        )
+        return
+
+    try:
+        send_mail(
+            subject=notification.title,
+            message=build_notification_email_body(notification),
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[recipient_email],
+            fail_silently=False,
+        )
+    except Exception:
+        logger.exception(
+            "Failed to send notification email for notification_id=%s to user_id=%s",
+            notification.id,
+            notification.user_id,
+        )
 
 
 def create_notification_once_per_day(

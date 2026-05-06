@@ -10,6 +10,7 @@ NHC To Do Tasks is a Django web application for managing department work inside 
 - Supports subtasks, comments, and file attachments
 - Shows staff performance and task history reports
 - Sends in-app notifications for assignments, deadlines, reviews, and reassignments
+- Can also send notification emails through SMTP
 - Includes a daily accountability board and daily digest views
 
 ## User roles
@@ -168,6 +169,38 @@ MYSQL_PORT=3306
 
 - `SESSION_COOKIE_AGE`
 - `SESSION_IDLE_TIMEOUT_SECONDS`
+
+### Email notifications
+
+The project can send the same task notifications by email using your SMTP account as the sender.
+
+Add these values to `.env`:
+
+```env
+NOTIFICATION_EMAILS_ENABLED=True
+NOTIFICATION_EMAIL_ALLOWED_DOMAIN=nhc.co.tz
+EMAIL_BACKEND=nhctodo.email_backend.EmailBackend
+EMAIL_HOST=smtp.office365.com
+EMAIL_PORT=587
+EMAIL_USE_TLS=True
+EMAIL_VALIDATE_CERTS=True
+EMAIL_TLS_CA_CERT_PATH=
+EMAIL_HOST_USER=witnes.nshobairwe@nhc.co.tz
+EMAIL_HOST_PASSWORD=your-smtp-password
+DEFAULT_FROM_EMAIL=witnes.nshobairwe@nhc.co.tz
+DJANGO_SITE_BASE_URL=http://127.0.0.1:8000
+```
+
+Important:
+
+- Keep `EMAIL_VALIDATE_CERTS=True` unless you are on a trusted internal network with a self-signed SMTP certificate
+- If your mail server uses an internal CA, prefer setting `EMAIL_TLS_CA_CERT_PATH` to that CA bundle instead of disabling verification
+- Office 365 may require SMTP AUTH to be enabled for the mailbox, and MFA-enabled accounts may need an app password
+- `NOTIFICATION_SYNC_INTERVAL_SECONDS` controls how often automatic in-app notification refresh runs during page requests; increasing it can make the UI feel faster
+- Only users with `@nhc.co.tz` email addresses in the database will receive notification emails
+- `DJANGO_SITE_BASE_URL` should match the URL where users open the app so email links point to the right place
+
+After updating `.env`, restart Django. Email delivery is triggered automatically whenever the app creates a task notification.
 
 ### URL prefixes
 

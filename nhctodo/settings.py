@@ -213,3 +213,22 @@ STORAGES = {
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Email settings
+EMAIL_BACKEND = os.environ.get(
+    'EMAIL_BACKEND',
+    'nhctodo.email_backend.EmailBackend',
+)
+EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT', '587'))
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
+EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True').lower() == 'true'
+EMAIL_USE_SSL = os.environ.get('EMAIL_USE_SSL', 'False').lower() == 'true'
+EMAIL_VALIDATE_CERTS = os.environ.get('EMAIL_VALIDATE_CERTS', 'True').lower() == 'true'
+EMAIL_TLS_CA_CERT_PATH = os.environ.get('EMAIL_TLS_CA_CERT_PATH', '').strip()
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER or 'noreply@example.com')
+NOTIFICATION_EMAILS_ENABLED = os.environ.get('NOTIFICATION_EMAILS_ENABLED', 'False').lower() == 'true'
+NOTIFICATION_EMAIL_ALLOWED_DOMAIN = os.environ.get('NOTIFICATION_EMAIL_ALLOWED_DOMAIN', 'nhc.co.tz').lower().lstrip('@')
+NOTIFICATION_SYNC_INTERVAL_SECONDS = int(os.environ.get('NOTIFICATION_SYNC_INTERVAL_SECONDS', '300'))
+DJANGO_SITE_BASE_URL = os.environ.get('DJANGO_SITE_BASE_URL', '').rstrip('/')
