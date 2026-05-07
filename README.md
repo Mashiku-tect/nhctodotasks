@@ -265,6 +265,8 @@ At minimum, set these before starting:
 - `DJANGO_ALLOWED_HOSTS`
 - `AD_BIND_PASSWORD`
 
+If your SMTP server uses an internal or self-signed certificate, place the NHC CA certificate as a `.crt` file inside `docker/certs/` before building. The Docker image imports certificates from that folder into the container trust store during build.
+
 ### 3. Start the containers
 
 ```bash
@@ -282,6 +284,23 @@ docker compose logs -f web
 
 - `db` - MySQL 8.4
 - `web` - Django app running with Gunicorn
+
+### Docker email notes
+
+For Docker deployments, the container uses `.env.docker`, not `.env`.
+
+If notification emails use `smtp.nhc.co.tz` and you get `CERTIFICATE_VERIFY_FAILED`, add the NHC root or intermediate CA certificate file to:
+
+```text
+docker/certs/
+```
+
+Then rebuild the image:
+
+```bash
+docker compose down
+docker compose up -d --build
+```
 
 The container entrypoint automatically:
 

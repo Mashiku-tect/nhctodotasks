@@ -17,12 +17,17 @@ RUN apt-get update \
         ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
+RUN mkdir -p /usr/local/share/ca-certificates/nhc
+
 RUN addgroup --system app \
     && adduser --system --ingroup app --home /app app
 COPY requirements.txt /app/
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . /app/
+COPY docker/certs/ /usr/local/share/ca-certificates/nhc/
+
+RUN update-ca-certificates
 
 RUN chmod +x /app/entrypoint.sh \
     && mkdir -p /app/media /app/staticfiles \
