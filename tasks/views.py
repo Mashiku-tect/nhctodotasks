@@ -398,7 +398,11 @@ def assigned_tasks(request):
         countdown_stopped = is_review_accepted
         days_left = None if countdown_stopped else (task.due_date - today).days
         is_overdue = days_left is not None and days_left < 0 and computed_status in ['pending', 'in_progress']
-        reassign_needed = is_overdue
+        if user.role == 'manager':
+            waiting_reassignment = any(is_waiting_for_reassignment(ut, today) for ut in display_usertasks)
+        else:
+            waiting_reassignment = bool(own_usertask and is_waiting_for_reassignment(own_usertask, today))
+        reassign_needed = waiting_reassignment
 
         if is_overdue:
             days_left = 0
@@ -417,6 +421,7 @@ def assigned_tasks(request):
             "days_left": days_left,
             "countdown_stopped": countdown_stopped,
             "is_overdue": is_overdue,
+            "waiting_reassignment": waiting_reassignment,
             "reassign_needed": reassign_needed,
             "deadline_progress": deadline_progress,
             "completed_by": task.completed_by,
@@ -449,6 +454,66 @@ def get_local_today():
     return timezone.now().astimezone(tanzania_tz).date()
 
 
+def is_waiting_for_reassignment(user_task, today):
+    return (
+        user_task.assigned_by_id != user_task.assigned_to_id
+        and user_task.task.due_date < today
+        and user_task.status in ['pending', 'in_progress']
+        and user_task.reassigned_at is None
+    )
+
+
+def build_recent_task_item(user_task, viewer, today):
+    is_self_task = user_task.assigned_by_id == user_task.assigned_to_id
+    is_completed = (
+        (is_self_task and user_task.status == 'completed')
+        or (not is_self_task and user_task.review_status == 'accepted')
+    )
+    is_review_pending = (
+        not is_self_task
+        and user_task.status == 'completed'
+        and user_task.review_status == 'pending'
+    )
+    is_overdue = (
+        user_task.task.due_date < today
+        and user_task.status in ['pending', 'in_progress']
+        and not is_self_task
+    )
+
+    waiting_reassignment = is_waiting_for_reassignment(user_task, today)
+
+    display_status_key = user_task.status
+    display_status_label = user_task.get_status_display()
+    status_hint = ""
+
+    if waiting_reassignment:
+        if viewer.role == 'staff' and user_task.assigned_to_id == viewer.id:
+            display_status_key = 'awaiting_reassignment'
+            display_status_label = 'Returned to Manager'
+            status_hint = 'Overdue task waiting for manager reassignment.'
+        elif viewer.role == 'manager' and user_task.assigned_by_id == viewer.id:
+            display_status_key = 'needs_reassignment'
+            display_status_label = 'Needs Reassignment'
+            status_hint = 'Overdue staff task that needs manager action.'
+        elif viewer.is_superuser:
+            display_status_key = 'needs_reassignment'
+            display_status_label = 'Needs Reassignment'
+            status_hint = 'Overdue staff task that needs manager action.'
+
+    return {
+        'task': user_task.task,
+        'user_task': user_task,
+        'display_status_key': display_status_key,
+        'display_status_label': display_status_label,
+        'status_hint': status_hint,
+        'is_self_task': is_self_task,
+        'is_completed': is_completed,
+        'is_review_pending': is_review_pending,
+        'is_overdue': is_overdue,
+        'waiting_reassignment': waiting_reassignment,
+    }
+
+
 @login_required
 def daily_accountability_board(request):
     if request.user.is_superuser:
@@ -460,7 +525,7 @@ def daily_accountability_board(request):
     ).exclude(
         status__in=['completed', 'accepted', 'rejected']
     ).filter(
-        task__due_date__gte=today
+        Q(task__due_date__gte=today) | Q(reassigned_at__isnull=False)
     ).select_related('task', 'assigned_by').order_by('task__due_date', '-task__priority', '-created_at')
 
     completed_today = UserTask.objects.filter(
@@ -773,8 +838,14 @@ def reassign_task(request, task_id):
     if not UserTask.objects.filter(task=task, assigned_by=request.user).exists():
         return redirect('assigned_tasks')
 
+    current_assignee_ids = list(
+        task.user_tasks.exclude(assigned_to=request.user).values_list('assigned_to_id', flat=True)
+    )
+    current_assignee_id = current_assignee_ids[0] if current_assignee_ids else None
+
     categories = Category.objects.filter(section=request.user.section).order_by('name')
     selected_category_id = task.category_id
+    selected_assigned_to_id = None
     staff_users = User.objects.none()
 
     if selected_category_id:
@@ -783,11 +854,12 @@ def reassign_task(request, task_id):
             section=request.user.section,
             is_active=True,
             categorymember__category_id=selected_category_id
-        ).distinct().order_by('username')
+        ).exclude(id=request.user.id).distinct().order_by('username')
 
     if request.method == 'POST':
         category_id = request.POST.get('category_id')
         new_user_id = request.POST.get('assigned_to')
+        selected_assigned_to_id = int(new_user_id) if new_user_id and new_user_id.isdigit() else None
 
         category = Category.objects.filter(
             id=category_id,
@@ -801,6 +873,7 @@ def reassign_task(request, task_id):
                 'categories': categories,
                 'staff_users': staff_users,
                 'selected_category_id': selected_category_id,
+                'selected_assigned_to_id': selected_assigned_to_id,
             })
 
         selected_category_id = category.id
@@ -809,9 +882,24 @@ def reassign_task(request, task_id):
             section=request.user.section,
             is_active=True,
             categorymember__category=category
-        ).distinct().order_by('username')
+        ).exclude(id=request.user.id).distinct().order_by('username')
+
+        if not staff_users.exists():
+            messages.error(request, 'No active staff members are available in the chosen category.')
+            return render(request, 'tasks/reassign_task.html', {
+                'task': task,
+                'categories': categories,
+                'staff_users': staff_users,
+                'selected_category_id': selected_category_id,
+                'selected_assigned_to_id': selected_assigned_to_id,
+                'current_assignee_id': current_assignee_id,
+            })
 
         new_user = staff_users.filter(id=new_user_id).first()
+        if not new_user and staff_users.count() == 1:
+            new_user = staff_users.first()
+            selected_assigned_to_id = new_user.id
+
         if not new_user:
             messages.error(request, 'Please select a valid staff member from the chosen category.')
             return render(request, 'tasks/reassign_task.html', {
@@ -819,6 +907,8 @@ def reassign_task(request, task_id):
                 'categories': categories,
                 'staff_users': staff_users,
                 'selected_category_id': selected_category_id,
+                'selected_assigned_to_id': selected_assigned_to_id,
+                'current_assignee_id': current_assignee_id,
             })
 
         task.category = category
@@ -836,6 +926,7 @@ def reassign_task(request, task_id):
             existing_usertask.assigned_by = request.user
             existing_usertask.status = 'pending'
             existing_usertask.review_status = 'pending'
+            existing_usertask.reassigned_at = timezone.now()
             existing_usertask.save()
             sync_task_report_records(usertasks=[existing_usertask])
         else:
@@ -845,7 +936,8 @@ def reassign_task(request, task_id):
                 assigned_by=request.user,
                 assigned_to=new_user,
                 status='pending',
-                review_status='pending'
+                review_status='pending',
+                reassigned_at=timezone.now(),
             )
             sync_task_report_records(usertasks=[usertask])
 
@@ -877,6 +969,8 @@ def reassign_task(request, task_id):
         'staff_users': staff_users,
         'categories': categories,
         'selected_category_id': selected_category_id,
+        'selected_assigned_to_id': selected_assigned_to_id,
+        'current_assignee_id': current_assignee_id,
     })
 
 @login_required
@@ -922,7 +1016,11 @@ def dashboard(request):
         assigned_by=F('assigned_to')
     ).count()
 
-    recent_tasks = visible_tasks.order_by('-task__updated_at', '-created_at')[:6]
+    recent_task_rows = list(visible_tasks.order_by('-task__updated_at', '-created_at')[:6])
+    recent_tasks = [
+        build_recent_task_item(user_task, user, today)
+        for user_task in recent_task_rows
+    ]
     recent_notifications = Notification.objects.filter(
         user=user
     ).order_by('-created_at')[:6]

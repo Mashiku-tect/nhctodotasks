@@ -4,6 +4,7 @@ from django.conf import settings
 from django.test import TestCase
 from django.urls import resolve, reverse
 from django.utils import timezone
+from datetime import timedelta
 
 from accounts.models import User
 from tasks.models import Task, UserTask, DailyCheckIn, Category, CategoryMember
@@ -417,6 +418,98 @@ class NotificationTests(TestCase):
         self.assertTrue(self.staff_two.notifications.filter(notification_type="task_accepted", task=task).exists())
 
 
+class DashboardRecentTasksTests(TestCase):
+    def setUp(self):
+        self.manager = User.objects.create_user(
+            username="manager_ict",
+            email="manager_ict@example.com",
+            password="StrongPass123!",
+            section="ict",
+            role="manager",
+        )
+        self.staff = User.objects.create_user(
+            username="alice",
+            email="alice@nhc.co.tz",
+            password="StrongPass123!",
+            section="ict",
+            role="staff",
+        )
+
+    def test_staff_recent_tasks_marks_overdue_assignment_as_returned_to_manager(self):
+        task = Task.objects.create(
+            title="Old assigned task",
+            description="",
+            due_date=timezone.localdate() - timedelta(days=2),
+            priority="normal",
+        )
+        UserTask.objects.create(
+            task=task,
+            assigned_by=self.manager,
+            assigned_to=self.staff,
+            status="pending",
+            review_status="pending",
+        )
+
+        self.client.force_login(self.staff)
+        response = self.client.get(reverse("dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        recent_item = response.context["recent_tasks"][0]
+        self.assertEqual(recent_item["display_status_key"], "awaiting_reassignment")
+        self.assertEqual(recent_item["display_status_label"], "Returned to Manager")
+        self.assertContains(response, "Returned to Manager")
+
+    def test_manager_recent_tasks_marks_overdue_assignment_as_needs_reassignment(self):
+        task = Task.objects.create(
+            title="Old staff task",
+            description="",
+            due_date=timezone.localdate() - timedelta(days=2),
+            priority="high",
+        )
+        UserTask.objects.create(
+            task=task,
+            assigned_by=self.manager,
+            assigned_to=self.staff,
+            status="in_progress",
+            review_status="pending",
+        )
+
+        self.client.force_login(self.manager)
+        response = self.client.get(reverse("dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        recent_item = response.context["recent_tasks"][0]
+        self.assertEqual(recent_item["display_status_key"], "needs_reassignment")
+        self.assertEqual(recent_item["display_status_label"], "Needs Reassignment")
+        self.assertContains(response, "Needs Reassignment")
+
+    def test_reassigned_overdue_task_returns_to_normal_recent_task_status(self):
+        task = Task.objects.create(
+            title="Reassigned overdue task",
+            description="",
+            due_date=timezone.localdate() - timedelta(days=2),
+            priority="high",
+        )
+        user_task = UserTask.objects.create(
+            task=task,
+            assigned_by=self.manager,
+            assigned_to=self.staff,
+            status="pending",
+            review_status="pending",
+            reassigned_at=timezone.now(),
+        )
+
+        self.client.force_login(self.staff)
+        response = self.client.get(reverse("dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        recent_item = response.context["recent_tasks"][0]
+        self.assertEqual(recent_item["display_status_key"], user_task.status)
+        self.assertEqual(recent_item["display_status_label"], user_task.get_status_display())
+        self.assertFalse(recent_item["waiting_reassignment"])
+        self.assertNotContains(response, "Returned to Manager")
+
+
 class DailyAccountabilityBoardTests(TestCase):
     def setUp(self):
         self.manager = User.objects.create_user(
@@ -617,6 +710,21 @@ class ReassignTaskCategoryTests(TestCase):
                 assigned_by=self.manager,
             ).exists()
         )
+
+    def test_reassigned_task_is_marked_as_returned_to_staff_workflow(self):
+        self.client.force_login(self.manager)
+
+        response = self.client.post(
+            reverse("reassign_task", args=[self.task.id]),
+            {
+                "category_id": str(self.category.id),
+                "assigned_to": str(self.staff_two.id),
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        user_task = UserTask.objects.get(task=self.task, assigned_to=self.staff_two)
+        self.assertIsNotNone(user_task.reassigned_at)
 
     def test_category_users_json_only_returns_staff_from_manager_section(self):
         self.client.force_login(self.manager)

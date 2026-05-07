@@ -120,6 +120,7 @@ class UserTask(models.Model):
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
+    reassigned_at = models.DateTimeField(null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):

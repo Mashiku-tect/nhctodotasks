@@ -98,6 +98,13 @@
     margin-top: 1.25rem;
 }
 
+.field-error {
+    color: #b91c1c;
+    font-size: 0.82rem;
+    margin-top: 0.45rem;
+    display: none;
+}
+
 @media (max-width: 767.98px) {
     .reassign-form-grid {
         grid-template-columns: 1fr;
@@ -138,6 +145,9 @@
                 <div class="task-summary-label">Task Summary</div>
                 <div class="fw-semibold mb-1">{{ task.title }}</div>
                 <div class="text-muted small mb-2">Due date: {{ task.due_date|date:"d M Y" }}</div>
+                {% if current_assignee_id %}
+                <div class="text-muted small mb-2">Current assignment can be reassigned and returned to active staff workflow.</div>
+                {% endif %}
                 <div class="small">{{ task.description|default:"No task description provided." }}</div>
             </div>
 
@@ -156,16 +166,21 @@
                                 </option>
                                 {% endfor %}
                             </select>
+                            <div id="categoryError" class="field-error">Please select a category before reassigning.</div>
                         </div>
 
                         <div>
                             <label for="categoryUsers" class="form-label">Staff In Category</label>
-                            <select name="assigned_to" id="categoryUsers" class="form-select" size="7" {% if not staff_users %}disabled{% endif %} required>
+                            <select name="assigned_to" id="categoryUsers" class="form-select" size="7" required>
+                                <option value="">{% if staff_users %}-- Select Staff Member --{% else %}-- Select Category First --{% endif %}</option>
                                 {% for staff in staff_users %}
-                                <option value="{{ staff.id }}">{{ staff.username }}</option>
+                                <option value="{{ staff.id }}" {% if selected_assigned_to_id == staff.id %}selected{% endif %}>
+                                    {{ staff.username }}{% if current_assignee_id == staff.id %} (Current Assignee){% endif %}
+                                </option>
                                 {% endfor %}
                             </select>
                             <small class="text-muted">Choose one staff member from the selected category.</small>
+                            <div id="staffError" class="field-error">Please choose a staff member from the selected category.</div>
                         </div>
                     </div>
 
@@ -192,24 +207,81 @@
 
 <script>
 $(function () {
+    const form = $('#reassignForm');
+    const categorySelect = $('#categorySelect');
     const categoryUsers = $('#categoryUsers');
+    const selectedAssignedToId = "{{ selected_assigned_to_id|default:'' }}";
+    const categoryError = $('#categoryError');
+    const staffError = $('#staffError');
 
-    $('#categorySelect').on('change', async function () {
+    function selectDefaultStaff() {
+        if (selectedAssignedToId && categoryUsers.find(`option[value="${selectedAssignedToId}"]`).length) {
+            categoryUsers.val(selectedAssignedToId);
+            return;
+        }
+
+        const firstOption = categoryUsers.find('option:first');
+        if (firstOption.length) {
+            categoryUsers.val(firstOption.val());
+        }
+    }
+
+    function resetErrors() {
+        categoryError.hide();
+        staffError.hide();
+    }
+
+    function ensurePlaceholder(message) {
+        categoryUsers.empty().append(`<option value="">${message}</option>`);
+    }
+
+    if (categoryUsers.find('option').length > 1) {
+        selectDefaultStaff();
+    } else if (!categorySelect.val()) {
+        ensurePlaceholder('-- Select Category First --');
+    }
+
+    categorySelect.on('change', async function () {
         const categoryId = $(this).val();
-        categoryUsers.empty().prop('disabled', true);
+        resetErrors();
+        ensurePlaceholder('-- Loading Staff Members --');
 
         if (!categoryId) {
+            ensurePlaceholder('-- Select Category First --');
             return;
         }
 
         try {
             const res = await $.getJSON("{% url 'category_users_json' %}", { category_id: categoryId });
+            categoryUsers.empty().append('<option value="">-- Select Staff Member --</option>');
             res.users.forEach(user => {
                 categoryUsers.append(`<option value="${user.id}">${user.name}</option>`);
             });
-            categoryUsers.prop('disabled', false);
+            if (res.users.length) {
+                categoryUsers.prop('selectedIndex', 1);
+            } else {
+                ensurePlaceholder('-- No Staff Found In This Category --');
+            }
         } catch (err) {
             console.error(err);
+            ensurePlaceholder('-- Failed To Load Staff Members --');
+        }
+    });
+
+    form.on('submit', function (event) {
+        resetErrors();
+
+        if (!categorySelect.val()) {
+            event.preventDefault();
+            categoryError.show();
+            categorySelect.trigger('focus');
+            return;
+        }
+
+        if (!categoryUsers.val()) {
+            event.preventDefault();
+            staffError.show();
+            categoryUsers.trigger('focus');
         }
     });
 });

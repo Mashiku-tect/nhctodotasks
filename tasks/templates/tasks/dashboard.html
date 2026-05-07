@@ -317,6 +317,12 @@
     color: #f87171;
 }
 
+.dash-tag-status-awaiting_reassignment,
+.dash-tag-status-needs_reassignment {
+    background: rgba(239, 68, 68, 0.18);
+    color: #dc2626;
+}
+
 .dash-tag-priority-high {
     background: rgba(239, 68, 68, 0.16);
     color: #fca5a5;
@@ -450,32 +456,35 @@
                     <a href="{% url 'task_detail' item.task.id %}" class="dash-task-row">
                         <div class="dash-task-top">
                             <div class="dash-task-main">
-                                <span class="dash-task-check {% if item.assigned_by_id == item.assigned_to_id and item.status == 'completed' or item.assigned_by_id != item.assigned_to_id and item.review_status == 'accepted' %}dash-task-check-completed{% endif %}">
-                                    {% if item.assigned_by_id == item.assigned_to_id and item.status == 'completed' or item.assigned_by_id != item.assigned_to_id and item.review_status == 'accepted' %}
+                                <span class="dash-task-check {% if item.is_completed %}dash-task-check-completed{% endif %}">
+                                    {% if item.is_completed %}
                                         <i class="bi bi-check-lg"></i>
                                     {% else %}
                                         <i class="bi bi-square"></i>
                                     {% endif %}
                                 </span>
                                 <div>
-                                    <div class="dash-task-title {% if item.assigned_by_id == item.assigned_to_id and item.status == 'completed' or item.assigned_by_id != item.assigned_to_id and item.review_status == 'accepted' %}dash-task-title-completed{% endif %}">{{ item.task.title }}</div>
+                                    <div class="dash-task-title {% if item.is_completed %}dash-task-title-completed{% endif %}">{{ item.task.title }}</div>
                                     <div class="dash-task-meta">
-                                        {% if item.assigned_by_id == item.assigned_to_id %}
+                                        {% if item.is_self_task %}
                                             Personal task
                                         {% elif request.user.role == 'manager' or request.user.is_superuser %}
-                                            Assigned to {{ item.assigned_to.username }}
+                                            Assigned to {{ item.user_task.assigned_to.username }}
                                         {% else %}
-                                            Assigned by {{ item.assigned_by.username }}
+                                            Assigned by {{ item.user_task.assigned_by.username }}
                                         {% endif %}
                                     </div>
+                                    {% if item.status_hint %}
+                                    <div class="dash-task-meta">{{ item.status_hint }}</div>
+                                    {% endif %}
                                 </div>
                             </div>
                             <div class="dash-task-meta">{{ item.task.due_date }}</div>
                         </div>
                         <div class="dash-task-tags">
-                            <span class="dash-tag dash-tag-status-{{ item.status }}">{{ item.get_status_display }}</span>
+                            <span class="dash-tag dash-tag-status-{{ item.display_status_key }}">{{ item.display_status_label }}</span>
                             <span class="dash-tag dash-tag-priority-{{ item.task.priority }}">{{ item.task.get_priority_display }}</span>
-                            {% if item.review_status == 'pending' and item.status == 'completed' and item.assigned_by_id != item.assigned_to_id %}
+                            {% if item.is_review_pending %}
                             <span class="dash-tag dash-tag-status-in_progress">Review pending</span>
                             {% endif %}
                         </div>

@@ -33,6 +33,7 @@ class SessionSecurityMiddleware:
             session_key = request.session.session_key
 
         timeout_seconds = getattr(settings, "SESSION_IDLE_TIMEOUT_SECONDS", 1800)
+        touch_interval_seconds = getattr(settings, "USER_SESSION_TOUCH_INTERVAL_SECONDS", 300)
         now_ts = int(timezone.now().timestamp())
         last_activity_ts = request.session.get("last_activity_ts")
 
@@ -48,8 +49,8 @@ class SessionSecurityMiddleware:
             )
             return redirect(settings.LOGIN_URL)
 
-        active_session = UserSession.objects.filter(user=request.user).first()
-        if active_session and active_session.session_key != session_key:
+        active_session_key = UserSession.objects.filter(user=request.user).values_list("session_key", flat=True).first()
+        if active_session_key and active_session_key != session_key:
             logout(request)
             self._warn(
                 request,
@@ -58,10 +59,17 @@ class SessionSecurityMiddleware:
             return redirect(settings.LOGIN_URL)
 
         request.session["last_activity_ts"] = now_ts
-        UserSession.objects.update_or_create(
-            user=request.user,
-            defaults={"session_key": session_key},
-        )
+        last_touch_ts = int(request.session.get("user_session_touch_ts", 0) or 0)
+        if (
+            not active_session_key
+            or active_session_key != session_key
+            or now_ts - last_touch_ts >= touch_interval_seconds
+        ):
+            UserSession.objects.update_or_create(
+                user=request.user,
+                defaults={"session_key": session_key},
+            )
+            request.session["user_session_touch_ts"] = now_ts
         return None
 
     def _warn(self, request, message):

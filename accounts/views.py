@@ -163,7 +163,12 @@ def login_view(request):
             login(request, user)
             if not request.session.session_key:
                 request.session.save()
-            request.session["last_activity_ts"] = int(time.time())
+            now_ts = int(time.time())
+            request.session["last_activity_ts"] = now_ts
+            # Skip the expensive notification sync on the first dashboard load
+            # right after login. It will run again on the next eligible request.
+            request.session["notification_sync_ts"] = now_ts
+            request.session["user_session_touch_ts"] = now_ts
             UserSession.objects.update_or_create(
                 user=user,
                 defaults={"session_key": request.session.session_key},
