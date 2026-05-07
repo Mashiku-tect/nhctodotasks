@@ -5,6 +5,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.conf import settings
 from django.db.models import Q
 from django.http import HttpResponseForbidden
 from .models import User, UserSession
@@ -169,10 +170,11 @@ def login_view(request):
             # right after login. It will run again on the next eligible request.
             request.session["notification_sync_ts"] = now_ts
             request.session["user_session_touch_ts"] = now_ts
-            UserSession.objects.update_or_create(
-                user=user,
-                defaults={"session_key": request.session.session_key},
-            )
+            if settings.ENABLE_USER_SESSION_TRACKING:
+                UserSession.objects.update_or_create(
+                    user=user,
+                    defaults={"session_key": request.session.session_key},
+                )
             if user.needs_assignment:
                 messages.warning(
                     request,
@@ -193,7 +195,7 @@ def login_view(request):
 
 
 def logout_view(request):
-    if request.user.is_authenticated and request.session.session_key:
+    if settings.ENABLE_USER_SESSION_TRACKING and request.user.is_authenticated and request.session.session_key:
         UserSession.objects.filter(
             user=request.user,
             session_key=request.session.session_key,

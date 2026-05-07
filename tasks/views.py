@@ -395,7 +395,12 @@ def assigned_tasks(request):
                 own_usertask.status == 'completed' and own_usertask.review_status == 'accepted'
             )
 
-        countdown_stopped = is_review_accepted
+        if user.role == 'manager':
+            is_completed_for_display = computed_status == 'completed'
+        else:
+            is_completed_for_display = bool(own_usertask and own_usertask.status == 'completed')
+
+        countdown_stopped = is_review_accepted or is_completed_for_display
         days_left = None if countdown_stopped else (task.due_date - today).days
         is_overdue = days_left is not None and days_left < 0 and computed_status in ['pending', 'in_progress']
         if user.role == 'manager':
@@ -420,6 +425,7 @@ def assigned_tasks(request):
             "computed_status": computed_status,
             "days_left": days_left,
             "countdown_stopped": countdown_stopped,
+            "is_completed_for_display": is_completed_for_display,
             "is_overdue": is_overdue,
             "waiting_reassignment": waiting_reassignment,
             "reassign_needed": reassign_needed,
@@ -486,7 +492,13 @@ def build_recent_task_item(user_task, viewer, today):
     display_status_label = user_task.get_status_display()
     status_hint = ""
 
-    if waiting_reassignment:
+    if not is_self_task and user_task.review_status == 'accepted':
+        display_status_key = 'accepted'
+        display_status_label = 'Accepted'
+    elif not is_self_task and user_task.review_status == 'rejected':
+        display_status_key = 'rejected'
+        display_status_label = 'Rejected'
+    elif waiting_reassignment:
         if viewer.role == 'staff' and user_task.assigned_to_id == viewer.id:
             display_status_key = 'awaiting_reassignment'
             display_status_label = 'Returned to Manager'
@@ -1298,6 +1310,7 @@ def task_detail(request, task_id):
     can_complete = (
     not task_completed and (is_assigned_task or is_my_own_task)
     )
+    back_url = reverse('my_tasks') if is_my_own_task else reverse('assigned_tasks')
     
     context = {
         'task': task,
@@ -1319,6 +1332,7 @@ def task_detail(request, task_id):
         'assigned_users': assigned_users,
         'today': today,
         'can_complete': can_complete,
+        'back_url': back_url,
     }
 
     return render(request, 'tasks/task_detail.html', context)

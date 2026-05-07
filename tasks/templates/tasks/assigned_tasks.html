@@ -218,7 +218,9 @@
 
             <!-- Days Left -->
             <td class="text-center">
-                {% if item.countdown_stopped %}
+                {% if item.is_completed_for_display %}
+                    <span class="badge bg-success">Completed</span>
+                {% elif item.countdown_stopped %}
                     <span class="badge bg-success">Accepted</span>
                 {% elif item.is_overdue %}
                     <span class="badge bg-danger">Overdue</span>

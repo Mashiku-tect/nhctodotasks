@@ -34,14 +34,16 @@ class SessionSecurityMiddleware:
 
         timeout_seconds = getattr(settings, "SESSION_IDLE_TIMEOUT_SECONDS", 1800)
         touch_interval_seconds = getattr(settings, "USER_SESSION_TOUCH_INTERVAL_SECONDS", 300)
+        track_user_sessions = getattr(settings, "ENABLE_USER_SESSION_TRACKING", False)
         now_ts = int(timezone.now().timestamp())
         last_activity_ts = request.session.get("last_activity_ts")
 
-        if last_activity_ts and (now_ts - int(last_activity_ts) > timeout_seconds):
-            UserSession.objects.filter(
-                user=request.user,
-                session_key=session_key,
-            ).delete()
+        if timeout_seconds > 0 and last_activity_ts and (now_ts - int(last_activity_ts) > timeout_seconds):
+            if track_user_sessions:
+                UserSession.objects.filter(
+                    user=request.user,
+                    session_key=session_key,
+                ).delete()
             logout(request)
             self._warn(
                 request,
@@ -49,21 +51,10 @@ class SessionSecurityMiddleware:
             )
             return redirect(settings.LOGIN_URL)
 
-        active_session_key = UserSession.objects.filter(user=request.user).values_list("session_key", flat=True).first()
-        if active_session_key and active_session_key != session_key:
-            logout(request)
-            self._warn(
-                request,
-                "Your account was signed in from another browser or device. This session has been closed.",
-            )
-            return redirect(settings.LOGIN_URL)
-
         request.session["last_activity_ts"] = now_ts
         last_touch_ts = int(request.session.get("user_session_touch_ts", 0) or 0)
-        if (
-            not active_session_key
-            or active_session_key != session_key
-            or now_ts - last_touch_ts >= touch_interval_seconds
+        if track_user_sessions and (
+            now_ts - last_touch_ts >= touch_interval_seconds
         ):
             UserSession.objects.update_or_create(
                 user=request.user,

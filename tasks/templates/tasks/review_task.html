@@ -1,6 +1,48 @@
 {% extends 'base.html' %}
 
 {% block content %}
+<style>
+.review-confirm-label {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #475569;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.review-inline-alert {
+    display: none;
+    margin-top: 0.85rem;
+    padding: 0.95rem 1rem;
+    border-radius: 16px;
+    border: 1px solid rgba(220, 53, 69, 0.2);
+    background: linear-gradient(135deg, rgba(220, 53, 69, 0.12), rgba(255, 243, 205, 0.65));
+    box-shadow: 0 12px 24px rgba(220, 53, 69, 0.08);
+    color: #842029;
+}
+
+.review-inline-alert.is-visible {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+}
+
+.review-inline-alert i {
+    font-size: 1.1rem;
+    line-height: 1.2;
+    margin-top: 0.1rem;
+}
+
+.review-inline-alert strong {
+    display: block;
+    margin-bottom: 0.2rem;
+}
+
+#reviewReason.is-invalid {
+    border-color: #dc3545;
+    box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.12);
+}
+</style>
 <div class="container py-4">
     <div class="row justify-content-center">
         <div class="col-lg-10">
@@ -53,11 +95,18 @@
                                 {% endif %}
                             </div>
 
-                            <form method="post">
+                            <form method="post" id="reviewForm">
                                 {% csrf_token %}
                                 <div class="mb-3">
-                                    <textarea name="reason" class="form-control" rows="3"
+                                    <textarea id="reviewReason" name="reason" class="form-control" rows="3"
                                               placeholder="Rejection reason (optional)"></textarea>
+                                    <div id="reviewReasonAlert" class="review-inline-alert" role="alert" aria-live="polite">
+                                        <i class="bi bi-exclamation-octagon-fill"></i>
+                                        <div>
+                                            <strong>Rejection reason required</strong>
+                                            <span id="reviewReasonAlertText">Please enter the rejection reason before continuing.</span>
+                                        </div>
+                                    </div>
                                 </div>
 
                                 <div class="d-flex justify-content-between">
@@ -65,10 +114,11 @@
                                         Cancel
                                     </a>
                                     <div>
-                                        <button name="action" value="accept" class="btn btn-success">Accept</button>
-                                        <button name="action" value="reject" class="btn btn-danger">Reject</button>
+                                        <button type="button" class="btn btn-success review-action-btn" data-action="accept">Accept</button>
+                                        <button type="button" class="btn btn-danger" id="rejectReviewBtn">Reject</button>
                                     </div>
                                 </div>
+                                <input type="hidden" name="action" id="reviewActionInput">
                             </form>
                         </div>
 
@@ -117,10 +167,46 @@
     </div>
 </div>
 
+<div class="modal fade" id="reviewConfirmModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="reviewConfirmTitle">Confirm Review Action</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p id="reviewConfirmMessage" class="mb-3"></p>
+                <label for="reviewConfirmText" class="review-confirm-label mb-2">Type confirmation word</label>
+                <input type="text" id="reviewConfirmText" class="form-control" autocomplete="off" placeholder="">
+                <div class="form-text" id="reviewConfirmHelp"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="reviewConfirmSubmit" disabled>Confirm</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     const buttons = document.querySelectorAll('.preview-file-btn');
     const container = document.getElementById('filePreviewContainer');
+    const reviewForm = document.getElementById('reviewForm');
+    const actionInput = document.getElementById('reviewActionInput');
+    const reasonInput = document.getElementById('reviewReason');
+    const actionButtons = document.querySelectorAll('.review-action-btn');
+    const rejectButton = document.getElementById('rejectReviewBtn');
+    const confirmModalElement = document.getElementById('reviewConfirmModal');
+    const confirmModal = new bootstrap.Modal(confirmModalElement);
+    const confirmTitle = document.getElementById('reviewConfirmTitle');
+    const confirmMessage = document.getElementById('reviewConfirmMessage');
+    const confirmText = document.getElementById('reviewConfirmText');
+    const confirmHelp = document.getElementById('reviewConfirmHelp');
+    const confirmSubmit = document.getElementById('reviewConfirmSubmit');
+    const reasonAlert = document.getElementById('reviewReasonAlert');
+    const reasonAlertText = document.getElementById('reviewReasonAlertText');
+    let pendingAction = '';
 
     buttons.forEach(btn => {
         btn.addEventListener('click', function () {
@@ -153,6 +239,85 @@ else {
         '<p class="text-center text-muted mt-4">Preview not supported for this file type.<br>Please download.</p>';
 }
         });
+    });
+
+    function updateConfirmButtonState() {
+        confirmSubmit.disabled = confirmText.value.trim().toLowerCase() !== pendingAction;
+    }
+
+    function showReasonError(message) {
+        reasonAlertText.textContent = message;
+        reasonAlert.classList.add('is-visible');
+        reasonInput.classList.add('is-invalid');
+    }
+
+    function clearReasonError() {
+        reasonAlert.classList.remove('is-visible');
+        reasonInput.classList.remove('is-invalid');
+    }
+
+    actionButtons.forEach(button => {
+        button.addEventListener('click', function () {
+            pendingAction = this.dataset.action;
+
+            confirmTitle.textContent = 'Confirm Accept Task';
+            confirmMessage.textContent = 'Are you sure you want to accept this task? Type "accept" to continue.';
+            confirmText.value = '';
+            confirmText.placeholder = pendingAction;
+            confirmHelp.textContent = 'This will mark the task as accepted for the assigned staff.';
+            confirmSubmit.textContent = 'Accept Task';
+            confirmSubmit.className = 'btn btn-success';
+
+            confirmModal.show();
+            setTimeout(() => confirmText.focus(), 150);
+            updateConfirmButtonState();
+        });
+    });
+
+    rejectButton.addEventListener('click', function () {
+        if (!reasonInput.value.trim()) {
+            showReasonError('Please enter the rejection reason before continuing.');
+            reasonInput.focus();
+            return;
+        }
+
+        clearReasonError();
+        pendingAction = 'reject';
+        confirmTitle.textContent = 'Confirm Reject Task';
+        confirmMessage.textContent = 'Are you sure you want to reject this task? Type "reject" to continue.';
+        confirmText.value = '';
+        confirmText.placeholder = 'reject';
+        confirmHelp.textContent = 'Your rejection reason will be submitted with this action.';
+        confirmSubmit.textContent = 'Reject Task';
+        confirmSubmit.className = 'btn btn-danger';
+
+        confirmModal.show();
+        setTimeout(() => confirmText.focus(), 150);
+        updateConfirmButtonState();
+    });
+
+    confirmText.addEventListener('input', updateConfirmButtonState);
+    reasonInput.addEventListener('input', function () {
+        if (reasonInput.value.trim()) {
+            clearReasonError();
+        }
+    });
+
+    confirmSubmit.addEventListener('click', function () {
+        if (pendingAction === 'reject' && !reasonInput.value.trim()) {
+            confirmModal.hide();
+            showReasonError('Please enter the rejection reason before confirming the rejection.');
+            setTimeout(() => reasonInput.focus(), 180);
+            return;
+        }
+
+        clearReasonError();
+        actionInput.value = pendingAction;
+        if (typeof reviewForm.requestSubmit === 'function') {
+            reviewForm.requestSubmit();
+        } else {
+            reviewForm.submit();
+        }
     });
 });
 </script>
