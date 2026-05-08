@@ -1081,11 +1081,11 @@ def dashboard(request):
 
     stat_cards = [
         {
-            'label': 'Total Tasks',
-            'value': total_tasks,
-            'meta': scope_label,
-            'icon': 'bi-journal-text',
-            'tone': 'cyan',
+            'label': 'Pending',
+            'value': pending_tasks,
+            'meta': 'Waiting to start',
+            'icon': 'bi-stopwatch',
+            'tone': 'amber',
         },
         {
             'label': 'Completed',
@@ -1100,13 +1100,6 @@ def dashboard(request):
             'meta': 'Active right now',
             'icon': 'bi-hourglass-split',
             'tone': 'blue',
-        },
-        {
-            'label': 'Pending',
-            'value': pending_tasks,
-            'meta': 'Waiting to start',
-            'icon': 'bi-stopwatch',
-            'tone': 'amber',
         },
         {
             'label': 'Overdue',
@@ -1133,6 +1126,14 @@ def dashboard(request):
             'icon': 'bi-chat-square-text',
             'tone': 'violet',
         })
+
+    stat_cards.append({
+        'label': 'Total Tasks',
+        'value': total_tasks,
+        'meta': scope_label,
+        'icon': 'bi-journal-text',
+        'tone': 'cyan',
+    })
 
     return render(request, "tasks/dashboard.html", {
         'headline': headline,
