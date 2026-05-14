@@ -142,7 +142,7 @@ body.assignment-locked #main {
 
 /* SIDEBAR */
 #sidebar {
-    width: 296px;
+    width: 248px;
     background: var(--nhc-sidebar-bg);
     color: var(--nhc-sidebar-text);
     display: flex;
@@ -265,7 +265,7 @@ body.assignment-locked #main {
 
 /* MAIN */
 #main {
-    margin-left: 296px;
+    margin-left: 248px;
     display: flex;
     flex-direction: column;
     width: 100%;
@@ -536,7 +536,7 @@ footer {
 /* MOBILE */
 @media(max-width: 992px){
     #sidebar{
-        left: -296px;
+        left: -248px;
     }
 
     #sidebar.active{
@@ -585,11 +585,6 @@ footer {
     </a></li>
 
     <li class="nav-section-label">Tasks</li>
-    <li><a class="nav-link" href="{% url 'create_task' %}">
-        <i class="bi bi-plus-circle"></i>
-        <span>Create Task</span>
-    </a></li>
-
     <li><a class="nav-link" href="{% url 'my_tasks' %}">
         <i class="bi bi-list-task"></i>
         <span>My Tasks</span> 
@@ -612,10 +607,6 @@ footer {
         <span>Reports</span>
     </a></li>
 
-    <li><a class="nav-link" href="{% if request.user.role == 'manager' %}{% url 'daily_digest' %}{% else %}{% url 'daily_board' %}{% endif %}">
-        <i class="bi bi-pencil-square"></i>
-        <span>{% if request.user.role == 'manager' %}Daily Check-In{% else %}Daily Check-In{% endif %}</span>
-    </a></li>
 </div>
 
 <!-- MAIN -->

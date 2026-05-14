@@ -7,7 +7,7 @@ from django.utils import timezone
 from datetime import timedelta
 
 from accounts.models import User
-from tasks.models import Task, UserTask, DailyCheckIn, Category, CategoryMember
+from tasks.models import Task, UserTask, DailyCheckIn, Category, CategoryMember, SubTask
 
 
 class StaffPerformanceReportTests(TestCase):
@@ -194,6 +194,34 @@ class StaffPerformanceReportTests(TestCase):
         self.assertEqual(alice_data["performance_score"], initial_alice_score)
         self.assertEqual(alice_data["pending_tasks"], 1)
 
+    def test_in_progress_tasks_are_not_counted_as_pending_in_performance_report(self):
+        self.client.force_login(self.manager)
+
+        task = Task.objects.create(
+            title="Follow up vendor issue",
+            description="",
+            due_date=timezone.localdate() + timedelta(days=2),
+            priority="normal",
+        )
+        UserTask.objects.create(
+            task=task,
+            assigned_by=self.manager,
+            assigned_to=self.staff_one,
+            status="in_progress",
+        )
+
+        response = self.client.get(reverse("reports_performance"))
+
+        self.assertEqual(response.status_code, 200)
+        performance_data = list(response.context["performance_data"])
+        alice_data = next(item for item in performance_data if item["staff"] == self.staff_one)
+        senior_group = next(group for group in response.context["grouped_performance_data"] if group["key"] == "senior")
+
+        self.assertEqual(alice_data["pending_tasks"], 0)
+        self.assertEqual(alice_data["in_progress_tasks"], 1)
+        self.assertEqual(senior_group["summary"]["pending_tasks"], 0)
+        self.assertEqual(senior_group["summary"]["in_progress_tasks"], 1)
+
     def test_self_tasks_are_included_in_shared_dashboard_counts(self):
         self.client.force_login(self.manager)
 
@@ -263,6 +291,28 @@ class StaffPerformanceReportTests(TestCase):
         self.assertEqual(list(response.context["all_tasks"].values_list("task__title", flat=True)), ["Personal follow-up"])
         self.assertEqual(list(response.context["manager_tasks"].values_list("task__title", flat=True)), ["Prepare weekly report"])
 
+    def test_staff_detail_keeps_in_progress_out_of_pending_count(self):
+        self.client.force_login(self.manager)
+
+        task = Task.objects.create(
+            title="Review filed updates",
+            description="",
+            due_date=timezone.localdate() + timedelta(days=1),
+            priority="normal",
+        )
+        UserTask.objects.create(
+            task=task,
+            assigned_by=self.manager,
+            assigned_to=self.staff_one,
+            status="in_progress",
+        )
+
+        response = self.client.get(reverse("staff_detail", args=[self.staff_one.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["pending_count"], 0)
+        self.assertEqual(response.context["in_progress_count"], 1)
+
     def test_task_routes_are_not_conflicting(self):
         task = Task.objects.create(
             title="Separate routes check",
@@ -284,6 +334,88 @@ class StaffPerformanceReportTests(TestCase):
         self.assertEqual(do_url, f"/{settings.TASKS_URL_PREFIX}tasks/{task.id}/do/")
         self.assertEqual(resolve(detail_url).view_name, "task_detail")
         self.assertEqual(resolve(do_url).view_name, "do_task")
+
+
+class TaskWorkspaceSelectionTests(TestCase):
+    def setUp(self):
+        self.manager = User.objects.create_user(
+            username="manager",
+            email="manager@example.com",
+            password="StrongPass123!",
+            section="ict",
+            role="manager",
+        )
+        self.staff = User.objects.create_user(
+            username="staff",
+            email="staff@example.com",
+            password="StrongPass123!",
+            section="ict",
+            role="staff",
+        )
+
+        self.my_task = Task.objects.create(
+            title="My own task",
+            description="Own description",
+            due_date=timezone.localdate() + timedelta(days=2),
+            priority="normal",
+        )
+        UserTask.objects.create(
+            task=self.my_task,
+            assigned_by=self.manager,
+            assigned_to=self.manager,
+            status="pending",
+        )
+
+        self.assigned_task = Task.objects.create(
+            title="Assigned task",
+            description="Assigned description",
+            due_date=timezone.localdate() + timedelta(days=3),
+            priority="normal",
+        )
+        UserTask.objects.create(
+            task=self.assigned_task,
+            assigned_by=self.manager,
+            assigned_to=self.staff,
+            status="pending",
+        )
+
+    def test_my_tasks_page_loads_selected_task_panel_context(self):
+        self.client.force_login(self.manager)
+
+        response = self.client.get(reverse("my_tasks"), {"selected": self.my_task.id})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["selected_task_id"], self.my_task.id)
+        self.assertEqual(response.context["selected_task_context"]["task"], self.my_task)
+        self.assertContains(response, "Task Detail")
+
+    def test_assigned_tasks_page_loads_selected_task_panel_context(self):
+        self.client.force_login(self.manager)
+
+        response = self.client.get(reverse("assigned_tasks"), {"selected": self.assigned_task.id})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["selected_task_id"], self.assigned_task.id)
+        self.assertEqual(response.context["selected_task_context"]["task"], self.assigned_task)
+        self.assertContains(response, "Task Detail")
+
+    def test_task_detail_panel_endpoint_returns_partial_for_authorized_user(self):
+        self.client.force_login(self.manager)
+
+        response = self.client.get(reverse("task_detail_panel", args=[self.assigned_task.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, self.assigned_task.title)
+        self.assertContains(response, "Task Detail")
+
+    def test_task_detail_panel_shows_completed_delivery_for_manager_view(self):
+        UserTask.objects.filter(task=self.assigned_task).update(status="completed")
+        self.client.force_login(self.manager)
+
+        response = self.client.get(reverse("task_detail_panel", args=[self.assigned_task.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Completed")
 
 
 class NotificationTests(TestCase):
@@ -736,3 +868,43 @@ class ReassignTaskCategoryTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["users"], [])
+
+
+class SubTaskCreationTests(TestCase):
+    def setUp(self):
+        self.staff = User.objects.create_user(
+            username="subtask_owner",
+            email="subtask_owner@example.com",
+            password="StrongPass123!",
+            section="ict",
+            role="staff",
+            staff_type="senior",
+        )
+        self.task = Task.objects.create(
+            title="Prepare router checklist",
+            description="",
+            due_date=timezone.localdate() + timedelta(days=2),
+            priority="normal",
+        )
+        UserTask.objects.create(
+            task=self.task,
+            assigned_by=self.staff,
+            assigned_to=self.staff,
+            status="pending",
+        )
+
+    def test_new_subtask_defaults_to_in_progress(self):
+        self.client.force_login(self.staff)
+
+        response = self.client.post(
+            reverse("ajax_save_subtask", args=[self.task.id]),
+            {
+                "description": "Start with the uplink status",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        subtask = SubTask.objects.get(task=self.task)
+        self.assertEqual(subtask.description, "Start with the uplink status")
+        self.assertEqual(subtask.title, "Start with the uplink status")
+        self.assertEqual(subtask.status, "in_progress")

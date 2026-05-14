@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import create_task, staff_detail, category_users_json, staff_task_detail, manager_task_detail, due_soon_report, do_task, my_tasks, assigned_tasks, overdue_tasks_report, reassign_task, staff_performance_report, task_detail, start_task, complete_subtask, complete_task, edit_task, delete_task, delete_subtask, review_task, reply_comment, ajax_save_subtask, subtask_json, delete_task_cascade, notification_redirect, mark_all_notifications_read, my_task_report, assigned_task_report, reports_home, daily_accountability_board, daily_digest, daily_checkin_detail, dashboard, notifications_list
+from .views import create_task, staff_detail, category_users_json, staff_task_detail, manager_task_detail, due_soon_report, do_task, my_tasks, assigned_tasks, overdue_tasks_report, reassign_task, staff_performance_report, task_detail, task_detail_panel, start_task, complete_subtask, complete_task, edit_task, delete_task, delete_subtask, review_task, reply_comment, ajax_save_subtask, subtask_json, delete_task_cascade, notification_redirect, mark_all_notifications_read, my_task_report, assigned_task_report, reports_home, daily_accountability_board, daily_digest, daily_checkin_detail, dashboard, notifications_list
 from django.conf import settings
 from django.conf.urls.static import static
 
@@ -17,6 +17,7 @@ urlpatterns = [
      path('reports/assigned-tasks/', assigned_task_report, name='report_assigned_tasks'),
     #   path('', dashboard, name='dashboard'),
       path('tasks/<int:task_id>/', task_detail, name='task_detail'),
+      path('tasks/<int:task_id>/panel/', task_detail_panel, name='task_detail_panel'),
       path('tasks/<int:task_id>/do/', do_task, name='do_task'),
 path('tasks/start/<int:usertask_id>/', start_task, name='start_task'),
 path('tasks/complete/<int:task_id>/', complete_task, name='complete_task'),

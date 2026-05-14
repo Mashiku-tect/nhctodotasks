@@ -100,8 +100,13 @@
         {% for subtask in subtasks %}
         <li class="list-group-item d-flex justify-content-between align-items-start gap-3">
           <div>
-            <strong>{{ subtask.title }}</strong>
-            <div class="small text-muted">{{ subtask.description }}</div>
+            <div class="small text-muted text-toggle-container">
+              <span class="short-subtask-desc">{{ subtask.description|truncatechars:80 }}</span>
+              <span class="full-subtask-desc" style="display:none; white-space:normal; word-break:break-word;">{{ subtask.description }}</span>
+              {% if subtask.description|length > 80 %}
+              <a href="#" class="toggle-text text-primary small">Read more</a>
+              {% endif %}
+            </div>
 
             <span class="badge mt-2
               {% if subtask.status == 'completed' %}bg-success
@@ -164,32 +169,12 @@
     {% endif %}
       
 {% if can_delete %}
-<!-- Delete button triggers modal -->
-<button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#deleteModal">
+<button type="button" class="btn btn-danger" id="deleteTaskBtn">
     Delete Task
 </button>
-
-<!-- Modal -->
-<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="deleteModalLabel">Confirm Delete</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <div class="modal-body">
-        Are you sure you want to delete this task? This action cannot be undone.
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-        <form method="post" action="{% url 'delete_task' task.id %}">
-            {% csrf_token %}
-            <button type="submit" class="btn btn-danger">Yes, Delete</button>
-        </form>
-      </div>
-    </div>
-  </div>
-</div>
+<form id="deleteTaskForm" method="post" action="{% url 'delete_task' task.id %}" class="d-none">
+  {% csrf_token %}
+</form>
 {% endif %}
 
   </div>
@@ -217,8 +202,7 @@
         </div>
 
         <div class="modal-body">
-          <input type="text" id="subtaskTitle" class="form-control mb-3" placeholder="Title" required>
-          <textarea id="subtaskDescription" class="form-control" placeholder="Description"></textarea>
+          <textarea id="subtaskDescription" class="form-control" placeholder="Description" required></textarea>
         </div>
 
         <div class="modal-footer">
@@ -273,7 +257,6 @@ $(function () {
   // ADD SUBTASK
   $('#addSubtaskBtn').click(() => {
     $('#subtaskId').val('');
-    $('#subtaskTitle').val('');
     $('#subtaskDescription').val('');
     $('#subtaskModal').modal('show');
   });
@@ -284,7 +267,6 @@ $(function () {
 
     $.get(withId(subtaskJsonUrlTemplate, id), data => {
       $('#subtaskId').val(id);
-      $('#subtaskTitle').val(data.title);
       $('#subtaskDescription').val(data.description);
       $('#subtaskModal').modal('show');
     });
@@ -300,7 +282,6 @@ $(function () {
       data: {
         csrfmiddlewaretoken: '{{ csrf_token }}',
         id: $('#subtaskId').val(),
-        title: $('#subtaskTitle').val(),
         description: $('#subtaskDescription').val()
       },
       success: function () {
@@ -438,13 +419,21 @@ $('#completeTaskBtn').click(function () {
 
   // DELETE TASK
   $('#deleteTaskBtn').click(() => {
-    if (!confirm('Delete this task permanently?')) return;
-
-    $.post(
-      "{% url 'delete_task' task.id %}",
-      { csrfmiddlewaretoken: '{{ csrf_token }}' },
-      () => window.location.href = "{% url 'reports_performance' %}"
-    );
+    Swal.fire({
+      title: 'Delete this task?',
+      text: 'This action cannot be undone.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Yes, delete it',
+      cancelButtonText: 'Cancel',
+      confirmButtonColor: '#dc3545',
+      cancelButtonColor: '#6c757d',
+      reverseButtons: true
+    }).then((result) => {
+      if (result.isConfirmed) {
+        $('#deleteTaskForm').trigger('submit');
+      }
+    });
   });
 
 });
@@ -453,9 +442,9 @@ $('#completeTaskBtn').click(function () {
 $(document).on('click', '.toggle-text', function(e) {
     e.preventDefault();
 
-    const container = $(this).closest('h2, p'); // works for title or description
-    const shortElem = container.find('.short-title, .short-desc');
-    const fullElem = container.find('.full-title, .full-desc');
+    const container = $(this).closest('h2, p, .text-toggle-container');
+    const shortElem = container.find('.short-title, .short-desc, .short-subtask-desc');
+    const fullElem = container.find('.full-title, .full-desc, .full-subtask-desc');
 
     shortElem.toggle();
     fullElem.toggle();

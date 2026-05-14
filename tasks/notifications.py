@@ -1,8 +1,10 @@
 import logging
+import threading
 from datetime import timedelta
 
 import pytz
 from django.conf import settings
+from django.db import transaction
 from django.core.mail import send_mail
 from django.urls import reverse
 from django.utils import timezone
@@ -29,7 +31,16 @@ def create_notification(*, user, title, message, notification_type, task=None, t
         notification_type=notification_type,
         target_url=target_url,
     )
-    send_notification_email(notification)
+
+    def queue_email():
+        email_thread = threading.Thread(
+            target=send_notification_email,
+            args=(notification,),
+            daemon=True,
+        )
+        email_thread.start()
+
+    transaction.on_commit(queue_email)
     return notification
 
 

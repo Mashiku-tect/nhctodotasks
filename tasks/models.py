@@ -103,7 +103,7 @@ class UserTask(models.Model):
     status = models.CharField(
         max_length=20,
         choices=STATUS_CHOICES,
-        default='pending'
+        default='in_progress'
     )
 
     assigned_by = models.ForeignKey(
@@ -288,7 +288,7 @@ class SubTask(models.Model):
     status = models.CharField(
         max_length=20,
         choices=STATUS_CHOICES,
-        default='pending'
+        default='in_progress'
     )
 
     created_at = models.DateTimeField(auto_now_add=True)

@@ -1,0 +1,191 @@
+<div class="task-focus-card" {% if selected_task_context %}data-task-id="{{ selected_task_context.task.id }}"{% endif %}>
+    <div class="task-focus-toolbar">
+        <div>
+            <div class="task-focus-eyebrow">Task Detail</div>
+            <div class="task-focus-caption">Focused view</div>
+        </div>
+        <button type="button" class="task-drawer-close btn btn-sm btn-outline-secondary" aria-label="Close task details">
+            <i class="bi bi-x-lg"></i>
+        </button>
+    </div>
+
+    {% if selected_task_context %}
+    {% with detail=selected_task_context task=selected_task_context.task %}
+    <div class="task-focus-hero">
+        <div class="task-focus-hero-main">
+            <h3 class="task-focus-title">{{ task.title }}</h3>
+            <p class="task-focus-desc">{{ task.description|default:"No description provided." }}</p>
+        </div>
+    </div>
+
+    <div class="task-focus-summary-grid">
+        <div class="task-focus-summary-card">
+            <span class="task-focus-label">Status</span>
+            <span class="badge {% if detail.computed_status == 'completed' %}bg-success{% elif detail.computed_status == 'in_progress' %}bg-warning text-dark{% elif detail.computed_status == 'rejected' %}bg-danger{% else %}bg-secondary{% endif %}">
+                {{ detail.computed_status|capfirst }}
+            </span>
+        </div>
+        <div class="task-focus-summary-card">
+            <span class="task-focus-label">Due Date</span>
+            <strong>{{ task.due_date|date:"d M Y" }}</strong>
+        </div>
+        <div class="task-focus-summary-card">
+            <span class="task-focus-label">Priority</span>
+            <strong>{{ task.priority|capfirst }}</strong>
+        </div>
+        <div class="task-focus-summary-card">
+            <span class="task-focus-label">Delivery</span>
+            {% if detail.task_completed %}
+            <strong class="text-success">Completed</strong>
+            {% elif detail.is_overdue %}
+            <strong class="text-danger">Overdue</strong>
+            {% else %}
+            <strong>{{ detail.days_left }} day{{ detail.days_left|pluralize }} left</strong>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if not detail.task_completed and detail.can_complete %}
+    <section class="task-focus-section">
+        <button
+            type="button"
+            class="btn btn-success task-complete-task-btn"
+            data-task-id="{{ task.id }}"
+            data-has-incomplete-subtasks="{{ detail.incomplete_subtasks|yesno:'true,false' }}">
+            <i class="bi bi-check-circle me-1"></i>Mark Task Completed
+        </button>
+    </section>
+    {% endif %}
+
+    <div class="task-focus-columns task-focus-columns-stacked">
+        <section class="task-focus-section">
+            <div class="task-focus-section-title">Delivery Assets</div>
+            {% if detail.attachment_files %}
+            <div class="task-focus-stack">
+                {% for attachment in detail.attachment_files %}
+                <a class="task-focus-link" href="{{ attachment.url }}" target="_blank" rel="noopener">
+                    <span>{{ attachment.name }}</span>
+                    <i class="bi bi-box-arrow-up-right"></i>
+                </a>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="task-focus-empty">No attachments uploaded yet.</div>
+            {% endif %}
+        </section>
+
+        <section class="task-focus-section">
+            <div class="task-focus-section-title">People</div>
+            <div class="task-focus-stack">
+                {% for assigned in detail.assigned_users %}
+                <div class="task-focus-item">
+                    <div>
+                        <strong>{{ assigned.assigned_to__username }}</strong>
+                        <div class="task-focus-item-meta">{{ assigned.assigned_to__email|default:"No email" }}</div>
+                    </div>
+                    <span class="badge {% if assigned.status == 'completed' %}bg-success{% elif assigned.status == 'in_progress' %}bg-warning text-dark{% elif assigned.status == 'rejected' %}bg-danger{% else %}bg-secondary{% endif %}">
+                        {{ assigned.status|capfirst }}
+                    </span>
+                </div>
+                {% empty %}
+                <div class="task-focus-empty">No assignees found.</div>
+                {% endfor %}
+            </div>
+        </section>
+    </div>
+
+    <section class="task-focus-section">
+        <div class="task-focus-section-head">
+            <div class="task-focus-section-title">Subtasks</div>
+            {% if detail.can_manage_subtasks %}
+            <button type="button" class="btn btn-sm btn-primary task-add-subtask-btn" data-task-id="{{ task.id }}">
+                <i class="bi bi-plus-circle me-1"></i>Add Subtask
+            </button>
+            {% endif %}
+        </div>
+        {% if detail.subtasks %}
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0 task-focus-subtask-table">
+                <thead class="table-light">
+                    <tr>
+                        <th>Description</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for subtask in detail.subtasks %}
+                    <tr>
+                        <td>
+                            {% if subtask.description %}
+                            <div class="text-toggle-container">
+                                <span class="short-subtask-desc">{{ subtask.description|truncatechars:80 }}</span>
+                                <span class="full-subtask-desc d-none" style="white-space:normal; word-break:break-word;">{{ subtask.description }}</span>
+                                {% if subtask.description|length > 80 %}
+                                <a href="#" class="toggle-text text-primary small">Read more</a>
+                                {% endif %}
+                            </div>
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="badge {% if subtask.status == 'completed' %}bg-success{% elif subtask.status == 'in_progress' %}bg-warning text-dark{% else %}bg-secondary{% endif %}">
+                                {{ subtask.status|capfirst }}
+                            </span>
+                        </td>
+                        <td>
+                            {% if subtask.created_by == user and subtask.status != 'completed' %}
+                            <div class="btn-group btn-group-sm">
+                                <button type="button" class="btn btn-success task-complete-subtask-btn" data-id="{{ subtask.id }}" title="Complete">
+                                    <i class="bi bi-check-lg"></i>
+                                </button>
+                                <button type="button" class="btn btn-warning task-edit-subtask-btn" data-id="{{ subtask.id }}" title="Edit">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                <button type="button" class="btn btn-danger task-delete-subtask-btn" data-id="{{ subtask.id }}" title="Delete">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                            {% else %}
+                            <span class="text-muted small">-</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="task-focus-empty">No subtasks yet.</div>
+        {% endif %}
+    </section>
+
+    {% if detail.is_assigned_task %}
+    <section class="task-focus-section">
+        <div class="task-focus-section-title">Recent Comments</div>
+        {% if detail.comments %}
+        <div class="task-focus-stack">
+            {% for comment in detail.comments|slice:":5" %}
+            <div class="task-focus-comment">
+                <div class="task-focus-comment-head">
+                    <strong>{{ comment.user.username }}</strong>
+                    <span>{{ comment.created_at|date:"d M Y H:i" }}</span>
+                </div>
+                <div>{{ comment.comment }}</div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="task-focus-empty">No comments yet.</div>
+        {% endif %}
+    </section>
+    {% endif %}
+    {% endwith %}
+    {% else %}
+    <div class="task-focus-empty-shell">
+        <h3 class="task-focus-title">Choose a task</h3>
+        <p class="task-focus-desc">Click any task row and the detail view will slide in from the right so you can inspect work without leaving the list.</p>
+    </div>
+    {% endif %}
+</div>

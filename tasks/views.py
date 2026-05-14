@@ -3,6 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect,get_object_or_404
 from django.contrib import messages
 from django.contrib.auth import get_user_model
+from django.template.loader import render_to_string
 from .models import Task, UserTask, SubTask, Comment, TaskAttachment, Category, Notification, TaskReportRecord, DailyCheckIn
 from .notifications import create_notification
 from django.utils import timezone
@@ -10,6 +11,8 @@ from django.http import HttpResponseForbidden,JsonResponse
 from django.db.models import F, Q
 from collections import defaultdict
 from django.views.decorators.http import require_POST
+from django.utils.http import url_has_allowed_host_and_scheme
+from django.utils.dateparse import parse_date
 import os
 from django.utils import timezone
 import pytz
@@ -68,6 +71,212 @@ def compute_task_status(usertasks):
     else:
         return 'pending'
 
+
+def build_assigned_task_item(user, task, usertasks, today):
+    if user.role == 'manager':
+        all_usertasks = task.user_tasks.select_related('assigned_to', 'assigned_by') \
+                                       .exclude(Q(assigned_to=user) & Q(assigned_by=user))
+        own_usertask = all_usertasks.filter(assigned_to=user).first()
+        display_usertasks = all_usertasks
+        computed_status = compute_task_status(all_usertasks)
+    else:
+        own_usertask = next((ut for ut in usertasks if ut.assigned_to_id == user.id), None)
+        display_usertasks = task.user_tasks.select_related('assigned_to', 'assigned_by').all()
+        computed_status = own_usertask.status if own_usertask else compute_task_status(usertasks)
+
+    is_review_accepted = False
+    if user.role == 'manager':
+        is_review_accepted = display_usertasks.exists() and all(
+            ut.review_status == 'accepted' for ut in display_usertasks
+        )
+    elif own_usertask:
+        is_review_accepted = (
+            own_usertask.status == 'completed' and own_usertask.review_status == 'accepted'
+        )
+
+    if user.role == 'manager':
+        is_completed_for_display = computed_status == 'completed'
+    else:
+        is_completed_for_display = bool(own_usertask and own_usertask.status == 'completed')
+
+    countdown_stopped = is_review_accepted or is_completed_for_display
+    days_left = None if countdown_stopped else (task.due_date - today).days
+    is_overdue = days_left is not None and days_left < 0 and computed_status in ['pending', 'in_progress']
+    if user.role == 'manager':
+        waiting_reassignment = any(is_waiting_for_reassignment(ut, today) for ut in display_usertasks)
+    else:
+        waiting_reassignment = bool(own_usertask and is_waiting_for_reassignment(own_usertask, today))
+    reassign_needed = waiting_reassignment
+
+    if is_overdue:
+        days_left = 0
+
+    start_date = task.created_at.date()
+    end_date = task.due_date
+    total_days = (end_date - start_date).days or 1
+    days_passed = (today - start_date).days
+    deadline_progress = min(max(int((days_passed / total_days) * 100), 0), 100)
+
+    return {
+        "task": task,
+        "usertasks": display_usertasks,
+        "own_usertask": own_usertask,
+        "computed_status": computed_status,
+        "days_left": days_left,
+        "countdown_stopped": countdown_stopped,
+        "is_completed_for_display": is_completed_for_display,
+        "is_overdue": is_overdue,
+        "waiting_reassignment": waiting_reassignment,
+        "reassign_needed": reassign_needed,
+        "deadline_progress": deadline_progress,
+        "completed_by": task.completed_by,
+        "attachment_files": build_task_attachment_list(task),
+    }
+
+
+
+def build_task_list_selection_url(request, task_id):
+    query = request.GET.copy()
+    query['selected'] = str(task_id)
+    encoded = query.urlencode()
+    return f"{request.path}?{encoded}" if encoded else request.path
+
+
+def build_task_detail_context(request, task):
+    tanzania_tz = pytz.timezone('Africa/Dar_es_Salaam')
+    today = timezone.now().astimezone(tanzania_tz).date()
+
+    can_view = False
+    is_manager_view = request.user.role == 'manager'
+    is_my_own_task = False
+    is_assigned_task = False
+    own_usertask = None
+    can_delete = False
+    can_edit = False
+
+    all_usertasks = UserTask.objects.filter(task=task).select_related('assigned_to', 'assigned_by')
+    user_related_ut = all_usertasks.filter(
+        Q(assigned_to=request.user) | Q(assigned_by=request.user)
+    ).first()
+
+    if user_related_ut:
+        can_view = True
+
+        if user_related_ut.assigned_by == request.user and user_related_ut.assigned_to == request.user:
+            is_my_own_task = True
+
+        if user_related_ut.assigned_to == request.user and user_related_ut.assigned_by != request.user:
+            is_assigned_task = True
+            own_usertask = user_related_ut
+
+    if is_manager_view and all_usertasks.filter(assigned_by=request.user).exists():
+        can_view = True
+
+    if not can_view:
+        return None
+
+    if is_manager_view:
+        can_delete = all_usertasks.filter(assigned_by=request.user).exists()
+        can_edit = can_delete
+
+    computed_status = 'pending'
+    if all_usertasks.exists():
+        statuses = {ut.status for ut in all_usertasks}
+        if statuses == {'completed'}:
+            computed_status = 'completed'
+        elif statuses == {'rejected'}:
+            computed_status = 'rejected'
+        elif 'in_progress' in statuses:
+            computed_status = 'in_progress'
+        elif 'completed' in statuses:
+            computed_status = 'partially_completed'
+
+    days_left = (task.due_date - today).days
+    is_overdue = days_left < 0 and computed_status in ['pending', 'in_progress']
+
+    subtasks = task.subtasks.select_related('created_by').all()
+    incomplete_subtasks_exist = subtasks.exclude(status='completed').exists()
+    attachment_files = build_task_attachment_list(task)
+    comments = Comment.objects.filter(
+        task=task,
+        parent__isnull=True
+    ).select_related('user').prefetch_related('replies__user').order_by('-created_at')
+    assigned_users = all_usertasks.values(
+        'assigned_to__id',
+        'assigned_to__email',
+        'assigned_to__username',
+        'status',
+        'review_status'
+    ).distinct()
+
+    manager_own_ut = all_usertasks.filter(
+        assigned_by=request.user,
+        assigned_to=request.user
+    ).first()
+
+    if own_usertask:
+        task_completed = own_usertask.status == 'completed'
+        task_reviewed = own_usertask.review_status in ['accepted', 'rejected']
+    elif manager_own_ut:
+        task_completed = manager_own_ut.status == 'completed'
+        task_reviewed = manager_own_ut.review_status in ['accepted', 'rejected']
+    else:
+        task_completed = computed_status == 'completed'
+        task_reviewed = False
+
+    can_complete = not task_completed and (is_assigned_task or is_my_own_task)
+    back_url = reverse('my_tasks') if is_my_own_task else reverse('assigned_tasks')
+    reassign_needed = any(is_waiting_for_reassignment(ut, today) for ut in all_usertasks)
+    can_manage_subtasks = (
+        not task_completed and (
+            request.user.role == 'staff' or
+            (request.user.role == 'manager' and is_my_own_task)
+        )
+    )
+
+    return {
+        'task': task,
+        'all_usertasks': all_usertasks,
+        'own_usertask': own_usertask,
+        'computed_status': computed_status,
+        'is_my_task': is_my_own_task,
+        'is_assigned_task': is_assigned_task,
+        'task_completed': task_completed,
+        'task_reviewed': task_reviewed,
+        'can_delete': can_delete,
+        'can_edit': can_edit,
+        'days_left': max(days_left, 0),
+        'is_overdue': is_overdue,
+        'subtasks': subtasks,
+        'incomplete_subtasks': incomplete_subtasks_exist,
+        'attachment_files': attachment_files,
+        'comments': comments,
+        'assigned_users': assigned_users,
+        'today': today,
+        'can_complete': can_complete,
+        'back_url': back_url,
+        'reassign_needed': reassign_needed,
+        'can_manage_subtasks': can_manage_subtasks,
+    }
+
+
+def get_selected_task_context(request, task_ids):
+    if not task_ids:
+        return None, None
+
+    selected_raw = request.GET.get('selected')
+    if not selected_raw or not selected_raw.isdigit():
+        return None, None
+
+    selected_task_id = int(selected_raw)
+    if selected_task_id not in task_ids:
+        return None, None
+
+    selected_task = Task.objects.filter(id=selected_task_id).first()
+    if not selected_task:
+        return None, None
+
+    return selected_task_id, build_task_detail_context(request, selected_task)
 
 
 from django.urls import reverse
@@ -135,6 +344,7 @@ def create_task(request):
         )
 
     if request.method == 'POST':
+        is_ajax_request = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
         title = request.POST.get('title', '').strip()
         description = request.POST.get('description', '')
         attachments = request.FILES.getlist("attachments")
@@ -142,8 +352,11 @@ def create_task(request):
         priority = request.POST.get('priority', 'normal')
         category_id = request.POST.get('category_id')
         selected_user_ids = request.POST.getlist('assigned_to[]')
+        return_to = request.POST.get('return_to', '').strip()
 
-        if not title or not due_date:
+        parsed_due_date = parse_date(due_date) if due_date else None
+
+        if not title or not parsed_due_date:
             return JsonResponse(
                 {'error': 'Title and due date are required.'},
                 status=400
@@ -180,7 +393,7 @@ def create_task(request):
         task = Task.objects.create(
             title=title,
             description=description,
-            due_date=due_date,
+            due_date=parsed_due_date,
             priority=priority,
             category=category
         )
@@ -212,16 +425,44 @@ def create_task(request):
                     )
 
         # ✅ Add success message
-        if assigned_users == [user]:
-            messages.success(request, "My task created successfully!")
-        else:
-            messages.success(request, "Task assigned successfully!")
+        if not is_ajax_request:
+            if assigned_users == [user]:
+                messages.success(request, "My task created successfully!")
+            else:
+                messages.success(request, "Task assigned successfully!")
 
         # ✅ Return JSON with redirect URL
-        return JsonResponse({
+        if return_to and url_has_allowed_host_and_scheme(
+            url=return_to,
+            allowed_hosts={request.get_host()},
+            require_https=request.is_secure(),
+        ):
+            redirect_url = return_to
+
+        response_data = {
             'message': 'success',
             'redirect_url': redirect_url
-        })
+        }
+
+        if user.role == 'manager' and category and is_ajax_request:
+            task_item = build_assigned_task_item(
+                user=user,
+                task=task,
+                usertasks=list(task.user_tasks.select_related('assigned_to', 'assigned_by').all()),
+                today=date.today(),
+            )
+            response_data['row_html'] = render_to_string(
+                'tasks/_assigned_task_row.html',
+                {
+                    'item': task_item,
+                    'selected_task_id': None,
+                    'page_index': 1,
+                    'user': request.user,
+                },
+                request=request,
+            )
+
+        return JsonResponse(response_data)
     return render(
         request,
         'tasks/create_task.html',
@@ -254,7 +495,7 @@ def my_tasks(request):
     qs = UserTask.objects.filter(
         assigned_by=user,
         assigned_to=user
-    ).select_related('task')
+    ).select_related('task', 'task__category')
 
     # Apply search
     if search_query:
@@ -288,6 +529,7 @@ def my_tasks(request):
         task.countdown_stopped = ut.status == 'completed'
         task.days_left = None if task.countdown_stopped or not task.due_date else (task.due_date - today).days
         task.attachment_files = build_task_attachment_list(task)
+        task.select_url = build_task_list_selection_url(request, task.id)
         tasks_list.append(task)
 
     # Pagination (10 per page)
@@ -295,9 +537,18 @@ def my_tasks(request):
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
 
+    selected_task_id, selected_task_context = get_selected_task_context(
+        request,
+        [task.id for task in page_obj.object_list]
+    )
+
     context = {
         'page_obj': page_obj,
         'tasks': page_obj,  # keep 'tasks' for backward compatibility if needed
+        'selected_task_id': selected_task_id,
+        'selected_task_context': selected_task_context,
+        'categories': Category.objects.filter(section=user.section) if user.role == 'manager' else [],
+        'PRIORITY_CHOICES': Task.PRIORITY_CHOICES,
         'current_filters': {
             'status': status_filter,
             'review': review_filter,
@@ -374,65 +625,8 @@ def assigned_tasks(request):
 
     task_list = []
     for task, usertasks in grouped_tasks.items():
-        if user.role == 'manager':
-            all_usertasks = task.user_tasks.select_related('assigned_to', 'assigned_by') \
-                                           .exclude(Q(assigned_to=user) & Q(assigned_by=user))
-            own_usertask = all_usertasks.filter(assigned_to=user).first()
-            display_usertasks = all_usertasks
-            computed_status = compute_task_status(all_usertasks)
-        else:
-            own_usertask = next((ut for ut in usertasks if ut.assigned_to_id == user.id), None)
-            display_usertasks = task.user_tasks.select_related('assigned_to', 'assigned_by').all()
-            computed_status = own_usertask.status if own_usertask else compute_task_status(usertasks)
-
-        is_review_accepted = False
-        if user.role == 'manager':
-            is_review_accepted = display_usertasks.exists() and all(
-                ut.review_status == 'accepted' for ut in display_usertasks
-            )
-        elif own_usertask:
-            is_review_accepted = (
-                own_usertask.status == 'completed' and own_usertask.review_status == 'accepted'
-            )
-
-        if user.role == 'manager':
-            is_completed_for_display = computed_status == 'completed'
-        else:
-            is_completed_for_display = bool(own_usertask and own_usertask.status == 'completed')
-
-        countdown_stopped = is_review_accepted or is_completed_for_display
-        days_left = None if countdown_stopped else (task.due_date - today).days
-        is_overdue = days_left is not None and days_left < 0 and computed_status in ['pending', 'in_progress']
-        if user.role == 'manager':
-            waiting_reassignment = any(is_waiting_for_reassignment(ut, today) for ut in display_usertasks)
-        else:
-            waiting_reassignment = bool(own_usertask and is_waiting_for_reassignment(own_usertask, today))
-        reassign_needed = waiting_reassignment
-
-        if is_overdue:
-            days_left = 0
-
-        start_date = task.created_at.date()
-        end_date = task.due_date
-        total_days = (end_date - start_date).days or 1  # avoid division by zero
-        days_passed = (today - start_date).days
-        deadline_progress = min(max(int((days_passed / total_days) * 100), 0), 100)
-
-        task_dict = {
-            "task": task,
-            "usertasks": display_usertasks,
-            "own_usertask": own_usertask,
-            "computed_status": computed_status,
-            "days_left": days_left,
-            "countdown_stopped": countdown_stopped,
-            "is_completed_for_display": is_completed_for_display,
-            "is_overdue": is_overdue,
-            "waiting_reassignment": waiting_reassignment,
-            "reassign_needed": reassign_needed,
-            "deadline_progress": deadline_progress,
-            "completed_by": task.completed_by,
-            "attachment_files": build_task_attachment_list(task),
-        }
+        task_dict = build_assigned_task_item(user=user, task=task, usertasks=usertasks, today=today)
+        task_dict["select_url"] = build_task_list_selection_url(request, task.id)
         task_list.append(task_dict)
 
     # Keep newly created or recently edited tasks visible at the top
@@ -442,9 +636,25 @@ def assigned_tasks(request):
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
 
+    selected_task_id, selected_task_context = get_selected_task_context(
+        request,
+        [item['task'].id for item in page_obj.object_list]
+    )
+    if selected_task_context:
+        selected_item = next(
+            (item for item in page_obj.object_list if item['task'].id == selected_task_id),
+            None
+        )
+        if selected_item:
+            selected_task_context['reassign_needed'] = selected_item['reassign_needed']
+
     context = {
         'task_list': page_obj,
         'page_obj': page_obj,
+        'selected_task_id': selected_task_id,
+        'selected_task_context': selected_task_context,
+        'categories': Category.objects.filter(section=user.section) if user.role == 'manager' else [],
+        'PRIORITY_CHOICES': Task.PRIORITY_CHOICES,
         'current_filters': {
             'status': status_filter,
             'review': review_filter,
@@ -1196,147 +1406,21 @@ def task_detail(request, task_id):
     - Staff viewing tasks assigned to them
     """
     task = get_object_or_404(Task, id=task_id)
-
-    # Tanzanian timezone consistency (same as your other views)
-    tanzania_tz = pytz.timezone('Africa/Dar_es_Salaam')
-    today = timezone.now().astimezone(tanzania_tz).date()
-
-    # ───────────────────────────────────────────────
-    # Permission check + context determination
-    # ───────────────────────────────────────────────
-    can_view = False
-    is_manager_view = request.user.role == 'manager'
-    is_my_own_task = False
-    is_assigned_task = False
-    own_usertask = None
-    can_delete = False
-    can_edit = False
-
-    # All UserTask records related to this task
-    all_usertasks = UserTask.objects.filter(task=task).select_related('assigned_to', 'assigned_by')
-
-    # Check if current user has any relationship to the task
-    user_related_ut = all_usertasks.filter(
-        Q(assigned_to=request.user) | Q(assigned_by=request.user)
-    ).first()
-    
-    if user_related_ut:
-        can_view = True
-
-        # ── Determine type of relationship ──
-        if user_related_ut.assigned_by == request.user and user_related_ut.assigned_to == request.user:
-            is_my_own_task = True
-
-        if user_related_ut.assigned_to == request.user and user_related_ut.assigned_by != request.user:
-            is_assigned_task = True
-            own_usertask = user_related_ut
-
-    # Managers can view any task they ever assigned (even if not current assignee)
-    if is_manager_view and all_usertasks.filter(assigned_by=request.user).exists():
-        can_view = True
-
-    if not can_view:
+    context = build_task_detail_context(request, task)
+    if not context:
         return HttpResponseForbidden("You do not have permission to view this task.")
-
-    # ───────────────────────────────────────────────
-    # Manager-specific permissions
-    # ───────────────────────────────────────────────
-    if is_manager_view:
-        can_delete = all_usertasks.filter(assigned_by=request.user).exists()
-        can_edit = can_delete  # usually same condition
-
-    # ───────────────────────────────────────────────
-    # Compute task-level status (same logic as assigned_tasks)
-    # ───────────────────────────────────────────────
-    computed_status = 'pending'
-    if all_usertasks.exists():
-        statuses = {ut.status for ut in all_usertasks}
-        if statuses == {'completed'}:
-            computed_status = 'completed'
-        elif statuses == {'rejected'}:
-            computed_status = 'rejected'
-        elif 'in_progress' in statuses:
-            computed_status = 'in_progress'
-        elif 'completed' in statuses:
-            computed_status = 'partially_completed'  # optional - you can customize
-
-    # ───────────────────────────────────────────────
-    # Days left / overdue calculation
-    # ───────────────────────────────────────────────
-    days_left = (task.due_date - today).days
-    is_overdue = days_left < 0 and computed_status in ['pending', 'in_progress']
-
-    # ───────────────────────────────────────────────
-    # Subtasks
-    # ───────────────────────────────────────────────
-    subtasks = task.subtasks.select_related('created_by').all()
-    incomplete_subtasks_exist = subtasks.exclude(status='completed').exists()
-
-    # ───────────────────────────────────────────────
-    # Attachments (both main task attachment + extras)
-    # ───────────────────────────────────────────────
-    attachment_files = build_task_attachment_list(task)
-
-    # ───────────────────────────────────────────────
-    # Comments (all – including replies)
-    # ───────────────────────────────────────────────
-    comments = Comment.objects.filter(
-        task=task,
-        parent__isnull=True
-    ).select_related('user').prefetch_related('replies__user').order_by('-created_at')
-
-    # ───────────────────────────────────────────────
-    # Assigned people (clean list – exclude duplicates)
-    # ───────────────────────────────────────────────
-    assigned_users = all_usertasks.values(
-        'assigned_to__id',
-        'assigned_to__email',
-        'status',
-        'review_status'
-    ).distinct()
-    # Determine correct completion status
-
-    manager_own_ut = all_usertasks.filter(
-        assigned_by=request.user,
-        assigned_to=request.user
-    ).first()
-
-    if own_usertask:
-        task_completed = own_usertask.status == 'completed'
-    elif manager_own_ut:
-        task_completed = manager_own_ut.status == 'completed'
-    else:
-        task_completed = computed_status == 'completed'
-
-    can_complete = (
-    not task_completed and (is_assigned_task or is_my_own_task)
-    )
-    back_url = reverse('my_tasks') if is_my_own_task else reverse('assigned_tasks')
-    
-    context = {
-        'task': task,
-        'all_usertasks': all_usertasks,
-        'own_usertask': own_usertask,
-        'computed_status': computed_status,
-        'is_my_task': is_my_own_task,
-        'is_assigned_task': is_assigned_task,
-        'task_completed': own_usertask.status == 'completed' if own_usertask else False,
-        'task_reviewed': own_usertask.review_status in ['accepted', 'rejected'] if own_usertask else False,
-        'can_delete': can_delete,
-        'can_edit': can_edit,
-        'days_left': max(days_left, 0),
-        'is_overdue': is_overdue,
-        'subtasks': subtasks,
-        'incomplete_subtasks': incomplete_subtasks_exist,
-        'attachment_files': attachment_files,
-        'comments': comments,
-        'assigned_users': assigned_users,
-        'today': today,
-        'can_complete': can_complete,
-        'back_url': back_url,
-    }
-
     return render(request, 'tasks/task_detail.html', context)
+
+
+@login_required
+def task_detail_panel(request, task_id):
+    task = get_object_or_404(Task, id=task_id)
+    context = build_task_detail_context(request, task)
+    if not context:
+        return HttpResponseForbidden("You do not have permission to view this task.")
+    return render(request, 'tasks/_task_detail_panel.html', {
+        'selected_task_context': context,
+    })
 
 
 #get subtask for populating the modal
@@ -1657,14 +1741,14 @@ def ajax_save_subtask(request, task_id):
         return JsonResponse({'error': 'Invalid request'}, status=400)
 
     subtask_id = request.POST.get('id')
-    title = request.POST.get('title', '').strip()
-    description = request.POST.get('description', '')
+    description = request.POST.get('description', '').strip()
+    title = description[:255]
 
     if not subtask_id and task.user_tasks.filter(status='completed').exists():
         return JsonResponse({'error': 'This task is already completed. You cannot add another subtask.'}, status=400)
 
-    if not title:
-        return JsonResponse({'error': 'Title is required'}, status=400)
+    if not description:
+        return JsonResponse({'error': 'Description is required'}, status=400)
 
     if subtask_id:
         subtask = get_object_or_404(SubTask, id=subtask_id)
@@ -1680,7 +1764,8 @@ def ajax_save_subtask(request, task_id):
             task=task,
             title=title,
             description=description,
-            created_by=request.user
+            created_by=request.user,
+            status='in_progress',
         )
 
     return JsonResponse({'success': True})
@@ -1963,7 +2048,8 @@ def staff_performance_report(request):
         total = queryset.count()
         completed_qs = queryset.filter(status='completed')
         completed = completed_qs.count()
-        pending = queryset.filter(status__in=['pending', 'in_progress', 'accepted']).count()
+        pending = queryset.filter(status='pending').count()
+        in_progress = queryset.filter(status='in_progress').count()
         overdue = queryset.filter(task__due_date__lt=today).exclude(
             status__in=['completed', 'rejected']
         ).count()
@@ -1988,6 +2074,7 @@ def staff_performance_report(request):
             'total': total,
             'completed': completed,
             'pending': pending,
+            'in_progress': in_progress,
             'overdue': overdue,
             'on_time_completed': on_time_completed,
             'late_completed': late_completed,
@@ -2019,6 +2106,7 @@ def staff_performance_report(request):
             'total_tasks': assigned_stats['total'],
             'completed_tasks': assigned_stats['completed'],
             'pending_tasks': assigned_stats['pending'],
+            'in_progress_tasks': assigned_stats['in_progress'],
             'overdue_tasks': assigned_stats['overdue'],
             'on_time_completed': assigned_stats['on_time_completed'],
             'late_completed': assigned_stats['late_completed'],
@@ -2053,6 +2141,7 @@ def staff_performance_report(request):
                     'total_tasks': sum(item['total_tasks'] for item in group_items),
                     'completed_tasks': sum(item['completed_tasks'] for item in group_items),
                     'pending_tasks': sum(item['pending_tasks'] for item in group_items),
+                    'in_progress_tasks': sum(item['in_progress_tasks'] for item in group_items),
                     'overdue_tasks': sum(item['overdue_tasks'] for item in group_items),
                     'on_time_completed': sum(item['on_time_completed'] for item in group_items),
                     'late_completed': sum(item['late_completed'] for item in group_items),
@@ -2070,6 +2159,7 @@ def staff_performance_report(request):
                 'total_tasks': sum(item['total_tasks'] for item in unclassified_items),
                 'completed_tasks': sum(item['completed_tasks'] for item in unclassified_items),
                 'pending_tasks': sum(item['pending_tasks'] for item in unclassified_items),
+                'in_progress_tasks': sum(item['in_progress_tasks'] for item in unclassified_items),
                 'overdue_tasks': sum(item['overdue_tasks'] for item in unclassified_items),
                 'on_time_completed': sum(item['on_time_completed'] for item in unclassified_items),
                 'late_completed': sum(item['late_completed'] for item in unclassified_items),
@@ -2081,6 +2171,7 @@ def staff_performance_report(request):
         'total_tasks': sum(item['total_tasks'] for item in performance_data),
         'completed_tasks': sum(item['completed_tasks'] for item in performance_data),
         'pending_tasks': sum(item['pending_tasks'] for item in performance_data),
+        'in_progress_tasks': sum(item['in_progress_tasks'] for item in performance_data),
         'overdue_tasks': sum(item['overdue_tasks'] for item in performance_data),
         'on_time_completed': sum(item['on_time_completed'] for item in performance_data),
         'late_completed': sum(item['late_completed'] for item in performance_data),
@@ -2148,7 +2239,8 @@ def staff_detail(request, staff_id):
         'own_task_count': own_tasks.count(),
         'manager_task_count': manager_tasks.count(),
         'completed_count': own_tasks.filter(status='completed').count() + manager_tasks.filter(status='completed').count(),
-        'pending_count': own_tasks.filter(status__in=['pending', 'in_progress', 'accepted']).count() + manager_tasks.filter(status__in=['pending', 'in_progress', 'accepted']).count(),
+        'pending_count': own_tasks.filter(status='pending').count() + manager_tasks.filter(status='pending').count(),
+        'in_progress_count': own_tasks.filter(status='in_progress').count() + manager_tasks.filter(status='in_progress').count(),
         'overdue_count': own_tasks.filter(task__due_date__lt=today).exclude(status__in=['completed', 'rejected', 'accepted']).count() + manager_tasks.filter(task__due_date__lt=today).exclude(status__in=['completed', 'rejected', 'accepted']).count(),
     }
 

@@ -1,266 +1,1018 @@
 {% extends 'base.html' %}
 
 {% block content %}
-   <div>
-   <!-- Header -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2 class="h4 mb-0">My Tasks</h2>
-        <small class="text-muted">Tasks you created and assigned to yourself</small>
+<style>
+.task-shell {
+    position: relative;
+}
+.task-list-card {
+    background:
+        radial-gradient(circle at top right, rgba(15, 118, 110, 0.08), transparent 28%),
+        linear-gradient(180deg, #ffffff 0%, #f7f9fc 100%);
+    border: 1px solid #d8e0eb;
+    border-radius: 24px;
+    box-shadow: 0 20px 48px rgba(15, 23, 42, 0.08);
+    padding: 1rem;
+}
+.task-list-table {
+    margin-bottom: 0;
+}
+.task-row {
+    cursor: pointer;
+    transition: background-color .18s ease, transform .18s ease, box-shadow .18s ease;
+}
+.task-row:hover {
+    background: #f6fbff;
+}
+.task-row.is-active {
+    background: linear-gradient(90deg, #d9fbe8 0%, #eefbf4 100%);
+    box-shadow: inset 6px 0 0 #198754, 0 0 0 1px rgba(25, 135, 84, 0.18);
+}
+.task-row.is-active td {
+    background: transparent !important;
+    font-weight: 600;
+}
+.task-row td {
+    vertical-align: top;
+}
+.task-drawer-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.34);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .25s ease;
+    z-index: 1040;
+}
+.task-drawer {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: min(520px, 100vw);
+    height: 100vh;
+    background: #f4f7fb;
+    border-left: 1px solid #d8e0eb;
+    box-shadow: -22px 0 50px rgba(15, 23, 42, 0.16);
+    transform: translateX(100%);
+    transition: transform .28s ease;
+    z-index: 1050;
+    display: flex;
+    flex-direction: column;
+}
+.task-drawer.is-open {
+    transform: translateX(0);
+}
+.task-drawer-backdrop.is-open {
+    opacity: 1;
+    pointer-events: auto;
+}
+.task-drawer-scroll {
+    overflow-y: auto;
+    padding: 1rem;
+    height: 100%;
+}
+.task-focus-card {
+    background:
+        linear-gradient(180deg, rgba(255,255,255,0.95), rgba(246,249,252,0.98)),
+        #fff;
+    border: 1px solid #d8e0eb;
+    border-radius: 24px;
+    box-shadow: 0 20px 44px rgba(15, 23, 42, 0.08);
+    padding: 1.25rem;
+}
+.task-focus-toolbar,
+.task-focus-hero,
+.task-focus-item,
+.task-focus-comment-head,
+.task-focus-link {
+    display: flex;
+    align-items: start;
+    justify-content: space-between;
+    gap: 1rem;
+}
+.task-focus-toolbar {
+    margin-bottom: 1rem;
+}
+.task-focus-caption,
+.task-focus-desc,
+.task-focus-item-meta,
+.task-focus-comment-head span,
+.task-focus-empty {
+    color: #5f6f82;
+}
+.task-focus-eyebrow,
+.task-focus-label,
+.task-focus-section-title {
+    font-size: .78rem;
+    font-weight: 800;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: #0f766e;
+}
+.task-focus-caption {
+    font-size: .88rem;
+}
+.task-focus-title {
+    margin: 0;
+    font-size: 1.45rem;
+    color: #122033;
+}
+.task-focus-desc {
+    margin: .6rem 0 0;
+    line-height: 1.55;
+}
+.task-focus-summary-grid,
+.task-focus-columns {
+    display: grid;
+    gap: .85rem;
+}
+.task-focus-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin: 1.1rem 0 1.2rem;
+}
+.task-focus-columns {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.task-focus-columns-stacked {
+    grid-template-columns: 1fr;
+}
+.task-focus-summary-card,
+.task-focus-item,
+.task-focus-comment,
+.task-focus-link {
+    background: #fff;
+    border: 1px solid #d9e3f0;
+    border-radius: 18px;
+    padding: .95rem 1rem;
+}
+.task-focus-summary-card {
+    display: grid;
+    gap: .4rem;
+}
+.task-focus-section {
+    margin-top: 1rem;
+}
+.task-focus-section-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: .7rem;
+}
+.task-focus-stack {
+    display: grid;
+    gap: .65rem;
+}
+.task-focus-subtask-table td,
+.task-focus-subtask-table th {
+    vertical-align: middle;
+}
+.task-focus-item-block {
+    align-items: center;
+}
+.task-focus-comment {
+    display: grid;
+    gap: .65rem;
+}
+.task-focus-comment-head span {
+    font-size: .82rem;
+}
+.task-focus-link {
+    color: #0f4c81;
+    text-decoration: none;
+}
+.task-focus-link:hover {
+    background: #eff7ff;
+}
+.task-focus-empty-shell {
+    min-height: 280px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+.quick-task-note {
+    font-size: .92rem;
+    color: #5f6f82;
+}
+@media (max-width: 767.98px) {
+    .task-drawer {
+        width: 100vw;
+    }
+    .task-focus-summary-grid,
+    .task-focus-columns {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+
+<div class="task-shell">
+    <div>
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h2 class="h4 mb-0">My Tasks</h2>
+                <small class="text-muted">Tasks you created and assigned to yourself</small>
+            </div>
+            <button type="button" class="btn btn-primary" id="openQuickTaskModalBtn">
+                <i class="bi bi-plus-circle me-1"></i>Create Task
+            </button>
+        </div>
+
+        <form method="GET" class="row g-2 align-items-center mb-4">
+            <div class="col-md-2">
+                <select name="due" class="form-select form-select-sm">
+                    <option value="">All Due Dates</option>
+                    <option value="today" {% if current_filters.due == 'today' %}selected{% endif %}>Today</option>
+                    <option value="upcoming" {% if current_filters.due == 'upcoming' %}selected{% endif %}>Upcoming</option>
+                    <option value="overdue" {% if current_filters.due == 'overdue' %}selected{% endif %}>Overdue</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select name="status" class="form-select form-select-sm">
+                    <option value="">All Status</option>
+                    <option value="pending" {% if current_filters.status == 'pending' %}selected{% endif %}>Pending</option>
+                    <option value="in_progress" {% if current_filters.status == 'in_progress' %}selected{% endif %}>In Progress</option>
+                    <option value="completed" {% if current_filters.status == 'completed' %}selected{% endif %}>Completed</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select name="review" class="form-select form-select-sm">
+                    <option value="">All Reviews</option>
+                    <option value="pending" {% if current_filters.review == 'pending' %}selected{% endif %}>Pending</option>
+                    <option value="accepted" {% if current_filters.review == 'accepted' %}selected{% endif %}>Accepted</option>
+                    <option value="rejected" {% if current_filters.review == 'rejected' %}selected{% endif %}>Rejected</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <input type="text" name="q" value="{{ current_filters.q|default:'' }}" placeholder="Search by title..." class="form-control form-control-sm">
+            </div>
+            <div class="col-md-3 d-flex gap-2">
+                <button type="submit" class="btn btn-primary btn-sm">
+                    <i class="bi bi-funnel-fill me-1"></i> Apply
+                </button>
+                <a href="{% url 'my_tasks' %}" class="btn btn-outline-secondary btn-sm">
+                    <i class="bi bi-arrow-repeat me-1"></i> Reset
+                </a>
+            </div>
+        </form>
     </div>
 
-    <!-- Filters + Search -->
-    <form method="GET" class="row g-2 align-items-center mb-4">
-        <!-- Due Date -->
-        <div class="col-md-2">
-            <select name="due" class="form-select form-select-sm">
-                <option value="">All Due Dates</option>
-                <option value="today"    {% if current_filters.due == 'today'    %}selected{% endif %}>Today</option>
-                <option value="upcoming" {% if current_filters.due == 'upcoming' %}selected{% endif %}>Upcoming</option>
-                <option value="overdue"  {% if current_filters.due == 'overdue'  %}selected{% endif %}>Overdue</option>
-            </select>
+    <div id="messagesContainer">
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    </div>
+
+    <section class="task-list-card">
+        {% if tasks %}
+        <div class="table-responsive">
+            <table class="table table-striped table-bordered align-middle task-list-table">
+                <thead class="table-light">
+                    <tr>
+                        <th>S/N</th>
+                        <th>Title</th>
+                        <th>Description</th>
+                        <th>Due Date</th>
+                        <th>Days Left</th>
+                        <th>Status</th>
+                        <th>Attachment</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for task in tasks %}
+                    <tr class="task-row {% if selected_task_id == task.id %}is-active{% endif %}"
+                        data-task-id="{{ task.id }}"
+                        data-panel-url="{% url 'task_detail_panel' task.id %}">
+                        <td>{{ tasks.start_index|add:forloop.counter0 }}</td>
+                        <td style="max-width:200px;">
+                            <div class="short-title">{{ task.title|truncatechars:20 }}</div>
+                            <div class="full-title" style="display:none; white-space:normal; word-break:break-word;">{{ task.title }}</div>
+                            {% if task.title|length > 20 %}
+                            <a href="#" class="toggle-title text-primary small">Read more</a>
+                            {% endif %}
+                        </td>
+                        <td style="max-width:250px;">
+                            <div class="short-desc">{{ task.description|truncatechars:40 }}</div>
+                            <div class="full-desc" style="display:none; white-space:normal; word-break:break-word;">{{ task.description }}</div>
+                            {% if task.description|length > 40 %}
+                            <a href="#" class="toggle-desc text-primary small">Read more</a>
+                            {% endif %}
+                        </td>
+                        <td>{{ task.due_date|date:"Y-m-d" }}</td>
+                        <td>
+                            {% if task.countdown_stopped %}
+                            <span class="badge bg-success">Completed</span>
+                            {% elif task.days_left == 0 %}
+                            <span class="badge bg-info text-dark">Today</span>
+                            {% elif task.days_left > 0 %}
+                            <span class="badge bg-primary">{{ task.days_left }} day{{ task.days_left|pluralize }} left</span>
+                            {% elif task.days_left < 0 %}
+                            <span class="badge bg-danger">Overdue</span>
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% with task.user_task as ut %}
+                            <span class="badge {% if ut.status == 'pending' %}bg-secondary{% elif ut.status == 'in_progress' %}bg-warning text-dark{% elif ut.status == 'completed' %}bg-success{% endif %}">
+                                {{ ut.status|capfirst }}
+                            </span>
+                            {% endwith %}
+                        </td>
+                        <td>
+                            {% if task.attachment_files %}
+                                {% for attachment in task.attachment_files %}
+                                <div><a href="{{ attachment.url }}" target="_blank" rel="noopener">{{ attachment.name }}</a></div>
+                                {% endfor %}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td class="d-flex gap-2 flex-wrap">
+                            {% with task.user_task as ut %}
+                            {% if user.role == 'manager' and ut.status != 'completed' %}
+                            <a href="{% url 'edit_task' task.id %}" class="btn btn-sm btn-warning" title="Edit task">
+                                <i class="bi bi-pencil-square"></i>
+                            </a>
+                            {% endif %}
+                            {% endwith %}
+                            {% with task.user_task as ut %}
+                            {% if ut.status == 'pending' %}
+                            <a href="{% url 'start_task' ut.id %}" class="btn btn-sm btn-warning">Start</a>
+                            {% elif ut.status == 'completed' %}
+                            <span class="btn btn-sm btn-success disabled" aria-disabled="true">Done</span>
+                            {% endif %}
+                            {% endwith %}
+                            <form method="post" action="{% url 'delete_task' task.id %}" class="d-inline delete-task-form">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-sm btn-danger" title="Delete Task">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
-
-        <!-- Status -->
-        <div class="col-md-2">
-            <select name="status" class="form-select form-select-sm">
-                <option value="">All Status</option>
-                <option value="pending"     {% if current_filters.status == 'pending'     %}selected{% endif %}>Pending</option>
-                <option value="in_progress" {% if current_filters.status == 'in_progress' %}selected{% endif %}>In Progress</option>
-                <option value="completed"   {% if current_filters.status == 'completed'   %}selected{% endif %}>Completed</option>
-            </select>
-        </div>
-
-        <!-- Review -->
-        <div class="col-md-2">
-            <select name="review" class="form-select form-select-sm">
-                <option value="">All Reviews</option>
-                <option value="pending"  {% if current_filters.review == 'pending'  %}selected{% endif %}>Pending</option>
-                <option value="accepted" {% if current_filters.review == 'accepted' %}selected{% endif %}>Accepted</option>
-                <option value="rejected" {% if current_filters.review == 'rejected' %}selected{% endif %}>Rejected</option>
-            </select>
-        </div>
-
-        <!-- Search -->
-        <div class="col-md-3">
-            <input type="text" name="q" value="{{ current_filters.q|default:'' }}"
-                   placeholder="Search by title..." class="form-control form-control-sm">
-        </div>
-
-        <!-- Buttons -->
-        <div class="col-md-3 d-flex gap-2">
-            <button type="submit" class="btn btn-primary btn-sm">
-                <i class="bi bi-funnel-fill me-1"></i> Apply
-            </button>
-            <a href="{% url 'my_tasks' %}" class="btn btn-outline-secondary btn-sm">
-                <i class="bi bi-arrow-repeat me-1"></i> Reset
-            </a>
-        </div>
-    </form>
-</div>
-
-<div id="messagesContainer">
-    {% if messages %}
-        {% for message in messages %}
-            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
-                {{ message }}
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            </div>
-        {% endfor %}
-    {% endif %}
-</div>
-{% if tasks %}
-<table class="table table-striped table-bordered align-middle">
-    <thead class="table-light">
-        <tr>
-             <th>S/N</th>
-            <th>Title</th>
-            <th>Description</th>
-            <th>Due Date</th>
-            <th>Days Left</th>
-            <th>Status</th>
-            <th>Attachment</th>
-            <th>Actions</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for task in tasks %}
-        <tr>
-            <td>{{ tasks.start_index|add:forloop.counter0 }}</td>
-           <td style="max-width:200px; vertical-align:top;">
-            <!-- SHORT TITLE -->
-            <div class="short-title">
-                {{ task.title|truncatechars:20 }}
-            </div>
-
-            <!-- FULL TITLE (hidden initially, block element) -->
-            <div class="full-title" style="display:none; white-space:normal; word-break:break-word;">
-                {{ task.title }}
-            </div>
-
-            {% if task.title|length > 20 %}
-                <a href="#" class="toggle-title text-primary small">Read more</a>
-            {% endif %}
-        </td>
-      <td style="max-width:250px; vertical-align:top;">
-            <!-- SHORT TEXT -->
-            <div class="short-desc">
-                {{ task.description|truncatechars:40 }}
-            </div>
-
-            <!-- FULL TEXT (hidden initially, block element) -->
-            <div class="full-desc" style="display:none; white-space:normal; word-break:break-word;">
-                {{ task.description }}
-            </div>
-
-            {% if task.description|length > 40 %}
-                <a href="#" class="toggle-desc text-primary small">Read more</a>
-            {% endif %}
-        </td>
-   <td>{{ task.due_date|date:"Y-m-d" }}</td>
-            <td>
-                {% if task.countdown_stopped %}
-                    <span class="badge bg-success">Completed</span>
-                {% elif task.days_left == 0 %}
-                    <span class="badge bg-info text-dark">Today</span>
-                {% elif task.days_left > 0 %}
-                    <span class="badge bg-primary">{{ task.days_left }} day{{ task.days_left|pluralize }} left</span>
-                {% elif task.days_left < 0 %}
-                    <span class="badge bg-danger">Overdue</span>
-                {% else %}
-                    -
-                {% endif %}
-            </td>
-            <td>
-                {% with task.user_task as ut %}
-                <span class="badge
-                    {% if ut.status == 'pending' %}bg-secondary
-                    {% elif ut.status == 'in_progress' %}bg-warning
-                    {% elif ut.status == 'completed' %}bg-success
-                    {% endif %}">
-                    {{ ut.status|capfirst }}
-                </span>
-                {% endwith %}
-            </td>
-                 <td>
-                    {% if task.attachment_files %}
-                        {% for attachment in task.attachment_files %}
-                            <div>
-                                <a href="{{ attachment.url }}" target="_blank" rel="noopener">{{ attachment.name }}</a>
-                            </div>
-                        {% endfor %}
-                    {% else %}
-                        -
-                    {% endif %}
-                </td>
-            <td class="d-flex gap-2">
-                <a href="{% url 'task_detail' task.id %}" 
-                class="btn btn-sm btn-info" 
-                data-bs-toggle="tooltip" 
-                data-bs-placement="top" 
-                title="View Task Details">
-                    <i class="bi bi-card-text"></i>
-                </a>
-                {% with task.user_task as ut %}
-                {% if ut.status == 'pending' %}
-                <a href="{% url 'start_task' ut.id %}" class="btn btn-sm btn-warning">
-                    Start
-                </a>
-                {% elif ut.status == 'completed' %}
-                <span class="btn btn-sm btn-success disabled" aria-disabled="true">
-                    Done
-                </span>
-                {% endif %}
-                {% endwith %}
-                <form method="post" action="{% url 'delete_task' task.id %}" class="d-inline delete-task-form">
-                    {% csrf_token %}
-                    <button type="submit" class="btn btn-sm btn-danger" title="Delete Task">
-                        <i class="bi bi-trash"></i>
-                    </button>
-                </form>
-            </td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
-{% else %}
-<div class="alert alert-info">
-    You have not created any tasks yet.
-</div>
-{% endif %}
-{% if tasks.has_other_pages %}
-<nav class="mt-3">
-    <ul class="pagination justify-content-center">
-
-        {% if tasks.has_previous %}
-        <li class="page-item">
-            <a class="page-link" href="?page={{ tasks.previous_page_number }}&q={{ request.GET.q }}">Previous</a>
-        </li>
+        {% else %}
+        <div class="alert alert-info mb-0">You have not created any tasks yet.</div>
         {% endif %}
 
-        {% for num in tasks.paginator.page_range %}
-        <li class="page-item {% if tasks.number == num %}active{% endif %}">
-            <a class="page-link" href="?page={{ num }}&q={{ request.GET.q }}">{{ num }}</a>
-        </li>
-        {% endfor %}
-
-        {% if tasks.has_next %}
-        <li class="page-item">
-            <a class="page-link" href="?page={{ tasks.next_page_number }}&q={{ request.GET.q }}">Next</a>
-        </li>
+        {% if tasks.has_other_pages %}
+        <nav class="mt-3">
+            <ul class="pagination justify-content-center mb-0">
+                {% if tasks.has_previous %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ tasks.previous_page_number }}&q={{ request.GET.q }}&selected={{ selected_task_id|default:'' }}">Previous</a>
+                </li>
+                {% endif %}
+                {% for num in tasks.paginator.page_range %}
+                <li class="page-item {% if tasks.number == num %}active{% endif %}">
+                    <a class="page-link" href="?page={{ num }}&q={{ request.GET.q }}&selected={{ selected_task_id|default:'' }}">{{ num }}</a>
+                </li>
+                {% endfor %}
+                {% if tasks.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ tasks.next_page_number }}&q={{ request.GET.q }}&selected={{ selected_task_id|default:'' }}">Next</a>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
         {% endif %}
+    </section>
 
-    </ul>
-</nav>
-{% endif %}
+    <div class="task-drawer-backdrop {% if selected_task_context %}is-open{% endif %}" id="taskDrawerBackdrop"></div>
+    <aside class="task-drawer {% if selected_task_context %}is-open{% endif %}" id="taskDrawer" aria-hidden="{% if selected_task_context %}false{% else %}true{% endif %}">
+        <div class="task-drawer-scroll" id="taskDrawerContent">
+            {% include 'tasks/_task_detail_panel.html' %}
+        </div>
+    </aside>
+</div>
+
+<div class="modal fade" id="subtaskModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <form id="subtaskForm">
+            {% csrf_token %}
+            <input type="hidden" id="subtaskId">
+            <input type="hidden" id="subtaskTaskId">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Subtask</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <textarea id="subtaskDescription" class="form-control" placeholder="Description" required></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button class="btn btn-primary">Save</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="modal fade" id="quickTaskModal" tabindex="-1" aria-labelledby="quickTaskModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <form id="quickTaskForm" class="modal-content" enctype="multipart/form-data" novalidate>
+            {% csrf_token %}
+            <input type="hidden" name="return_to" id="quickTaskReturnTo" value="">
+            <div class="modal-header">
+                <div>
+                    <h5 class="modal-title" id="quickTaskModalLabel">Create Task</h5>
+                    <div class="quick-task-note">Create your own task quickly without leaving the My Tasks page.</div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row g-3">
+                    <div class="col-12">
+                        <label class="form-label" for="quickTaskTitle">Task Title</label>
+                        <input id="quickTaskTitle" type="text" name="title" class="form-control" required>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label" for="quickTaskDescription">Description</label>
+                        <textarea id="quickTaskDescription" name="description" class="form-control" rows="4"></textarea>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="quickTaskDueDate">Due Date</label>
+                        <input id="quickTaskDueDate" type="date" name="due_date" class="form-control" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="quickTaskPriority">Priority</label>
+                        <select id="quickTaskPriority" name="priority" class="form-select">
+                            {% for value, label in PRIORITY_CHOICES %}
+                            <option value="{{ value }}">{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label" for="quickTaskAttachments">Attachments</label>
+                        <input id="quickTaskAttachments" type="file" name="attachments" class="form-control" multiple>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-primary" id="quickTaskSubmitBtn">
+                    <i class="bi bi-check2-circle me-1"></i>Save Task
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <script>
-$(document).on('click', '.toggle-desc', function(e) {
-    e.preventDefault();
+document.addEventListener('click', function(event) {
+    const toggleDesc = event.target.closest('.toggle-desc');
+    if (toggleDesc) {
+        event.preventDefault();
+        event.stopPropagation();
+        const cell = toggleDesc.closest('td');
+        cell.querySelector('.short-desc').classList.toggle('d-none');
+        cell.querySelector('.full-desc').classList.toggle('d-none');
+        toggleDesc.textContent = toggleDesc.textContent.trim() === 'Read more' ? 'Show less' : 'Read more';
+        return;
+    }
 
-    const td = $(this).closest('td');
-    const shortText = td.find('.short-desc');
-    const fullText = td.find('.full-desc');
+    const toggleText = event.target.closest('.toggle-text');
+    if (toggleText) {
+        event.preventDefault();
+        event.stopPropagation();
+        const container = toggleText.closest('.text-toggle-container');
+        if (!container) {
+            return;
+        }
+        container.querySelector('.short-subtask-desc')?.classList.toggle('d-none');
+        container.querySelector('.full-subtask-desc')?.classList.toggle('d-none');
+        toggleText.textContent = toggleText.textContent.trim() === 'Read more' ? 'Show less' : 'Read more';
+        return;
+    }
 
-    shortText.toggle();
-    fullText.toggle();
-
-    $(this).text($(this).text() === 'Read more' ? 'Show less' : 'Read more');
+    const toggleTitle = event.target.closest('.toggle-title');
+    if (toggleTitle) {
+        event.preventDefault();
+        event.stopPropagation();
+        const cell = toggleTitle.closest('td');
+        cell.querySelector('.short-title').classList.toggle('d-none');
+        cell.querySelector('.full-title').classList.toggle('d-none');
+        toggleTitle.textContent = toggleTitle.textContent.trim() === 'Read more' ? 'Show less' : 'Read more';
+        return;
+    }
 });
-</script>
-<script>
-$(document).on('click', '.toggle-title', function(e) {
-    e.preventDefault();
 
-    const td = $(this).closest('td');
-    const shortText = td.find('.short-title');
-    const fullText = td.find('.full-title');
+(function() {
+    const drawer = document.getElementById('taskDrawer');
+    const backdrop = document.getElementById('taskDrawerBackdrop');
+    const content = document.getElementById('taskDrawerContent');
+    const rows = Array.from(document.querySelectorAll('.task-row'));
+    const deleteTaskForms = Array.from(document.querySelectorAll('.delete-task-form'));
+    const subtaskModalEl = document.getElementById('subtaskModal');
+    const quickTaskModalEl = document.getElementById('quickTaskModal');
+    const subtaskForm = document.getElementById('subtaskForm');
+    const quickTaskForm = document.getElementById('quickTaskForm');
+    const quickTaskOpenBtn = document.getElementById('openQuickTaskModalBtn');
+    const quickTaskSubmitBtn = document.getElementById('quickTaskSubmitBtn');
+    const quickTaskTitleInput = document.getElementById('quickTaskTitle');
+    const quickTaskDescriptionInput = document.getElementById('quickTaskDescription');
+    const quickTaskDueDateInput = document.getElementById('quickTaskDueDate');
+    const quickTaskPriorityInput = document.getElementById('quickTaskPriority');
+    const quickTaskReturnToInput = document.getElementById('quickTaskReturnTo');
+    const subtaskIdInput = document.getElementById('subtaskId');
+    const subtaskTaskIdInput = document.getElementById('subtaskTaskId');
+    const subtaskDescriptionInput = document.getElementById('subtaskDescription');
+    const subtaskJsonUrlTemplate = "{% url 'subtask_json' 0 %}";
+    const deleteSubtaskUrlTemplate = "{% url 'delete_subtask' 0 %}";
+    const completeSubtaskUrlTemplate = "{% url 'complete_subtask' 0 %}";
+    const saveSubtaskUrlTemplate = "{% url 'ajax_save_subtask' 0 %}";
+    const completeTaskUrlTemplate = "{% url 'complete_task' 0 %}";
+    const createTaskUrl = "{% url 'create_task' %}";
 
-    shortText.toggle();
-    fullText.toggle();
+    function getCsrfToken() {
+        const tokenInput = document.querySelector('[name=csrfmiddlewaretoken]');
+        return tokenInput ? tokenInput.value : '';
+    }
 
-    $(this).text($(this).text() === 'Read more' ? 'Show less' : 'Read more');
-});
-</script>
-<script>
-$(document).on('submit', '.delete-task-form', function(e) {
-    e.preventDefault();
+    function todayString() {
+        return new Date().toISOString().split('T')[0];
+    }
 
-    const form = this;
+    function setActiveRow(taskId) {
+        rows.forEach((row) => {
+            row.classList.toggle('is-active', String(row.dataset.taskId) === String(taskId));
+        });
+    }
 
-    Swal.fire({
-        title: 'Delete this task?',
-        text: 'This action cannot be undone.',
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonText: 'Yes, delete it',
-        cancelButtonText: 'Cancel',
-        confirmButtonColor: '#dc3545',
-        cancelButtonColor: '#6c757d',
-        reverseButtons: true
-    }).then((result) => {
-        if (result.isConfirmed) {
-            form.submit();
+    function updateUrl(taskId) {
+        const url = new URL(window.location.href);
+        if (taskId) {
+            url.searchParams.set('selected', taskId);
+        } else {
+            url.searchParams.delete('selected');
+        }
+        window.history.replaceState({}, '', url);
+    }
+
+    function openDrawer() {
+        drawer.classList.add('is-open');
+        drawer.setAttribute('aria-hidden', 'false');
+        backdrop.classList.add('is-open');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeDrawer() {
+        drawer.classList.remove('is-open');
+        drawer.setAttribute('aria-hidden', 'true');
+        backdrop.classList.remove('is-open');
+        document.body.style.overflow = '';
+        setActiveRow(null);
+        updateUrl(null);
+    }
+
+    async function loadTaskPanel(row) {
+        const panelUrl = row.dataset.panelUrl;
+        const taskId = row.dataset.taskId;
+        if (!panelUrl) {
+            return;
+        }
+
+        setActiveRow(taskId);
+        openDrawer();
+        content.innerHTML = '<div class="task-focus-card"><div class="task-focus-empty-shell"><h3 class="task-focus-title">Loading task...</h3><p class="task-focus-desc">Pulling the latest details for this task.</p></div></div>';
+
+        try {
+            const response = await fetch(panelUrl, {
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
+            if (!response.ok) {
+                throw new Error('Failed to load task details');
+            }
+            content.innerHTML = await response.text();
+            updateUrl(taskId);
+        } catch (error) {
+            content.innerHTML = '<div class="task-focus-card"><div class="task-focus-empty-shell"><h3 class="task-focus-title">Could not load task</h3><p class="task-focus-desc">Please try again or open the full task page.</p></div></div>';
+        }
+    }
+
+    function withId(template, id) {
+        return template.replace('/0/', '/' + id + '/');
+    }
+
+    function getBootstrapModal(element) {
+        if (!element || !window.bootstrap || !window.bootstrap.Modal) {
+            return null;
+        }
+        return window.bootstrap.Modal.getOrCreateInstance(element);
+    }
+
+    function showSubtaskModal() {
+        const subtaskModal = getBootstrapModal(subtaskModalEl);
+        if (subtaskModal) {
+            subtaskModal.show();
+            return;
+        }
+        if (window.jQuery) {
+            window.jQuery('#subtaskModal').modal('show');
+        }
+    }
+
+    function hideSubtaskModal() {
+        const subtaskModal = getBootstrapModal(subtaskModalEl);
+        if (subtaskModal) {
+            subtaskModal.hide();
+            return;
+        }
+        if (window.jQuery) {
+            window.jQuery('#subtaskModal').modal('hide');
+        }
+    }
+
+    function resetQuickTaskForm() {
+        if (!quickTaskForm) {
+            return;
+        }
+
+        quickTaskForm.reset();
+        quickTaskDueDateInput.value = todayString();
+        quickTaskDueDateInput.min = todayString();
+        if (quickTaskReturnToInput) {
+            quickTaskReturnToInput.value = window.location.pathname + window.location.search;
+        }
+    }
+
+    async function openQuickTaskModal(prefill = {}) {
+        const quickTaskModal = getBootstrapModal(quickTaskModalEl);
+        if (!quickTaskModal || !quickTaskForm) {
+            return;
+        }
+
+        resetQuickTaskForm();
+        quickTaskTitleInput.value = prefill.title || '';
+        quickTaskDescriptionInput.value = prefill.description || '';
+        quickTaskDueDateInput.value = prefill.dueDate || todayString();
+        if (prefill.priority) {
+            quickTaskPriorityInput.value = prefill.priority;
+        }
+        quickTaskModal.show();
+    }
+
+    function getSelectedTaskId() {
+        const panelRoot = content.querySelector('[data-task-id]');
+        return panelRoot ? panelRoot.dataset.taskId : null;
+    }
+
+    async function refreshOpenTaskPanel() {
+        const selectedTaskId = getSelectedTaskId();
+        if (!selectedTaskId) {
+            return;
+        }
+        const row = rows.find((item) => String(item.dataset.taskId) === String(selectedTaskId));
+        if (row) {
+            await loadTaskPanel(row);
+        }
+    }
+
+    document.addEventListener('click', function(event) {
+        if (event.target.closest('.task-drawer-close') || event.target === backdrop) {
+            closeDrawer();
+            return;
+        }
+
+        const row = event.target.closest('.task-row');
+        if (!row) {
+            return;
+        }
+        if (event.target.closest('a, button, form, input, select, textarea, label')) {
+            return;
+        }
+        loadTaskPanel(row);
+    });
+
+    document.addEventListener('click', async function(event) {
+        const addBtn = event.target.closest('.task-add-subtask-btn');
+        if (addBtn) {
+            event.preventDefault();
+            subtaskIdInput.value = '';
+            subtaskTaskIdInput.value = addBtn.dataset.taskId;
+            subtaskDescriptionInput.value = '';
+            showSubtaskModal();
+            return;
+        }
+
+        const editBtn = event.target.closest('.task-edit-subtask-btn');
+        if (editBtn) {
+            event.preventDefault();
+            const subtaskId = editBtn.dataset.id;
+            const taskId = getSelectedTaskId();
+            if (!taskId) {
+                return;
+            }
+            const response = await fetch(withId(subtaskJsonUrlTemplate, subtaskId), {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            if (!response.ok) {
+                return;
+            }
+            const data = await response.json();
+            subtaskIdInput.value = subtaskId;
+            subtaskTaskIdInput.value = taskId;
+            subtaskDescriptionInput.value = data.description || '';
+            showSubtaskModal();
+            return;
+        }
+
+        const deleteBtn = event.target.closest('.task-delete-subtask-btn');
+        if (deleteBtn) {
+            event.preventDefault();
+            const result = await Swal.fire({
+                title: 'Delete subtask?',
+                text: 'This action cannot be undone.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Yes, delete it',
+                cancelButtonText: 'Cancel',
+                confirmButtonColor: '#dc3545',
+                cancelButtonColor: '#6c757d',
+                reverseButtons: true
+            });
+            if (!result.isConfirmed) {
+                return;
+            }
+            const response = await fetch(withId(deleteSubtaskUrlTemplate, deleteBtn.dataset.id), {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: new URLSearchParams({
+                    csrfmiddlewaretoken: document.querySelector('[name=csrfmiddlewaretoken]').value
+                })
+            });
+            if (response.ok) {
+                await Swal.fire({
+                    title: 'Subtask deleted',
+                    text: 'The subtask has been removed successfully.',
+                    icon: 'success',
+                    timer: 1400,
+                    showConfirmButton: false
+                });
+                await refreshOpenTaskPanel();
+            } else {
+                Swal.fire({
+                    title: 'Could not delete subtask',
+                    text: 'Please try again.',
+                    icon: 'error',
+                    confirmButtonColor: '#dc3545'
+                });
+            }
+            return;
+        }
+
+        const completeBtn = event.target.closest('.task-complete-subtask-btn');
+        if (completeBtn) {
+            event.preventDefault();
+            const result = await Swal.fire({
+                title: 'Complete this subtask?',
+                text: 'This will mark the subtask as completed.',
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'Yes, complete it',
+                cancelButtonText: 'Cancel',
+                confirmButtonColor: '#198754',
+                cancelButtonColor: '#6c757d',
+                reverseButtons: true
+            });
+            if (!result.isConfirmed) {
+                return;
+            }
+            const response = await fetch(withId(completeSubtaskUrlTemplate, completeBtn.dataset.id), {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: new URLSearchParams({
+                    csrfmiddlewaretoken: document.querySelector('[name=csrfmiddlewaretoken]').value
+                })
+            });
+            if (response.ok) {
+                await Swal.fire({
+                    title: 'Subtask completed',
+                    text: 'The subtask has been marked as completed successfully.',
+                    icon: 'success',
+                    timer: 1400,
+                    showConfirmButton: false
+                });
+                await refreshOpenTaskPanel();
+            } else {
+                Swal.fire({
+                    title: 'Could not complete subtask',
+                    text: 'Please try again.',
+                    icon: 'error',
+                    confirmButtonColor: '#dc3545'
+                });
+            }
+        }
+
+        const completeTaskBtn = event.target.closest('.task-complete-task-btn');
+        if (completeTaskBtn) {
+            event.preventDefault();
+            if (completeTaskBtn.dataset.hasIncompleteSubtasks === 'true') {
+                await Swal.fire({
+                    title: 'Complete all subtasks first',
+                    text: 'Complete all subtasks and then you can complete the task.',
+                    icon: 'warning',
+                    confirmButtonColor: '#dc3545'
+                });
+                return;
+            }
+
+            const result = await Swal.fire({
+                title: 'Complete this task?',
+                text: 'This will mark the task as completed.',
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'Yes, complete it',
+                cancelButtonText: 'Cancel',
+                confirmButtonColor: '#198754',
+                cancelButtonColor: '#6c757d',
+                reverseButtons: true
+            });
+            if (!result.isConfirmed) {
+                return;
+            }
+
+            const response = await fetch(withId(completeTaskUrlTemplate, completeTaskBtn.dataset.taskId), {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCsrfToken(),
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: new URLSearchParams({
+                    csrfmiddlewaretoken: getCsrfToken()
+                })
+            });
+
+            if (response.ok) {
+                await Swal.fire({
+                    title: 'Task completed',
+                    text: 'The task has been marked as completed successfully.',
+                    icon: 'success',
+                    timer: 1400,
+                    showConfirmButton: false
+                });
+                window.location.reload();
+            } else {
+                let message = 'Please try again.';
+                try {
+                    const data = await response.json();
+                    message = data.error || message;
+                } catch (error) {}
+                await Swal.fire({
+                    title: 'Could not complete task',
+                    text: message,
+                    icon: 'error',
+                    confirmButtonColor: '#dc3545'
+                });
+            }
         }
     });
-});
+
+    if (subtaskForm) {
+        subtaskForm.addEventListener('submit', async function(event) {
+            event.preventDefault();
+            const taskId = subtaskTaskIdInput.value;
+            if (!taskId) {
+                return;
+            }
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            const response = await fetch(withId(saveSubtaskUrlTemplate, taskId), {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: new URLSearchParams({
+                    csrfmiddlewaretoken: csrfToken,
+                    id: subtaskIdInput.value,
+                    description: subtaskDescriptionInput.value
+                })
+            });
+            if (!response.ok) {
+                let message = 'Something went wrong.';
+                try {
+                    const data = await response.json();
+                    message = data.error || message;
+                } catch (error) {}
+                Swal.fire({
+                    title: 'Could not save subtask',
+                    text: message,
+                    icon: 'error',
+                    confirmButtonColor: '#dc3545'
+                });
+                return;
+            }
+            hideSubtaskModal();
+            await refreshOpenTaskPanel();
+        });
+    }
+
+    document.addEventListener('keydown', function(event) {
+        if (event.key === 'Escape' && drawer.classList.contains('is-open')) {
+            closeDrawer();
+        }
+    });
+
+    if (quickTaskOpenBtn) {
+        quickTaskOpenBtn.addEventListener('click', function() {
+            openQuickTaskModal();
+        });
+    }
+
+    if (quickTaskForm) {
+        quickTaskForm.addEventListener('submit', async function(event) {
+            event.preventDefault();
+
+            const formData = new FormData(quickTaskForm);
+            formData.set('return_to', window.location.pathname + window.location.search);
+            quickTaskSubmitBtn.disabled = true;
+
+            try {
+                const response = await fetch(createTaskUrl, {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: formData
+                });
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Something went wrong.');
+                }
+
+                const quickTaskModal = getBootstrapModal(quickTaskModalEl);
+                quickTaskModal.hide();
+                await Swal.fire({
+                    title: 'Task saved',
+                    text: 'Task created successfully.',
+                    icon: 'success',
+                    timer: 1400,
+                    showConfirmButton: false
+                });
+                window.location.href = data.redirect_url || window.location.href;
+            } catch (error) {
+                await Swal.fire({
+                    title: 'Could not save task',
+                    text: error.message || 'Something went wrong.',
+                    icon: 'error',
+                    confirmButtonColor: '#dc3545'
+                });
+            } finally {
+                quickTaskSubmitBtn.disabled = false;
+            }
+        });
+    }
+
+    deleteTaskForms.forEach((form) => {
+        form.addEventListener('submit', async function(event) {
+            event.preventDefault();
+
+            const result = await Swal.fire({
+                title: 'Delete this task?',
+                text: 'This action cannot be undone.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Yes, delete it',
+                cancelButtonText: 'Cancel',
+                confirmButtonColor: '#dc3545',
+                cancelButtonColor: '#6c757d',
+                reverseButtons: true
+            });
+
+            if (result.isConfirmed) {
+                form.submit();
+            }
+        });
+    });
+
+    if (drawer.classList.contains('is-open')) {
+        document.body.style.overflow = 'hidden';
+    }
+
+    resetQuickTaskForm();
+})();
 </script>
 {% endblock %}

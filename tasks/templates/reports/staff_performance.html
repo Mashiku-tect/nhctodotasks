@@ -302,6 +302,10 @@
                     <div class="perf-stat-value">{{ group.summary.pending_tasks }}</div>
                 </div>
                 <div class="perf-stat">
+                    <div class="perf-stat-label">In Progress</div>
+                    <div class="perf-stat-value">{{ group.summary.in_progress_tasks }}</div>
+                </div>
+                <div class="perf-stat">
                     <div class="perf-stat-label">Overdue</div>
                     <div class="perf-stat-value">{{ group.summary.overdue_tasks }}</div>
                 </div>
@@ -346,6 +350,10 @@
                         <div class="perf-staff-metric">
                             <div class="perf-staff-metric-label">Pending</div>
                             <div class="perf-staff-metric-value">{{ item.pending_tasks }}</div>
+                        </div>
+                        <div class="perf-staff-metric">
+                            <div class="perf-staff-metric-label">In Progress</div>
+                            <div class="perf-staff-metric-value">{{ item.in_progress_tasks }}</div>
                         </div>
                         <div class="perf-staff-metric">
                             <div class="perf-staff-metric-label">Overdue</div>
