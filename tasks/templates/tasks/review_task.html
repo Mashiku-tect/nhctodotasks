@@ -97,6 +97,11 @@
 
                             <form method="post" id="reviewForm">
                                 {% csrf_token %}
+                                {% if review_lock_message %}
+                                <div class="alert alert-warning">
+                                    {{ review_lock_message }}
+                                </div>
+                                {% endif %}
                                 <div class="mb-3">
                                     <textarea id="reviewReason" name="reason" class="form-control" rows="3"
                                               placeholder="Rejection reason (optional)"></textarea>
@@ -114,8 +119,8 @@
                                         Cancel
                                     </a>
                                     <div>
-                                        <button type="button" class="btn btn-success review-action-btn" data-action="accept">Accept</button>
-                                        <button type="button" class="btn btn-danger" id="rejectReviewBtn">Reject</button>
+                                        <button type="button" class="btn btn-success review-action-btn" data-action="accept" {% if not pending_review_exists %}disabled{% endif %}>Accept</button>
+                                        <button type="button" class="btn btn-danger" id="rejectReviewBtn" {% if not pending_review_exists %}disabled{% endif %}>Reject</button>
                                     </div>
                                 </div>
                                 <input type="hidden" name="action" id="reviewActionInput">

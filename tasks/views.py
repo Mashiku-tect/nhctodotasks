@@ -8,7 +8,7 @@ from .models import Task, UserTask, SubTask, Comment, TaskAttachment, Category, 
 from .notifications import create_notification
 from django.utils import timezone
 from django.http import HttpResponseForbidden,JsonResponse
-from django.db.models import F, Q
+from django.db.models import F, Q, Count
 from collections import defaultdict
 from django.views.decorators.http import require_POST
 from django.utils.http import url_has_allowed_host_and_scheme
@@ -1201,14 +1201,14 @@ def dashboard(request):
     today = timezone.now().astimezone(tanzania_tz).date()
 
     if user.is_superuser:
-        visible_tasks = UserTask.objects.select_related('task', 'assigned_to', 'assigned_by')
+        visible_tasks = UserTask.objects.all()
         active_staff_count = User.objects.filter(role='staff', is_active=True).count()
         scope_label = 'All sections overview'
         headline = 'System-wide task overview'
     elif user.role == 'manager':
         visible_tasks = UserTask.objects.filter(
             Q(assigned_by=user) | Q(assigned_to=user)
-        ).select_related('task', 'assigned_to', 'assigned_by').distinct()
+        ).distinct()
         active_staff_count = User.objects.filter(
             role='staff',
             section=user.section,
@@ -1219,33 +1219,41 @@ def dashboard(request):
     else:
         visible_tasks = UserTask.objects.filter(
             assigned_to=user
-        ).select_related('task', 'assigned_to', 'assigned_by')
+        )
         active_staff_count = None
         scope_label = 'My work overview'
         headline = 'Overview of your tasks and updates'
 
-    total_tasks = visible_tasks.count()
-    completed_tasks = visible_tasks.filter(status='completed').count()
-    in_progress_tasks = visible_tasks.filter(status='in_progress').count()
-    pending_tasks = visible_tasks.filter(status='pending').count()
-    overdue_tasks = visible_tasks.filter(task__due_date__lt=today).exclude(
-        status__in=['completed', 'rejected', 'accepted']
-    ).count()
-    review_pending = visible_tasks.filter(
-        status='completed',
-        review_status='pending'
-    ).exclude(
-        assigned_by=F('assigned_to')
-    ).count()
+    task_counts = visible_tasks.aggregate(
+        total_tasks=Count('id'),
+        completed_tasks=Count('id', filter=Q(status='completed')),
+        in_progress_tasks=Count('id', filter=Q(status='in_progress')),
+        pending_tasks=Count('id', filter=Q(status='pending')),
+        overdue_tasks=Count(
+            'id',
+            filter=Q(task__due_date__lt=today) & ~Q(status__in=['completed', 'rejected', 'accepted'])
+        ),
+        review_pending=Count(
+            'id',
+            filter=Q(status='completed', review_status='pending') & ~Q(assigned_by=F('assigned_to'))
+        ),
+    )
 
-    recent_task_rows = list(visible_tasks.order_by('-task__updated_at', '-created_at')[:6])
+    total_tasks = task_counts['total_tasks']
+    completed_tasks = task_counts['completed_tasks']
+    in_progress_tasks = task_counts['in_progress_tasks']
+    pending_tasks = task_counts['pending_tasks']
+    overdue_tasks = task_counts['overdue_tasks']
+    review_pending = task_counts['review_pending']
+
+    recent_task_rows = list(
+        visible_tasks.select_related('task', 'assigned_to', 'assigned_by')
+        .order_by('-task__updated_at', '-created_at')[:6]
+    )
     recent_tasks = [
         build_recent_task_item(user_task, user, today)
         for user_task in recent_task_rows
     ]
-    recent_notifications = Notification.objects.filter(
-        user=user
-    ).order_by('-created_at')[:6]
 
     quick_links = [
         {
@@ -1350,7 +1358,6 @@ def dashboard(request):
         'scope_label': scope_label,
         'stat_cards': stat_cards,
         'recent_tasks': recent_tasks,
-        'recent_notifications': recent_notifications,
         'quick_links': quick_links,
         'today': today,
     })
@@ -1805,6 +1812,22 @@ def review_task(request, task_id):
         .exclude(id=request.user.id)
         .distinct()
     )
+    reviewable_usertasks = task.user_tasks.filter(assigned_by=request.user).exclude(assigned_to=request.user)
+    pending_review_exists = reviewable_usertasks.filter(
+        status='completed',
+        review_status='pending'
+    ).exists()
+    accepted_review_exists = reviewable_usertasks.filter(review_status='accepted').exists()
+    rejected_review_exists = reviewable_usertasks.filter(review_status='rejected').exists()
+
+    review_lock_message = ''
+    if not pending_review_exists:
+        if accepted_review_exists:
+            review_lock_message = 'This task has already been accepted.'
+        elif rejected_review_exists:
+            review_lock_message = 'This task has already been rejected. It cannot be accepted until staff submit it again.'
+        else:
+            review_lock_message = 'This task is not ready for review yet.'
 
     # Attachments uploaded for this task
     attachments = build_task_attachment_list(task)
@@ -1816,6 +1839,10 @@ def review_task(request, task_id):
     if request.method == 'POST':
         action = request.POST.get('action')
         reason = request.POST.get('reason', '').strip()
+
+        if not pending_review_exists:
+            messages.error(request, review_lock_message or "This task is not ready for review.")
+            return redirect('review_task', task_id=task.id)
 
         if action == 'reject' and not reason:
             messages.error(request, "Rejection reason is required.")
@@ -1862,6 +1889,8 @@ def review_task(request, task_id):
         'assigned_staff': assigned_staff,
         'attachments': attachments,
         'major_comments': major_comments,
+        'pending_review_exists': pending_review_exists,
+        'review_lock_message': review_lock_message,
     })
 
 

@@ -505,9 +505,9 @@
                 </div>
             </div>
             <div class="dash-panel-body">
-                {% if recent_notifications %}
+                {% if header_notifications %}
                 <div class="dash-activity-list">
-                    {% for notification in recent_notifications %}
+                    {% for notification in header_notifications %}
                     <a href="{% url 'notification_redirect' notification.id %}" class="dash-activity-row">
                         <div class="dash-activity-title">{{ notification.title }}</div>
                         <div class="dash-activity-meta">{{ notification.message }}</div>
