@@ -1113,8 +1113,9 @@ def assigned_task_report(request):
         'show_counterparty': True,
         'show_category': True,
         'show_review': True,
-        'show_print_user_details': False,
-        'show_report_branding': True,
+        'show_print_user_details': report_kind == 'assigned_staff',
+        'report_owner': request.user if report_kind == 'assigned_staff' else None,
+        'show_report_branding': False,
         'report_section_name': request.user.get_section_display() or request.user.section,
     })
 

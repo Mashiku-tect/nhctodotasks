@@ -229,6 +229,9 @@
         </div>
         <div class="print-meta">
             <p><strong>Name:</strong> {{ report_owner.get_full_name|default:report_owner.username }}</p>
+            {% if report_owner.staff_type %}
+            <p><strong>Staff Type:</strong> {{ report_owner.get_staff_type_display|default:report_owner.staff_type }}</p>
+            {% endif %}
             <p><strong>Email:</strong> {{ report_owner.email|default:"-" }}</p>
             <p><strong>Printed:</strong> {% now "Y-m-d H:i" %}</p>
         </div>
