@@ -122,7 +122,7 @@
         <div class="reassign-topbar">
             <div>
                 <h4>Reassign Task</h4>
-                <p>Move overdue or stuck work through the correct category before handing it to another staff member.</p>
+                <p>Move overdue or stuck work through the correct category before handing it to one or more staff members.</p>
             </div>
             <a href="{% url 'assigned_tasks' %}" class="btn btn-outline-secondary btn-sm">
                 <i class="bi bi-arrow-left me-1"></i>Back
@@ -145,7 +145,7 @@
                 <div class="task-summary-label">Task Summary</div>
                 <div class="fw-semibold mb-1">{{ task.title }}</div>
                 <div class="text-muted small mb-2">Due date: {{ task.due_date|date:"d M Y" }}</div>
-                {% if current_assignee_id %}
+                {% if current_assignee_ids %}
                 <div class="text-muted small mb-2">Current assignment can be reassigned and returned to active staff workflow.</div>
                 {% endif %}
                 <div class="small">{{ task.description|default:"No task description provided." }}</div>
@@ -171,25 +171,24 @@
 
                         <div>
                             <label for="categoryUsers" class="form-label">Staff In Category</label>
-                            <select name="assigned_to" id="categoryUsers" class="form-select" size="7" required>
-                                <option value="">{% if staff_users %}-- Select Staff Member --{% else %}-- Select Category First --{% endif %}</option>
+                            <select name="assigned_to[]" id="categoryUsers" class="form-select" size="7" multiple required>
                                 {% for staff in staff_users %}
-                                <option value="{{ staff.id }}" {% if selected_assigned_to_id == staff.id %}selected{% endif %}>
-                                    {{ staff.username }}{% if current_assignee_id == staff.id %} (Current Assignee){% endif %}
+                                <option value="{{ staff.id }}" {% if staff.id in selected_assigned_to_ids %}selected{% endif %}>
+                                    {{ staff.username }}{% if staff.id in current_assignee_ids %} (Current Assignee){% endif %}
                                 </option>
                                 {% endfor %}
                             </select>
-                            <small class="text-muted">Choose one staff member from the selected category.</small>
-                            <div id="staffError" class="field-error">Please choose a staff member from the selected category.</div>
+                            <small class="text-muted">Choose one or more staff members from the selected category. You can keep previous staff and add new ones.</small>
+                            <div id="staffError" class="field-error">Please choose at least one staff member from the selected category.</div>
                         </div>
                     </div>
 
                     <div class="panel-box">
                         <div class="task-summary-label">Reassign Rules</div>
                         <ul class="helper-list">
-                            <li>The new assignee must belong to the selected category.</li>
+                            <li>Each selected assignee must belong to the selected category.</li>
                             <li>The category will also become the task category after reassignment.</li>
-                            <li>The reassigned task returns to pending review and pending progress.</li>
+                            <li>All selected staff return to pending review and pending progress for this task.</li>
                         </ul>
                     </div>
                 </div>
@@ -210,19 +209,29 @@ $(function () {
     const form = $('#reassignForm');
     const categorySelect = $('#categorySelect');
     const categoryUsers = $('#categoryUsers');
-    const selectedAssignedToId = "{{ selected_assigned_to_id|default:'' }}";
+    const selectedAssignedToIds = [
+        {% for selected_id in selected_assigned_to_ids %}"{{ selected_id }}"{% if not forloop.last %}, {% endif %}{% endfor %}
+    ];
+    const currentAssigneeIds = [
+        {% for current_id in current_assignee_ids %}"{{ current_id }}"{% if not forloop.last %}, {% endif %}{% endfor %}
+    ];
     const categoryError = $('#categoryError');
     const staffError = $('#staffError');
 
-    function selectDefaultStaff() {
-        if (selectedAssignedToId && categoryUsers.find(`option[value="${selectedAssignedToId}"]`).length) {
-            categoryUsers.val(selectedAssignedToId);
+    function applySelectedStaff() {
+        const availableValues = categoryUsers.find('option').map(function () {
+            return this.value;
+        }).get();
+        const matchedValues = selectedAssignedToIds.filter(value => availableValues.includes(value));
+
+        if (matchedValues.length) {
+            categoryUsers.val(matchedValues);
             return;
         }
 
-        const firstOption = categoryUsers.find('option:first');
-        if (firstOption.length) {
-            categoryUsers.val(firstOption.val());
+        const firstOptionValue = categoryUsers.find('option:first').val();
+        if (firstOptionValue) {
+            categoryUsers.val([firstOptionValue]);
         }
     }
 
@@ -232,11 +241,12 @@ $(function () {
     }
 
     function ensurePlaceholder(message) {
-        categoryUsers.empty().append(`<option value="">${message}</option>`);
+        categoryUsers.empty().append(`<option value="">${message}</option>`).prop('disabled', true);
     }
 
-    if (categoryUsers.find('option').length > 1) {
-        selectDefaultStaff();
+    if (categoryUsers.find('option').length) {
+        categoryUsers.prop('disabled', false);
+        applySelectedStaff();
     } else if (!categorySelect.val()) {
         ensurePlaceholder('-- Select Category First --');
     }
@@ -253,12 +263,13 @@ $(function () {
 
         try {
             const res = await $.getJSON("{% url 'category_users_json' %}", { category_id: categoryId });
-            categoryUsers.empty().append('<option value="">-- Select Staff Member --</option>');
+            categoryUsers.empty().prop('disabled', false);
             res.users.forEach(user => {
-                categoryUsers.append(`<option value="${user.id}">${user.name}</option>`);
+                const currentLabel = currentAssigneeIds.includes(String(user.id)) ? ' (Current Assignee)' : '';
+                categoryUsers.append(`<option value="${user.id}">${user.name}${currentLabel}</option>`);
             });
             if (res.users.length) {
-                categoryUsers.prop('selectedIndex', 1);
+                applySelectedStaff();
             } else {
                 ensurePlaceholder('-- No Staff Found In This Category --');
             }
@@ -278,7 +289,8 @@ $(function () {
             return;
         }
 
-        if (!categoryUsers.val()) {
+        const selectedStaff = categoryUsers.val();
+        if (!selectedStaff || !selectedStaff.length || (selectedStaff.length === 1 && !selectedStaff[0])) {
             event.preventDefault();
             staffError.show();
             categoryUsers.trigger('focus');

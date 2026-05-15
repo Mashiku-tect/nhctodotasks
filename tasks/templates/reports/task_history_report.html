@@ -1,10 +1,40 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block content %}
 <style>
 .report-shell {
     display: grid;
     gap: 1rem;
+}
+
+.report-branding {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem 1.25rem;
+    border: 1px solid #d9eaf5;
+    border-radius: 20px;
+    background: linear-gradient(135deg, #ffffff 0%, #f7fbfe 55%, #edf7fd 100%);
+}
+
+.report-branding-logo {
+    width: 64px;
+    height: 64px;
+    object-fit: contain;
+    flex-shrink: 0;
+}
+
+.report-branding h3 {
+    margin: 0;
+    color: #184968;
+    font-size: 1.2rem;
+    font-weight: 700;
+}
+
+.report-branding p {
+    margin: 0.2rem 0 0;
+    color: #60758a;
 }
 
 .report-hero {
@@ -58,7 +88,70 @@
     color: #166534;
 }
 
+.report-task-description {
+    white-space: pre-line;
+    word-break: break-word;
+}
+
+.report-assignee-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+}
+
+.report-assignee-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.3rem 0.55rem;
+    border-radius: 999px;
+    background: #e2e8f0;
+    color: #334155;
+    font-size: 0.82rem;
+    font-weight: 600;
+}
+
+.report-assignee-badge.is-submitted {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.print-header {
+    display: none;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.5rem;
+    padding: 1.25rem 0 1rem;
+    border-bottom: 2px solid #d9eaf5;
+}
+
+.print-brand {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.print-logo {
+    width: 72px;
+    height: 72px;
+    object-fit: contain;
+}
+
+.print-meta {
+    text-align: right;
+}
+
+.print-meta p,
+.print-brand p {
+    margin: 0.2rem 0 0;
+}
+
 @media print {
+    @page {
+        size: landscape;
+        margin: 0.5in;
+    }
+
     #sidebar, #topbar, footer, .report-actions, .report-filter, .btn, .nav, .breadcrumb {
         display: none !important;
     }
@@ -72,14 +165,76 @@
         overflow: visible !important;
     }
 
+    .report-shell {
+        display: block;
+    }
+
     .report-hero, .report-table-wrap {
         border: 0;
         box-shadow: none;
+    }
+
+    .report-hero {
+        padding: 0 0 1rem;
+        background: none;
+    }
+
+    .print-header {
+        display: flex;
+    }
+
+    .report-table-wrap,
+    .table-responsive {
+        overflow: visible !important;
+    }
+
+    .table {
+        width: 100% !important;
+        font-size: 12px;
+    }
+
+    .table th,
+    .table td {
+        padding: 0.35rem 0.4rem !important;
+        white-space: normal !important;
+        word-break: break-word;
+    }
+
+    .badge {
+        font-size: 10px !important;
+        padding: 0.25rem 0.35rem !important;
     }
 }
 </style>
 
 <div class="report-shell">
+    {% if show_report_branding %}
+    <div class="report-branding">
+        <img src="{% static 'images/nhclogo.png' %}" alt="NHC Todo Task Logo" class="report-branding-logo">
+        <div>
+            <h3>NHC ICT To Do List Task</h3>
+            <p>{{ report_section_name }} Section Assigned Task Report</p>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if show_print_user_details %}
+    <div class="print-header">
+        <div class="print-brand">
+            <img src="{% static 'images/nhclogo.png' %}" alt="NHC Todo Task Logo" class="print-logo">
+            <div>
+                <h4 class="mb-1">NHC ICT To Do List Task</h4>
+                <p class="text-muted">User report details</p>
+            </div>
+        </div>
+        <div class="print-meta">
+            <p><strong>Name:</strong> {{ report_owner.get_full_name|default:report_owner.username }}</p>
+            <p><strong>Email:</strong> {{ report_owner.email|default:"-" }}</p>
+            <p><strong>Printed:</strong> {% now "Y-m-d H:i" %}</p>
+        </div>
+    </div>
+    {% endif %}
+
     <div class="report-hero">
         <div>
             <h2>{{ report_title }}</h2>
@@ -140,9 +295,10 @@
                         <th>S/N</th>
                         <th>Task</th>
                         {% if show_counterparty %}<th>{{ counterparty_label }}</th>{% endif %}
-                        <th>Category</th>
+                        <th>Priority</th>
+                        {% if show_category %}<th>Category</th>{% endif %}
                         <th>Status</th>
-                        <th>Review</th>
+                        {% if show_review %}<th>Review</th>{% endif %}
                         <th>Due Date</th>
                         <th>Created</th>
                         <th>Record</th>
@@ -155,21 +311,29 @@
                         <td>
                             <div class="fw-semibold">{{ record.task_title }}</div>
                             {% if record.task_description %}
-                            <div class="small text-muted">{{ record.task_description|truncatechars:80 }}</div>
+                            <div class="small text-muted report-task-description">{{ record.task_description }}</div>
                             {% endif %}
                         </td>
                         {% if show_counterparty %}
                         <td>
                             {% if report_kind == 'assigned_manager' %}
-                                {{ record.assigned_to_username }}
+                                <div class="report-assignee-list">
+                                    {% for assigned_staff in record.assigned_staff %}
+                                    <span class="report-assignee-badge {% if assigned_staff.has_submitted %}is-submitted{% endif %}">
+                                        <i class="bi {% if assigned_staff.has_submitted %}bi-check-circle-fill{% else %}bi-person-fill{% endif %}"></i>
+                                        {{ assigned_staff.username }}
+                                    </span>
+                                    {% endfor %}
+                                </div>
                             {% elif report_kind == 'assigned_staff' %}
                                 {{ record.assigned_by_username }}
                             {% endif %}
                         </td>
                         {% endif %}
-                        <td>{{ record.category_name|default:'-' }}</td>
+                        <td>{{ record.priority|default:'-'|capfirst }}</td>
+                        {% if show_category %}<td>{{ record.category_name|default:'-' }}</td>{% endif %}
                         <td><span class="badge bg-secondary">{{ record.status|capfirst }}</span></td>
-                        <td><span class="badge bg-light text-dark border">{{ record.review_status|capfirst }}</span></td>
+                        {% if show_review %}<td><span class="badge bg-light text-dark border">{{ record.review_status|capfirst }}</span></td>{% endif %}
                         <td>{{ record.due_date|date:"Y-m-d" }}</td>
                         <td>{{ record.task_created_at|date:"Y-m-d H:i" }}</td>
                         <td>
@@ -182,7 +346,7 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="{% if show_counterparty %}9{% else %}8{% endif %}" class="text-center text-muted py-4">No report records found for the selected filters.</td>
+                        <td colspan="{% if show_counterparty and show_category and show_review %}10{% elif show_counterparty %}8{% else %}7{% endif %}" class="text-center text-muted py-4">No report records found for the selected filters.</td>
                     </tr>
                     {% endfor %}
                 </tbody>

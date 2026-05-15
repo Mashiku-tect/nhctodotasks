@@ -33,7 +33,7 @@
     font-weight: 600;
 }
 .task-row td {
-    vertical-align: top;
+    vertical-align: middle;
 }
 .task-drawer-backdrop {
     position: fixed;
@@ -116,10 +116,17 @@
     margin: 0;
     font-size: 1.45rem;
     color: #122033;
+    white-space: normal;
+    word-break: break-word;
 }
 .task-focus-desc {
     margin: .6rem 0 0;
     line-height: 1.55;
+    white-space: pre-line;
+    word-break: break-word;
+}
+.task-focus-hero-main {
+    min-width: 0;
 }
 .task-focus-summary-grid,
 .task-focus-columns {
@@ -276,6 +283,7 @@
                         <th>S/N</th>
                         <th>Title</th>
                         <th>Description</th>
+                        <th>Priority</th>
                         <th>Due Date</th>
                         <th>Days Left</th>
                         <th>Status</th>
@@ -290,18 +298,15 @@
                         data-panel-url="{% url 'task_detail_panel' task.id %}">
                         <td>{{ tasks.start_index|add:forloop.counter0 }}</td>
                         <td style="max-width:200px;">
-                            <div class="short-title">{{ task.title|truncatechars:20 }}</div>
-                            <div class="full-title" style="display:none; white-space:normal; word-break:break-word;">{{ task.title }}</div>
-                            {% if task.title|length > 20 %}
-                            <a href="#" class="toggle-title text-primary small">Read more</a>
-                            {% endif %}
+                            <div style="white-space: normal; word-break: break-word;">{{ task.title }}</div>
                         </td>
                         <td style="max-width:250px;">
-                            <div class="short-desc">{{ task.description|truncatechars:40 }}</div>
-                            <div class="full-desc" style="display:none; white-space:normal; word-break:break-word;">{{ task.description }}</div>
-                            {% if task.description|length > 40 %}
-                            <a href="#" class="toggle-desc text-primary small">Read more</a>
-                            {% endif %}
+                            <div style="white-space: pre-line; word-break: break-word;">{{ task.description|default:"-" }}</div>
+                        </td>
+                        <td>
+                            <span class="badge {% if task.priority == 'high' %}bg-danger{% else %}bg-info text-dark{% endif %}">
+                                {{ task.priority|capfirst }}
+                            </span>
                         </td>
                         <td>{{ task.due_date|date:"Y-m-d" }}</td>
                         <td>
@@ -333,27 +338,29 @@
                                 -
                             {% endif %}
                         </td>
-                        <td class="d-flex gap-2 flex-wrap">
-                            {% with task.user_task as ut %}
-                            {% if user.role == 'manager' and ut.status != 'completed' %}
-                            <a href="{% url 'edit_task' task.id %}" class="btn btn-sm btn-warning" title="Edit task">
-                                <i class="bi bi-pencil-square"></i>
-                            </a>
-                            {% endif %}
-                            {% endwith %}
-                            {% with task.user_task as ut %}
-                            {% if ut.status == 'pending' %}
-                            <a href="{% url 'start_task' ut.id %}" class="btn btn-sm btn-warning">Start</a>
-                            {% elif ut.status == 'completed' %}
-                            <span class="btn btn-sm btn-success disabled" aria-disabled="true">Done</span>
-                            {% endif %}
-                            {% endwith %}
-                            <form method="post" action="{% url 'delete_task' task.id %}" class="d-inline delete-task-form">
-                                {% csrf_token %}
-                                <button type="submit" class="btn btn-sm btn-danger" title="Delete Task">
-                                    <i class="bi bi-trash"></i>
-                                </button>
-                            </form>
+                        <td class="text-center">
+                            <div class="d-flex gap-2 flex-wrap justify-content-center">
+                                {% with task.user_task as ut %}
+                                {% if user.role == 'manager' and ut.status != 'completed' %}
+                                <a href="{% url 'edit_task' task.id %}" class="btn btn-sm btn-warning" title="Edit task">
+                                    <i class="bi bi-pencil-square"></i>
+                                </a>
+                                {% endif %}
+                                {% endwith %}
+                                {% with task.user_task as ut %}
+                                {% if ut.status == 'pending' %}
+                                <a href="{% url 'start_task' ut.id %}" class="btn btn-sm btn-warning">Start</a>
+                                {% elif ut.status == 'completed' %}
+                                <span class="btn btn-sm btn-success disabled" aria-disabled="true">Done</span>
+                                {% endif %}
+                                {% endwith %}
+                                <form method="post" action="{% url 'delete_task' task.id %}" class="d-inline delete-task-form">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-sm btn-danger" title="Delete Task">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
+                            </div>
                         </td>
                     </tr>
                     {% endfor %}

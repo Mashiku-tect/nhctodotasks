@@ -4,24 +4,21 @@
     {% if item.waiting_reassignment and user.role == 'staff' %}title="This task is overdue. Wait for manager to reassign." data-bs-toggle="tooltip"{% endif %}>
     <td class="task-serial">{{ page_index }}</td>
     <td>
-        <strong>
-            <span class="short-title">{{ item.task.title|truncatechars:20 }}</span>
-            <span class="full-title" style="display:none; white-space:normal; word-break:break-word;">{{ item.task.title }}</span>
-            {% if item.task.title|length > 20 %}
-            <a href="#" class="toggle-text text-primary small">Read more</a>
-            {% endif %}
-        </strong>
+        <strong style="white-space: normal; word-break: break-word;">{{ item.task.title }}</strong>
     </td>
     <td>
-        <small class="text-muted">
-            <span class="short-desc">{{ item.task.description|truncatechars:40|default:"-" }}</span>
-            <span class="full-desc" style="display:none; white-space:normal; word-break:break-word;">{{ item.task.description|default:"-" }}</span>
-            {% if item.task.description|length > 40 %}
-            <a href="#" class="toggle-text text-primary small">Read more</a>
-            {% endif %}
-        </small>
+        <small class="text-muted" style="white-space: pre-line; word-break: break-word;">{{ item.task.description|default:"-" }}</small>
     </td>
     <td>
+        {% if item.usertasks|length > 1 %}
+        <div class="mb-1 text-muted small">
+            <i class="bi bi-people-fill me-1"></i>Multiple users
+        </div>
+        {% else %}
+        <div class="mb-1 text-muted small">
+            <i class="bi bi-person-fill me-1"></i>Single user
+        </div>
+        {% endif %}
         {% for ut in item.usertasks %}
         <span class="badge {% if item.task.completed_by and ut.assigned_to.id == item.task.completed_by.id %}bg-success{% else %}bg-secondary{% endif %}">
             {% if ut.assigned_to == user %}
@@ -31,6 +28,11 @@
             {% endif %}
         </span>
         {% endfor %}
+    </td>
+    <td>
+        <span class="badge {% if item.task.priority == 'high' %}bg-danger{% else %}bg-info text-dark{% endif %}">
+            {{ item.task.priority|capfirst }}
+        </span>
     </td>
     <td>{{ item.task.due_date|date:"Y-m-d" }}</td>
     <td>
@@ -47,10 +49,17 @@
     <td>
         {% if user.role == 'manager' %}
             {% with ut=item.usertasks.0 %}
-                {% if ut.review_status == 'accepted' %}<span class="badge bg-success">Accepted</span>
-                {% elif ut.review_status == 'rejected' %}<span class="badge bg-danger">Rejected</span>
-                {% else %}<span class="badge bg-secondary">Pending</span>
-                {% endif %}
+                <div class="d-flex flex-column align-items-center gap-1">
+                    {% if ut.review_status == 'accepted' %}<span class="badge bg-success">Accepted</span>
+                    {% elif ut.review_status == 'rejected' %}<span class="badge bg-danger">Rejected</span>
+                    {% else %}<span class="badge bg-secondary">Pending</span>
+                    {% endif %}
+                    {% if item.computed_status == 'completed' or ut.review_status == 'rejected' %}
+                    <a href="{% url 'review_task' item.task.id %}" class="btn btn-sm btn-outline-success" title="Review Task">
+                        <i class="bi bi-check2-square"></i>
+                    </a>
+                    {% endif %}
+                </div>
             {% endwith %}
         {% else %}
             {% if item.own_usertask.review_status == 'accepted' %}<span class="badge bg-success">Accepted</span>
@@ -68,15 +77,11 @@
             -
         {% endif %}
     </td>
-    <td class="d-flex gap-1 flex-wrap">
+    <td class="text-center">
+        <div class="d-flex gap-1 flex-wrap justify-content-center">
         {% if user.role == 'manager' %}
             {% if item.computed_status != 'completed' %}
             <a href="{% url 'edit_task' item.task.id %}" class="btn btn-sm btn-warning">Edit</a>
-            {% endif %}
-            {% if item.computed_status == 'completed' %}
-            <a href="{% url 'review_task' item.task.id %}" class="btn btn-sm btn-outline-success" title="Review Task">
-                <i class="bi bi-check2-square"></i>
-            </a>
             {% endif %}
             {% if item.reassign_needed %}
             <a href="{% url 'reassign_task' item.task.id %}" class="btn btn-sm btn-outline-warning">Reassign</a>
@@ -101,6 +106,7 @@
                 {% endwith %}
             {% endif %}
         {% endif %}
+        </div>
     </td>
     <td class="text-center">
         {% if item.is_completed_for_display %}

@@ -962,6 +962,55 @@ def filter_task_report_records(records, request):
     }
 
 
+def build_assigned_report_rows(records):
+    grouped_rows = []
+    grouped_lookup = {}
+
+    for record in records:
+        row = grouped_lookup.get(record.source_task_id)
+        if row is None:
+            row = {
+                'source_task_id': record.source_task_id,
+                'task_title': record.task_title,
+                'task_description': record.task_description,
+                'category_name': record.category_name,
+                'priority': record.priority,
+                'due_date': record.due_date,
+                'task_created_at': record.task_created_at,
+                'deleted_at': record.deleted_at,
+                'assigned_staff': [],
+                'status_values': [],
+                'review_values': [],
+            }
+            grouped_lookup[record.source_task_id] = row
+            grouped_rows.append(row)
+
+        has_submitted = (
+            record.status == 'completed'
+            or (
+                record.completed_by_username
+                and record.completed_by_username == record.assigned_to_username
+            )
+        )
+
+        row['assigned_staff'].append({
+            'username': record.assigned_to_username or '-',
+            'status': record.status,
+            'review_status': record.review_status,
+            'has_submitted': has_submitted,
+        })
+        row['status_values'].append(record.status)
+        row['review_values'].append(record.review_status)
+
+    for row in grouped_rows:
+        unique_statuses = list(dict.fromkeys(row.pop('status_values')))
+        unique_reviews = list(dict.fromkeys(row.pop('review_values')))
+        row['status'] = unique_statuses[0] if len(unique_statuses) == 1 else 'mixed'
+        row['review_status'] = unique_reviews[0] if len(unique_reviews) == 1 else 'mixed'
+
+    return grouped_rows
+
+
 @login_required
 def my_task_report(request):
     records = TaskReportRecord.objects.filter(
@@ -977,18 +1026,16 @@ def my_task_report(request):
         'filters': filters,
         'report_kind': 'my',
         'show_counterparty': False,
+        'show_category': False,
+        'show_review': False,
+        'show_print_user_details': True,
+        'report_owner': request.user,
     })
 
 
 @login_required
 def reports_home(request):
     report_cards = [
-        {
-            'title': 'Performance Dashboard',
-            'description': 'Track staff performance, rankings, and section productivity trends.',
-            'icon': 'bi-trophy',
-            'url': reverse('reports_performance'),
-        },
         {
             'title': 'My Task Report',
             'description': 'See the history of tasks you created for yourself.',
@@ -1002,22 +1049,6 @@ def reports_home(request):
             'url': reverse('report_assigned_tasks'),
         },
     ]
-
-    if request.user.role == 'manager':
-        report_cards.extend([
-            {
-                'title': 'Overdue Tasks',
-                'description': 'Focus on work that has passed the deadline and needs follow-up.',
-                'icon': 'bi-exclamation-circle',
-                'url': reverse('reports_overdue'),
-            },
-            {
-                'title': 'Due Soon',
-                'description': 'Catch tasks approaching the deadline before they become overdue.',
-                'icon': 'bi-clock',
-                'url': reverse('reports_due_soon'),
-            },
-        ])
 
     return render(request, 'reports/reports_home.html', {
         'report_cards': report_cards,
@@ -1039,6 +1070,8 @@ def assigned_task_report(request):
         subtitle = 'Tasks assigned to you, including tasks that were later deleted.'
 
     records, filters = filter_task_report_records(records, request)
+    if report_kind == 'assigned_manager':
+        records = build_assigned_report_rows(records)
 
     return render(request, 'reports/task_history_report.html', {
         'report_title': 'Assigned Task Report',
@@ -1048,6 +1081,11 @@ def assigned_task_report(request):
         'counterparty_label': counterparty_label,
         'report_kind': report_kind,
         'show_counterparty': True,
+        'show_category': True,
+        'show_review': True,
+        'show_print_user_details': False,
+        'show_report_branding': True,
+        'report_section_name': request.user.get_section_display() or request.user.section,
     })
 
 @login_required
@@ -1063,11 +1101,10 @@ def reassign_task(request, task_id):
     current_assignee_ids = list(
         task.user_tasks.exclude(assigned_to=request.user).values_list('assigned_to_id', flat=True)
     )
-    current_assignee_id = current_assignee_ids[0] if current_assignee_ids else None
 
     categories = Category.objects.filter(section=request.user.section).order_by('name')
     selected_category_id = task.category_id
-    selected_assigned_to_id = None
+    selected_assigned_to_ids = current_assignee_ids[:]
     staff_users = User.objects.none()
 
     if selected_category_id:
@@ -1080,8 +1117,10 @@ def reassign_task(request, task_id):
 
     if request.method == 'POST':
         category_id = request.POST.get('category_id')
-        new_user_id = request.POST.get('assigned_to')
-        selected_assigned_to_id = int(new_user_id) if new_user_id and new_user_id.isdigit() else None
+        selected_user_ids = request.POST.getlist('assigned_to[]')
+        selected_assigned_to_ids = [
+            int(user_id) for user_id in selected_user_ids if user_id.isdigit()
+        ]
 
         category = Category.objects.filter(
             id=category_id,
@@ -1095,7 +1134,7 @@ def reassign_task(request, task_id):
                 'categories': categories,
                 'staff_users': staff_users,
                 'selected_category_id': selected_category_id,
-                'selected_assigned_to_id': selected_assigned_to_id,
+                'selected_assigned_to_ids': selected_assigned_to_ids,
             })
 
         selected_category_id = category.id
@@ -1113,24 +1152,23 @@ def reassign_task(request, task_id):
                 'categories': categories,
                 'staff_users': staff_users,
                 'selected_category_id': selected_category_id,
-                'selected_assigned_to_id': selected_assigned_to_id,
-                'current_assignee_id': current_assignee_id,
+                'selected_assigned_to_ids': selected_assigned_to_ids,
+                'current_assignee_ids': current_assignee_ids,
             })
 
-        new_user = staff_users.filter(id=new_user_id).first()
-        if not new_user and staff_users.count() == 1:
-            new_user = staff_users.first()
-            selected_assigned_to_id = new_user.id
+        selected_users = list(
+            staff_users.filter(id__in=selected_assigned_to_ids).distinct()
+        )
 
-        if not new_user:
-            messages.error(request, 'Please select a valid staff member from the chosen category.')
+        if not selected_users:
+            messages.error(request, 'Please select at least one valid staff member from the chosen category.')
             return render(request, 'tasks/reassign_task.html', {
                 'task': task,
                 'categories': categories,
                 'staff_users': staff_users,
                 'selected_category_id': selected_category_id,
-                'selected_assigned_to_id': selected_assigned_to_id,
-                'current_assignee_id': current_assignee_id,
+                'selected_assigned_to_ids': selected_assigned_to_ids,
+                'current_assignee_ids': current_assignee_ids,
             })
 
         task.category = category
@@ -1138,47 +1176,59 @@ def reassign_task(request, task_id):
         previous_assignees = list(
             task.user_tasks.exclude(assigned_to=request.user).select_related('assigned_to')
         )
+        existing_usertasks = {
+            ut.assigned_to_id: ut
+            for ut in task.user_tasks.exclude(assigned_to=request.user)
+        }
+        selected_ids = {selected_user.id for selected_user in selected_users}
+        now = timezone.now()
 
-        # Find existing usertask for this task
-        existing_usertask = UserTask.objects.filter(task=task, assigned_to__in=[new_user, request.user]).first()
+        for assignee in selected_users:
+            if assignee.id in existing_usertasks:
+                ut = existing_usertasks[assignee.id]
+                ut.assigned_by = request.user
+                ut.status = 'pending'
+                ut.review_status = 'pending'
+                ut.reassigned_at = now
+                ut.save(update_fields=['assigned_by', 'status', 'review_status', 'reassigned_at'])
+                sync_task_report_records(usertasks=[ut])
+            else:
+                ut = UserTask.objects.create(
+                    task=task,
+                    assigned_by=request.user,
+                    assigned_to=assignee,
+                    status='pending',
+                    review_status='pending',
+                    reassigned_at=now,
+                )
+                sync_task_report_records(usertasks=[ut])
 
-        if existing_usertask:
-            # Update existing usertask
-            existing_usertask.assigned_to = new_user
-            existing_usertask.assigned_by = request.user
-            existing_usertask.status = 'pending'
-            existing_usertask.review_status = 'pending'
-            existing_usertask.reassigned_at = timezone.now()
-            existing_usertask.save()
-            sync_task_report_records(usertasks=[existing_usertask])
-        else:
-            # Create new assignment
-            usertask = UserTask.objects.create(
+            create_notification(
+                user=assignee,
+                title='Task reassigned to you',
+                message=f'{task.title} has been reassigned to you.',
+                notification_type='task_reassigned',
                 task=task,
-                assigned_by=request.user,
-                assigned_to=new_user,
-                status='pending',
-                review_status='pending',
-                reassigned_at=timezone.now(),
+                target_url=reverse('task_detail', args=[task.id]),
             )
-            sync_task_report_records(usertasks=[usertask])
 
-        create_notification(
-            user=new_user,
-            title='Task reassigned to you',
-            message=f'{task.title} has been reassigned to you.',
-            notification_type='task_reassigned',
-            task=task,
-            target_url=reverse('task_detail', args=[task.id]),
+        removed_usertasks = list(
+            task.user_tasks.select_related('assigned_by', 'assigned_to', 'task', 'task__category')
+            .exclude(assigned_to=request.user)
+            .exclude(assigned_to_id__in=selected_ids)
         )
+        if removed_usertasks:
+            sync_task_report_records(usertasks=removed_usertasks, mark_deleted=True)
+            task.user_tasks.exclude(assigned_to=request.user).exclude(assigned_to_id__in=selected_ids).delete()
 
         previous_usernames = ", ".join(
-            prev.assigned_to.username for prev in previous_assignees if prev.assigned_to_id != new_user.id
+            prev.assigned_to.username for prev in previous_assignees if prev.assigned_to
         ) or 'another staff member'
+        new_usernames = ", ".join(user.username for user in selected_users)
         create_notification(
             user=request.user,
             title='Task reassigned',
-            message=f'"{task.title}" was reassigned from {previous_usernames} to {new_user.username}.',
+            message=f'"{task.title}" was reassigned from {previous_usernames} to {new_usernames}.',
             notification_type='task_reassigned',
             task=task,
             target_url=reverse('task_detail', args=[task.id]),
@@ -1191,8 +1241,8 @@ def reassign_task(request, task_id):
         'staff_users': staff_users,
         'categories': categories,
         'selected_category_id': selected_category_id,
-        'selected_assigned_to_id': selected_assigned_to_id,
-        'current_assignee_id': current_assignee_id,
+        'selected_assigned_to_ids': selected_assigned_to_ids,
+        'current_assignee_ids': current_assignee_ids,
     })
 
 @login_required

@@ -18,6 +18,9 @@
     cursor: pointer;
     transition: background-color .18s ease, box-shadow .18s ease;
 }
+.task-row td {
+    vertical-align: middle;
+}
 .task-row:hover {
     background: #f6fbff;
 }
@@ -110,10 +113,17 @@
     margin: 0;
     font-size: 1.45rem;
     color: #122033;
+    white-space: normal;
+    word-break: break-word;
 }
 .task-focus-desc {
     margin: .6rem 0 0;
     line-height: 1.55;
+    white-space: pre-line;
+    word-break: break-word;
+}
+.task-focus-hero-main {
+    min-width: 0;
 }
 .task-focus-summary-grid,
 .task-focus-columns {
@@ -290,6 +300,7 @@
                         <th>Task Title</th>
                         <th>Task Description</th>
                         <th>Assigned To</th>
+                        <th>Priority</th>
                         <th>Due Date</th>
                         <th>Status</th>
                         <th>Review</th>
@@ -305,7 +316,7 @@
                     {% endfor %}
                     {% else %}
                     <tr id="assignedTaskEmptyRow">
-                        <td colspan="10">
+                        <td colspan="11">
                             <div class="alert alert-info mb-0" id="assignedTaskEmptyState">No assigned tasks found.</div>
                         </td>
                     </tr>

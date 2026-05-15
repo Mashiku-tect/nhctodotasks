@@ -172,11 +172,16 @@
     gap: 1.5rem;
 }
 
+.dash-grid > * {
+    min-width: 0;
+}
+
 .dash-panel-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
     gap: 1rem;
+    flex-wrap: wrap;
     padding: 1.2rem 1.35rem;
     border-bottom: 1px solid #e2e8f0;
 }
@@ -238,6 +243,12 @@
     display: flex;
     align-items: flex-start;
     min-width: 0;
+    flex: 1 1 auto;
+    gap: 0.7rem;
+}
+
+.dash-task-main > div {
+    min-width: 0;
 }
 
 .dash-task-title,
@@ -245,6 +256,8 @@
     color: #0f172a;
     font-weight: 700;
     font-size: 1rem;
+    white-space: normal;
+    word-break: break-word;
 }
 
 .dash-task-title-completed {
@@ -256,6 +269,8 @@
 .dash-activity-meta {
     color: #64748b;
     font-size: 0.9rem;
+    white-space: normal;
+    word-break: break-word;
 }
 
 .dash-task-check {
@@ -267,7 +282,6 @@
     justify-content: center;
     flex-shrink: 0;
     font-size: 0.95rem;
-    margin-right: 0.7rem;
     border: 1px solid #cbd5e1;
     color: #94a3b8;
     background: #ffffff;
@@ -398,6 +412,10 @@
         font-size: 1.5rem;
     }
 
+    .dash-stats {
+        grid-template-columns: 1fr;
+    }
+
     .dash-hero,
     .dash-panel {
         border-radius: 18px;
@@ -407,6 +425,15 @@
     .dash-panel-body {
         padding-left: 1rem;
         padding-right: 1rem;
+    }
+
+    .dash-task-top {
+        flex-direction: column;
+    }
+
+    .dash-link-chip {
+        width: 100%;
+        justify-content: center;
     }
 }
 </style>
