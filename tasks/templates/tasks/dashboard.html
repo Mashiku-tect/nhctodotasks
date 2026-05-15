@@ -480,7 +480,7 @@
                 {% if recent_tasks %}
                 <div class="dash-task-list">
                     {% for item in recent_tasks %}
-                    <a href="{% url 'task_detail' item.task.id %}" class="dash-task-row">
+                    <a href="{{ item.focus_url }}" class="dash-task-row">
                         <div class="dash-task-top">
                             <div class="dash-task-main">
                                 <span class="dash-task-check {% if item.is_completed %}dash-task-check-completed{% endif %}">

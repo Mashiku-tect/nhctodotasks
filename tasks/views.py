@@ -142,6 +142,36 @@ def build_task_list_selection_url(request, task_id):
     return f"{request.path}?{encoded}" if encoded else request.path
 
 
+def build_task_focus_url_for_user(user, task_id):
+    task = Task.objects.filter(id=task_id).first()
+    if not task:
+        return reverse('dashboard')
+
+    user_related_qs = UserTask.objects.filter(
+        task=task
+    )
+
+    if user.is_superuser:
+        return f"{reverse('assigned_tasks')}?selected={task_id}"
+
+    manager_assignment_exists = user_related_qs.filter(
+        assigned_by=user
+    ).exclude(assigned_to=user).exists()
+    own_self_task_exists = user_related_qs.filter(
+        assigned_by=user,
+        assigned_to=user,
+    ).exists()
+    assigned_to_user_exists = user_related_qs.filter(
+        assigned_to=user
+    ).exclude(assigned_by=user).exists()
+
+    if manager_assignment_exists or assigned_to_user_exists:
+        return f"{reverse('assigned_tasks')}?selected={task_id}"
+    if own_self_task_exists:
+        return f"{reverse('my_tasks')}?selected={task_id}"
+    return reverse('dashboard')
+
+
 def build_task_detail_context(request, task):
     tanzania_tz = pytz.timezone('Africa/Dar_es_Salaam')
     today = timezone.now().astimezone(tanzania_tz).date()
@@ -1304,6 +1334,8 @@ def dashboard(request):
         build_recent_task_item(user_task, user, today)
         for user_task in recent_task_rows
     ]
+    for item in recent_tasks:
+        item['focus_url'] = build_task_focus_url_for_user(user, item['task'].id)
 
     quick_links = [
         {
@@ -1456,17 +1488,11 @@ from .models import Task, UserTask, SubTask, Comment, TaskAttachment
 
 @login_required
 def task_detail(request, task_id):
-    """
-    Detailed view of a single task.
-    Works for:
-    - Manager viewing any task they assigned (or their own)
-    - Staff viewing tasks assigned to them
-    """
     task = get_object_or_404(Task, id=task_id)
     context = build_task_detail_context(request, task)
     if not context:
         return HttpResponseForbidden("You do not have permission to view this task.")
-    return render(request, 'tasks/task_detail.html', context)
+    return redirect(build_task_focus_url_for_user(request.user, task.id))
 
 
 @login_required
@@ -1949,6 +1975,11 @@ def notification_redirect(request, notification_id):
     notification = get_object_or_404(Notification, id=notification_id, user=request.user)
     notification.is_read = True
     notification.save(update_fields=['is_read'])
+
+    if notification.task_id:
+        task_detail_url = reverse('task_detail', args=[notification.task_id])
+        if notification.target_url == task_detail_url or not notification.target_url:
+            return redirect(build_task_focus_url_for_user(request.user, notification.task_id))
 
     if notification.target_url:
         return redirect(notification.target_url)
