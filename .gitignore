@@ -8,6 +8,8 @@ __pycache__/
 venv/
 .env
 .env.docker
+.env.docker.example
+.env.example
 
 # Django
 db.sqlite3
