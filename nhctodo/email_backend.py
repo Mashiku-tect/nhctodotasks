@@ -26,3 +26,16 @@ class EmailBackend(DjangoSMTPEmailBackend):
             ssl_context.verify_mode = ssl.CERT_NONE
 
         return ssl_context
+
+
+class UnsafeEmailBackend(EmailBackend):
+    @cached_property
+    def ssl_context(self):
+        ssl_context = ssl._create_unverified_context()
+
+        certfile = getattr(settings, "EMAIL_SSL_CERTFILE", None)
+        keyfile = getattr(settings, "EMAIL_SSL_KEYFILE", None)
+        if certfile or keyfile:
+            ssl_context.load_cert_chain(certfile, keyfile)
+
+        return ssl_context
