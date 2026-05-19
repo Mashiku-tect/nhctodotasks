@@ -997,19 +997,64 @@ document.addEventListener('click', function(event) {
                 return;
             }
 
-            const result = await Swal.fire({
+            const uploadChoice = await Swal.fire({
                 title: 'Complete this task?',
-                text: 'This will mark the task as completed.',
+                text: 'Do you need to upload files before marking it as completed?',
                 icon: 'question',
                 showCancelButton: true,
-                confirmButtonText: 'Yes, complete it',
+                showDenyButton: true,
+                confirmButtonText: 'Yes, upload files',
+                denyButtonText: 'No, complete now',
                 cancelButtonText: 'Cancel',
                 confirmButtonColor: '#198754',
+                denyButtonColor: '#0d6efd',
                 cancelButtonColor: '#6c757d',
                 reverseButtons: true
             });
-            if (!result.isConfirmed) {
+
+            if (uploadChoice.isDismissed) {
                 return;
+            }
+
+            const formData = new FormData();
+            formData.append('csrfmiddlewaretoken', getCsrfToken());
+            let successText = 'The task has been marked as completed successfully.';
+
+            if (uploadChoice.isConfirmed) {
+                const uploadResult = await Swal.fire({
+                    title: 'Upload completion files',
+                    html: `
+                        <div class="text-start">
+                            <label for="completeTaskAttachmentsInput" class="form-label">Attachments</label>
+                            <input id="completeTaskAttachmentsInput" type="file" class="form-control" multiple>
+                            <div class="form-text">You can upload up to 3 files.</div>
+                        </div>
+                    `,
+                    focusConfirm: false,
+                    showCancelButton: true,
+                    confirmButtonText: 'Submit task',
+                    cancelButtonText: 'Cancel',
+                    confirmButtonColor: '#198754',
+                    cancelButtonColor: '#6c757d',
+                    preConfirm: () => {
+                        const input = document.getElementById('completeTaskAttachmentsInput');
+                        const files = Array.from(input?.files || []);
+                        if (files.length > 3) {
+                            Swal.showValidationMessage('Maximum 3 attachments allowed.');
+                            return false;
+                        }
+                        return files;
+                    }
+                });
+
+                if (!uploadResult.isConfirmed) {
+                    return;
+                }
+
+                (uploadResult.value || []).forEach((file) => {
+                    formData.append('attachments', file);
+                });
+                successText = 'The task has been marked as completed and files submitted successfully.';
             }
 
             const response = await fetch(withId(completeTaskUrlTemplate, completeTaskBtn.dataset.taskId), {
@@ -1017,17 +1062,14 @@ document.addEventListener('click', function(event) {
                 headers: {
                     'X-CSRFToken': getCsrfToken(),
                     'X-Requested-With': 'XMLHttpRequest',
-                    'Content-Type': 'application/x-www-form-urlencoded'
                 },
-                body: new URLSearchParams({
-                    csrfmiddlewaretoken: getCsrfToken()
-                })
+                body: formData
             });
 
             if (response.ok) {
                 await Swal.fire({
                     title: 'Task completed',
-                    text: 'The task has been marked as completed successfully.',
+                    text: successText,
                     icon: 'success',
                     timer: 1400,
                     showConfirmButton: false
