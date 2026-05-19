@@ -346,8 +346,8 @@
                         <td class="text-center">
                             <div class="d-flex gap-2 flex-wrap justify-content-center">
                                 {% with task.user_task as ut %}
-                                {% if user.role == 'manager' and ut.status != 'completed' %}
-                                <a href="{% url 'edit_task' task.id %}" class="btn btn-sm btn-warning" title="Edit task">
+                                {% if ut.status != 'completed' %}
+                                <a href="{% url 'edit_task' task.id %}" class="btn btn-sm btn-warning" title="Edit activity">
                                     <i class="bi bi-pencil-square"></i>
                                 </a>
                                 {% endif %}
