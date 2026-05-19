@@ -11,6 +11,12 @@ from django.http import HttpResponseForbidden
 from .models import User, UserSession
 
 
+def _is_allowed_nhc_email(email):
+    normalized_email = (email or "").strip().lower()
+    allowed_domain = settings.NOTIFICATION_EMAIL_ALLOWED_DOMAIN
+    return normalized_email.endswith(f"@{allowed_domain}")
+
+
 @login_required
 def add_user(request):
     if request.user.is_superuser or request.user.role != 'manager':
@@ -21,7 +27,7 @@ def add_user(request):
 
     if request.method == 'POST':
         username = request.POST.get('username', '').strip()
-        email = request.POST.get('email')
+        email = request.POST.get('email', '').strip().lower()
         password1 = request.POST.get('password1')
         password2 = request.POST.get('password2')
         staff_type = request.POST.get('staff_type', '').strip()
@@ -44,6 +50,9 @@ def add_user(request):
 
         elif User.objects.filter(email=email).exists():
             messages.error(request, "User already exists.")
+
+        elif not _is_allowed_nhc_email(email):
+            messages.error(request, "Email address must use the @nhc.co.tz domain.")
 
         elif role == 'staff' and staff_type not in dict(User.STAFF_TYPE_CHOICES):
             messages.error(request, "Please select whether the staff member is Senior or ICT Officer.")

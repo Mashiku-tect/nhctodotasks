@@ -201,6 +201,48 @@ class SuperuserAccessTests(TestCase):
         self.assertNotContains(response, "Manage Users")
 
 
+class AddUserEmailDomainTests(TestCase):
+    def setUp(self):
+        self.manager = User.objects.create_user(
+            username="manager_domain",
+            email="manager_domain@nhc.co.tz",
+            password="StrongPass123!",
+            section="ict",
+            role="manager",
+        )
+
+    def test_manager_can_only_create_staff_with_nhc_domain_email(self):
+        self.client.force_login(self.manager)
+
+        response = self.client.post(reverse("add_user"), {
+            "username": "newstaff",
+            "email": "newstaff@example.com",
+            "password1": "StrongPass123!",
+            "password2": "StrongPass123!",
+            "staff_type": "senior",
+        }, follow=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(User.objects.filter(username="newstaff").exists())
+        messages = [str(message) for message in response.context["messages"]]
+        self.assertTrue(any("@nhc.co.tz" in message for message in messages))
+
+    def test_manager_can_create_staff_with_nhc_domain_email(self):
+        self.client.force_login(self.manager)
+
+        response = self.client.post(reverse("add_user"), {
+            "username": "validstaff",
+            "email": "ValidStaff@nhc.co.tz",
+            "password1": "StrongPass123!",
+            "password2": "StrongPass123!",
+            "staff_type": "icto",
+        }, follow=True)
+
+        self.assertEqual(response.status_code, 200)
+        created_user = User.objects.get(username="validstaff")
+        self.assertEqual(created_user.email, "validstaff@nhc.co.tz")
+
+
 class UnassignedAccessTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(

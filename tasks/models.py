@@ -13,12 +13,23 @@ class Category(models.Model):
         max_length=100,
         choices=User.SECTION_CHOICES
     )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='created_task_categories'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
 
     members = models.ManyToManyField(
         User,
         through='CategoryMember',   # through table
         related_name='categories'   # reverse lookup from User
     )
+
+    class Meta:
+        ordering = ['name']
 
     def __str__(self):
         return f"{self.name} ({self.section})"

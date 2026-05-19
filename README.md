@@ -187,7 +187,7 @@ EMAIL_VALIDATE_CERTS=True
 EMAIL_TLS_CA_CERT_PATH=
 EMAIL_HOST_USER=witnes.nshobairwe@nhc.co.tz
 EMAIL_HOST_PASSWORD=your-smtp-password
-DEFAULT_FROM_EMAIL=witnes.nshobairwe@nhc.co.tz
+DEFAULT_FROM_EMAIL=ictsupport@nhc.co.tz
 DJANGO_SITE_BASE_URL=http://127.0.0.1:8000
 ```
 

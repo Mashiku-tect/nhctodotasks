@@ -27,8 +27,9 @@ class CategoryMemberInline(admin.TabularInline):
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
 class CategoryAdmin(admin.ModelAdmin):
-    list_display = ('name', 'section')
+    list_display = ('name', 'section', 'created_by', 'created_at')
     inlines = [CategoryMemberInline]
+    readonly_fields = ('created_at',)
 
     def get_form(self, request, obj=None, **kwargs):
         form = super().get_form(request, obj, **kwargs)

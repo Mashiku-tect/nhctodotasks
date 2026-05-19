@@ -93,6 +93,11 @@
     word-break: break-word;
 }
 
+.report-category-cell {
+    white-space: normal;
+    word-break: break-word;
+}
+
 .report-assignee-list {
     display: flex;
     flex-wrap: wrap;
@@ -280,9 +285,20 @@
                 </select>
             </div>
             <div class="col-md-2">
+                <label class="form-label fw-semibold">Task Category</label>
+                <select name="category" class="form-select">
+                    <option value="">All</option>
+                    {% for category_name in category_options %}
+                    <option value="{{ category_name }}" {% if filters.category == category_name %}selected{% endif %}>{{ category_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% if report_kind != 'my' %}
+            <div class="col-md-2">
                 <label class="form-label fw-semibold">Search</label>
                 <input type="text" name="q" value="{{ filters.q }}" class="form-control" placeholder="Task or user">
             </div>
+            {% endif %}
             <div class="col-md-2 d-flex gap-2">
                 <button type="submit" class="btn btn-primary w-100">Filter</button>
                 <a href="{% if report_kind == 'my' %}{% url 'report_my_tasks' %}{% else %}{% url 'report_assigned_tasks' %}{% endif %}" class="btn btn-outline-secondary w-100">Reset</a>
@@ -296,10 +312,15 @@
                 <thead class="table-light">
                     <tr>
                         <th>S/N</th>
+                        {% if report_kind == 'my' %}
+                        <th>Task Category</th>
+                        <th>Task Activity</th>
+                        {% else %}
                         <th>Task</th>
+                        {% endif %}
                         {% if show_counterparty %}<th>{{ counterparty_label }}</th>{% endif %}
                         <th>Priority</th>
-                        {% if show_category %}<th>Category</th>{% endif %}
+                        {% if show_category and report_kind != 'my' %}<th>Category</th>{% endif %}
                         <th>Status</th>
                         {% if show_review %}<th>Review</th>{% endif %}
                         <th>Due Date</th>
@@ -311,12 +332,19 @@
                     {% for record in records %}
                     <tr>
                         <td>{{ forloop.counter }}</td>
+                        {% if report_kind == 'my' %}
+                        <td class="report-category-cell">{{ record.category_name|default:'-' }}</td>
+                        <td>
+                            <div class="report-task-description">{{ record.task_description|default:record.task_title|default:'-' }}</div>
+                        </td>
+                        {% else %}
                         <td>
                             <div class="fw-semibold">{{ record.task_title }}</div>
                             {% if record.task_description %}
                             <div class="small text-muted report-task-description">{{ record.task_description }}</div>
                             {% endif %}
                         </td>
+                        {% endif %}
                         {% if show_counterparty %}
                         <td>
                             {% if report_kind == 'assigned_manager' %}
@@ -334,7 +362,7 @@
                         </td>
                         {% endif %}
                         <td>{{ record.priority|default:'-'|capfirst }}</td>
-                        {% if show_category %}<td>{{ record.category_name|default:'-' }}</td>{% endif %}
+                        {% if show_category and report_kind != 'my' %}<td class="report-category-cell">{{ record.category_name|default:'-' }}</td>{% endif %}
                         <td><span class="badge bg-secondary">{{ record.status|capfirst }}</span></td>
                         {% if show_review %}<td><span class="badge bg-light text-dark border">{{ record.review_status|capfirst }}</span></td>{% endif %}
                         <td>{{ record.due_date|date:"Y-m-d" }}</td>
@@ -349,7 +377,7 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="{% if show_counterparty and show_category and show_review %}10{% elif show_counterparty %}8{% else %}7{% endif %}" class="text-center text-muted py-4">No report records found for the selected filters.</td>
+                        <td colspan="{{ table_colspan|default:7 }}" class="text-center text-muted py-4">No report records found for the selected filters.</td>
                     </tr>
                     {% endfor %}
                 </tbody>

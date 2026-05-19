@@ -2,12 +2,15 @@ from datetime import timedelta
 
 from django.conf import settings
 from django.test import TestCase
+from django.test import override_settings
 from django.urls import resolve, reverse
 from django.utils import timezone
 from datetime import timedelta
+from unittest.mock import ANY, patch
 
 from accounts.models import User
-from tasks.models import Task, UserTask, DailyCheckIn, Category, CategoryMember, SubTask
+from tasks.models import Task, UserTask, DailyCheckIn, Category, CategoryMember, Notification, SubTask
+from tasks.notifications import send_notification_email
 
 
 class StaffPerformanceReportTests(TestCase):
@@ -222,6 +225,70 @@ class StaffPerformanceReportTests(TestCase):
         self.assertEqual(senior_group["summary"]["pending_tasks"], 0)
         self.assertEqual(senior_group["summary"]["in_progress_tasks"], 1)
 
+    def test_rejected_tasks_are_not_double_counted_as_pending_or_overdue(self):
+        self.client.force_login(self.manager)
+
+        rejected_task = Task.objects.create(
+            title="Rejected overdue task",
+            description="",
+            due_date=timezone.localdate() - timedelta(days=1),
+            priority="normal",
+        )
+        UserTask.objects.create(
+            task=rejected_task,
+            assigned_by=self.manager,
+            assigned_to=self.staff_one,
+            status="pending",
+            review_status="rejected",
+        )
+
+        response = self.client.get(reverse("reports_performance"))
+
+        self.assertEqual(response.status_code, 200)
+        performance_data = list(response.context["performance_data"])
+        alice_data = next(item for item in performance_data if item["staff"] == self.staff_one)
+
+        self.assertEqual(alice_data["rejected_tasks"], 1)
+        self.assertEqual(alice_data["pending_tasks"], 0)
+        self.assertEqual(alice_data["overdue_tasks"], 0)
+
+    def test_manager_assigned_completed_task_needs_acceptance_before_counting_in_score(self):
+        self.client.force_login(self.manager)
+
+        review_task = Task.objects.create(
+            title="Awaiting manager review",
+            description="",
+            due_date=timezone.localdate() + timedelta(days=1),
+            priority="normal",
+        )
+        user_task = UserTask.objects.create(
+            task=review_task,
+            assigned_by=self.manager,
+            assigned_to=self.staff_one,
+            status="completed",
+            review_status="pending",
+            completed_at=timezone.now(),
+        )
+
+        response = self.client.get(reverse("reports_performance"))
+        self.assertEqual(response.status_code, 200)
+        performance_data = list(response.context["performance_data"])
+        alice_data = next(item for item in performance_data if item["staff"] == self.staff_one)
+
+        self.assertEqual(alice_data["completed_tasks"], 1)
+        self.assertEqual(alice_data["on_time_completed"], 1)
+
+        user_task.review_status = "accepted"
+        user_task.save(update_fields=["review_status"])
+
+        response = self.client.get(reverse("reports_performance"))
+        self.assertEqual(response.status_code, 200)
+        performance_data = list(response.context["performance_data"])
+        alice_data = next(item for item in performance_data if item["staff"] == self.staff_one)
+
+        self.assertEqual(alice_data["completed_tasks"], 2)
+        self.assertEqual(alice_data["on_time_completed"], 2)
+
     def test_self_tasks_are_included_in_shared_dashboard_counts(self):
         self.client.force_login(self.manager)
 
@@ -416,6 +483,105 @@ class TaskWorkspaceSelectionTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Completed")
+
+
+class PersonalTaskCategorySetupTests(TestCase):
+    def setUp(self):
+        self.staff = User.objects.create_user(
+            username="activity_owner",
+            email="activity_owner@nhc.co.tz",
+            password="StrongPass123!",
+            section="ict",
+            role="staff",
+        )
+
+    def test_user_can_create_personal_task_category_from_setup_page(self):
+        self.client.force_login(self.staff)
+
+        response = self.client.post(reverse("task_category_setup"), {"name": "Correspondence"}, follow=True)
+
+        self.assertEqual(response.status_code, 200)
+        category = Category.objects.get(name="Correspondence")
+        self.assertEqual(category.created_by, self.staff)
+        self.assertContains(response, "Task category saved successfully")
+
+    def test_my_tasks_page_shows_only_current_users_personal_categories(self):
+        own_category = Category.objects.create(name="Reports", section="ict", created_by=self.staff)
+        other_user = User.objects.create_user(
+            username="other_owner",
+            email="other_owner@nhc.co.tz",
+            password="StrongPass123!",
+            section="ict",
+            role="staff",
+        )
+        Category.objects.create(name="Travel", section="ict", created_by=other_user)
+
+        self.client.force_login(self.staff)
+        response = self.client.get(reverse("my_tasks"))
+
+        self.assertEqual(response.status_code, 200)
+        categories = list(response.context["activity_categories"])
+        self.assertEqual(categories, [own_category])
+        self.assertContains(response, "Reports")
+        self.assertNotContains(response, "Travel")
+
+
+class CreateActivityWithPersonalCategoryTests(TestCase):
+    def setUp(self):
+        self.staff = User.objects.create_user(
+            username="activity_staff",
+            email="activity_staff@nhc.co.tz",
+            password="StrongPass123!",
+            section="ict",
+            role="staff",
+        )
+        self.personal_category = Category.objects.create(
+            name="Meetings",
+            section="ict",
+            created_by=self.staff,
+        )
+
+    def test_self_activity_creation_requires_personal_category(self):
+        self.client.force_login(self.staff)
+
+        response = self.client.post(
+            reverse("create_task"),
+            {
+                "description": "Weekly planning session",
+                "due_date": timezone.localdate().isoformat(),
+                "priority": "normal",
+            },
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertJSONEqual(response.content, {"error": "Please select a valid activity category."})
+
+    def test_self_activity_creation_uses_users_personal_category(self):
+        self.client.force_login(self.staff)
+
+        response = self.client.post(
+            reverse("create_task"),
+            {
+                "description": "Weekly planning session",
+                "due_date": timezone.localdate().isoformat(),
+                "priority": "normal",
+                "category_id": str(self.personal_category.id),
+            },
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        created_task = Task.objects.get(description="Weekly planning session")
+        self.assertEqual(created_task.category, self.personal_category)
+        self.assertEqual(created_task.title, "Weekly planning session")
+        self.assertTrue(
+            UserTask.objects.filter(
+                task=created_task,
+                assigned_by=self.staff,
+                assigned_to=self.staff,
+            ).exists()
+        )
 
 
 class NotificationTests(TestCase):
@@ -640,6 +806,61 @@ class DashboardRecentTasksTests(TestCase):
         self.assertEqual(recent_item["display_status_label"], user_task.get_status_display())
         self.assertFalse(recent_item["waiting_reassignment"])
         self.assertNotContains(response, "Returned to Manager")
+
+
+@override_settings(
+    NOTIFICATION_EMAILS_ENABLED=True,
+    NOTIFICATION_EMAIL_ALLOWED_DOMAIN="nhc.co.tz",
+    EMAIL_HOST_USER="smtp-user@nhc.co.tz",
+    EMAIL_HOST_PASSWORD="secret",
+)
+class NotificationEmailDeliveryRulesTests(TestCase):
+    def test_notification_email_is_skipped_for_non_nhc_recipient(self):
+        user = User.objects.create_user(
+            username="externaluser",
+            email="external@example.com",
+            password="StrongPass123!",
+            section="ict",
+            role="staff",
+        )
+        notification = Notification.objects.create(
+            user=user,
+            title="Task updated",
+            message="A task changed.",
+            notification_type="task_updated",
+        )
+
+        with patch("tasks.notifications.send_mail") as mock_send_mail:
+            send_notification_email(notification)
+
+        mock_send_mail.assert_not_called()
+
+    def test_notification_email_uses_default_from_email_for_nhc_recipient(self):
+        user = User.objects.create_user(
+            username="internaluser",
+            email="internal@nhc.co.tz",
+            password="StrongPass123!",
+            section="ict",
+            role="staff",
+        )
+        notification = Notification.objects.create(
+            user=user,
+            title="Task assigned",
+            message="You have a new task.",
+            notification_type="task_assigned",
+        )
+
+        with override_settings(DEFAULT_FROM_EMAIL="ictsupport@nhc.co.tz"):
+            with patch("tasks.notifications.send_mail") as mock_send_mail:
+                send_notification_email(notification)
+
+        mock_send_mail.assert_called_once_with(
+            subject="Task assigned",
+            message=ANY,
+            from_email="ictsupport@nhc.co.tz",
+            recipient_list=["internal@nhc.co.tz"],
+            fail_silently=False,
+        )
 
 
 class DailyAccountabilityBoardTests(TestCase):

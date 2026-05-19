@@ -217,10 +217,10 @@
         <div class="d-flex justify-content-between align-items-center mb-4">
             <div>
                 <h2 class="h4 mb-0">My Tasks</h2>
-                <small class="text-muted">Tasks you created and assigned to yourself</small>
+                <small class="text-muted">Activities you created and assigned to yourself</small>
             </div>
             <button type="button" class="btn btn-primary" id="openQuickTaskModalBtn">
-                <i class="bi bi-plus-circle me-1"></i>Create Task
+                <i class="bi bi-plus-circle me-1"></i>Add Activity
             </button>
         </div>
 
@@ -250,7 +250,12 @@
                 </select>
             </div>
             <div class="col-md-3">
-                <input type="text" name="q" value="{{ current_filters.q|default:'' }}" placeholder="Search by title..." class="form-control form-control-sm">
+                <select name="category" class="form-select form-select-sm">
+                    <option value="">All Task Categories</option>
+                    {% for category in activity_categories %}
+                    <option value="{{ category.id }}" {% if current_filters.category == category.id|stringformat:'s' %}selected{% endif %}>{{ category.name }}</option>
+                    {% endfor %}
+                </select>
             </div>
             <div class="col-md-3 d-flex gap-2">
                 <button type="submit" class="btn btn-primary btn-sm">
@@ -281,8 +286,8 @@
                 <thead class="table-light">
                     <tr>
                         <th>S/N</th>
-                        <th>Title</th>
-                        <th>Description</th>
+                        <th>Task Category</th>
+                        <th>Activity Description</th>
                         <th>Priority</th>
                         <th>Due Date</th>
                         <th>Days Left</th>
@@ -298,7 +303,7 @@
                         data-panel-url="{% url 'task_detail_panel' task.id %}">
                         <td>{{ tasks.start_index|add:forloop.counter0 }}</td>
                         <td style="max-width:200px;">
-                            <div style="white-space: normal; word-break: break-word;">{{ task.title }}</div>
+                            <div style="white-space: normal; word-break: break-word;">{{ task.category.name|default:"-" }}</div>
                         </td>
                         <td style="max-width:250px;">
                             <div style="white-space: pre-line; word-break: break-word;">{{ task.description|default:"-" }}</div>
@@ -376,17 +381,17 @@
             <ul class="pagination justify-content-center mb-0">
                 {% if tasks.has_previous %}
                 <li class="page-item">
-                    <a class="page-link" href="?page={{ tasks.previous_page_number }}&q={{ request.GET.q }}&selected={{ selected_task_id|default:'' }}">Previous</a>
+                    <a class="page-link" href="?page={{ tasks.previous_page_number }}&due={{ current_filters.due|default:'' }}&status={{ current_filters.status|default:'' }}&review={{ current_filters.review|default:'' }}&category={{ current_filters.category|default:'' }}&selected={{ selected_task_id|default:'' }}">Previous</a>
                 </li>
                 {% endif %}
                 {% for num in tasks.paginator.page_range %}
                 <li class="page-item {% if tasks.number == num %}active{% endif %}">
-                    <a class="page-link" href="?page={{ num }}&q={{ request.GET.q }}&selected={{ selected_task_id|default:'' }}">{{ num }}</a>
+                    <a class="page-link" href="?page={{ num }}&due={{ current_filters.due|default:'' }}&status={{ current_filters.status|default:'' }}&review={{ current_filters.review|default:'' }}&category={{ current_filters.category|default:'' }}&selected={{ selected_task_id|default:'' }}">{{ num }}</a>
                 </li>
                 {% endfor %}
                 {% if tasks.has_next %}
                 <li class="page-item">
-                    <a class="page-link" href="?page={{ tasks.next_page_number }}&q={{ request.GET.q }}&selected={{ selected_task_id|default:'' }}">Next</a>
+                    <a class="page-link" href="?page={{ tasks.next_page_number }}&due={{ current_filters.due|default:'' }}&status={{ current_filters.status|default:'' }}&review={{ current_filters.review|default:'' }}&category={{ current_filters.category|default:'' }}&selected={{ selected_task_id|default:'' }}">Next</a>
                 </li>
                 {% endif %}
             </ul>
@@ -432,19 +437,29 @@
             <input type="hidden" name="return_to" id="quickTaskReturnTo" value="">
             <div class="modal-header">
                 <div>
-                    <h5 class="modal-title" id="quickTaskModalLabel">Create Task</h5>
-                    <div class="quick-task-note">Create your own task quickly without leaving the My Tasks page.</div>
+                    <h5 class="modal-title" id="quickTaskModalLabel">Add Activity</h5>
+                    <div class="quick-task-note">Pick one of your setup categories first, then capture the activity details.</div>
                 </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
                 <div class="row g-3">
                     <div class="col-12">
-                        <label class="form-label" for="quickTaskTitle">Task Title</label>
-                        <input id="quickTaskTitle" type="text" name="title" class="form-control" required>
+                        <label class="form-label" for="quickTaskCategory">Activity Category</label>
+                        <select id="quickTaskCategory" name="category_id" class="form-select" required>
+                            <option value="">-- Select Activity Category --</option>
+                            {% for category in activity_categories %}
+                            <option value="{{ category.id }}">{{ category.name }}</option>
+                            {% endfor %}
+                        </select>
+                        {% if not activity_categories %}
+                        <div class="quick-task-note mt-2">
+                            No activity categories yet. Add them in <a href="{% url 'task_category_setup' %}">Setup</a> first.
+                        </div>
+                        {% endif %}
                     </div>
                     <div class="col-12">
-                        <label class="form-label" for="quickTaskDescription">Description</label>
+                        <label class="form-label" for="quickTaskDescription">Activity Description</label>
                         <textarea id="quickTaskDescription" name="description" class="form-control" rows="4"></textarea>
                     </div>
                     <div class="col-md-6">
@@ -468,7 +483,7 @@
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
                 <button type="submit" class="btn btn-primary" id="quickTaskSubmitBtn">
-                    <i class="bi bi-check2-circle me-1"></i>Save Task
+                    <i class="bi bi-check2-circle me-1"></i>Save Activity
                 </button>
             </div>
         </form>
@@ -526,7 +541,7 @@ document.addEventListener('click', function(event) {
     const quickTaskForm = document.getElementById('quickTaskForm');
     const quickTaskOpenBtn = document.getElementById('openQuickTaskModalBtn');
     const quickTaskSubmitBtn = document.getElementById('quickTaskSubmitBtn');
-    const quickTaskTitleInput = document.getElementById('quickTaskTitle');
+    const quickTaskCategoryInput = document.getElementById('quickTaskCategory');
     const quickTaskDescriptionInput = document.getElementById('quickTaskDescription');
     const quickTaskDueDateInput = document.getElementById('quickTaskDueDate');
     const quickTaskPriorityInput = document.getElementById('quickTaskPriority');
@@ -662,7 +677,9 @@ document.addEventListener('click', function(event) {
         }
 
         resetQuickTaskForm();
-        quickTaskTitleInput.value = prefill.title || '';
+        if (quickTaskCategoryInput) {
+            quickTaskCategoryInput.value = prefill.categoryId || '';
+        }
         quickTaskDescriptionInput.value = prefill.description || '';
         quickTaskDueDateInput.value = prefill.dueDate || todayString();
         if (prefill.priority) {
@@ -973,8 +990,8 @@ document.addEventListener('click', function(event) {
                 const quickTaskModal = getBootstrapModal(quickTaskModalEl);
                 quickTaskModal.hide();
                 await Swal.fire({
-                    title: 'Task saved',
-                    text: 'Task created successfully.',
+                    title: 'Activity saved',
+                    text: 'Activity created successfully.',
                     icon: 'success',
                     timer: 1400,
                     showConfirmButton: false
@@ -982,7 +999,7 @@ document.addEventListener('click', function(event) {
                 window.location.href = data.redirect_url || window.location.href;
             } catch (error) {
                 await Swal.fire({
-                    title: 'Could not save task',
+                    title: 'Could not save activity',
                     text: error.message || 'Something went wrong.',
                     icon: 'error',
                     confirmButtonColor: '#dc3545'

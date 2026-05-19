@@ -230,7 +230,7 @@ EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True').lower() == 'true'
 EMAIL_USE_SSL = os.environ.get('EMAIL_USE_SSL', 'False').lower() == 'true'
 EMAIL_VALIDATE_CERTS = os.environ.get('EMAIL_VALIDATE_CERTS', 'True').lower() == 'true'
 EMAIL_TLS_CA_CERT_PATH = os.environ.get('EMAIL_TLS_CA_CERT_PATH', '').strip()
-DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER or 'noreply@example.com')
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER or 'ictsupport@nhc.co.tz')
 NOTIFICATION_EMAILS_ENABLED = os.environ.get('NOTIFICATION_EMAILS_ENABLED', 'False').lower() == 'true'
 NOTIFICATION_EMAIL_ALLOWED_DOMAIN = os.environ.get('NOTIFICATION_EMAIL_ALLOWED_DOMAIN', 'nhc.co.tz').lower().lstrip('@')
 NOTIFICATION_SYNC_INTERVAL_SECONDS = int(os.environ.get('NOTIFICATION_SYNC_INTERVAL_SECONDS', '300'))

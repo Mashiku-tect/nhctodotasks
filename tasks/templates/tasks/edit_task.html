@@ -41,12 +41,12 @@
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
-        <h4 class="mb-1">Edit Task</h4>
+        <h4 class="mb-1">{% if is_my_task %}Edit Activity{% else %}Edit Task{% endif %}</h4>
         <small class="text-muted">
             {% if is_assigned_task %}
             Update task details and assigned staff
             {% else %}
-            Update your personal task details
+            Update your personal activity details
             {% endif %}
         </small>
     </div>
@@ -60,15 +60,29 @@
 
                 <div class="section-title">Basic Info</div>
 
+                {% if not is_my_task %}
                 <div class="mb-3">
                     <label class="form-label">Task Title</label>
                     <input type="text" name="title" class="form-control" value="{{ task.title }}" placeholder="Enter task title" required>
                 </div>
+                {% endif %}
 
                 <div class="mb-3">
-                    <label class="form-label">Description</label>
+                    <label class="form-label">{% if is_my_task %}Activity Description{% else %}Description{% endif %}</label>
                     <textarea name="description" class="form-control" rows="3" placeholder="Optional details">{{ task.description }}</textarea>
                 </div>
+
+                {% if is_my_task %}
+                <div class="mb-3">
+                    <label class="form-label">Activity Category</label>
+                    <select name="category_id" class="form-select" required>
+                        <option value="">-- Select Activity Category --</option>
+                        {% for cat in activity_categories %}
+                        <option value="{{ cat.id }}" {% if selected_category_id == cat.id %}selected{% endif %}>{{ cat.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% endif %}
 
                 <div class="section-title mt-4">Details</div>
 
@@ -132,7 +146,7 @@
                     <a href="{% if is_assigned_task %}{% url 'assigned_tasks' %}{% else %}{% url 'my_tasks' %}{% endif %}" class="btn btn-outline-secondary">
                         Cancel
                     </a>
-                    <button class="btn btn-primary px-4" type="submit">Update Task</button>
+                    <button class="btn btn-primary px-4" type="submit">{% if is_my_task %}Update Activity{% else %}Update Task{% endif %}</button>
                 </div>
             </form>
         </div>
