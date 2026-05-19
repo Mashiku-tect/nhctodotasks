@@ -691,7 +691,7 @@ def assigned_tasks(request):
         'page_obj': page_obj,
         'selected_task_id': selected_task_id,
         'selected_task_context': selected_task_context,
-        'categories': Category.objects.filter(section=user.section) if user.role == 'manager' else [],
+        'categories': get_shared_section_categories(user) if user.role == 'manager' else [],
         'PRIORITY_CHOICES': Task.PRIORITY_CHOICES,
         'current_filters': {
             'status': status_filter,
