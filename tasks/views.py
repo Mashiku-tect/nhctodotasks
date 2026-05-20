@@ -59,6 +59,37 @@ def build_task_attachment_list(task):
     return attachments
 
 
+def build_task_creation_attachment_list(task):
+    attachments = []
+    creator_ids = set(
+        task.user_tasks.values_list('assigned_by_id', flat=True)
+    )
+
+    if task.attachment:
+        attachments.append({
+            'name': os.path.basename(task.attachment.name),
+            'url': task.attachment.url,
+            'uploaded_by': None,
+            'created_at': task.created_at,
+            'is_legacy': True,
+        })
+
+    for attachment in task.attachments.select_related('uploaded_by').all():
+        if attachment.uploaded_by_id not in creator_ids:
+            continue
+
+        attachments.append({
+            'name': os.path.basename(attachment.file.name),
+            'url': attachment.file.url,
+            'uploaded_by': attachment.uploaded_by,
+            'created_at': attachment.created_at,
+            'is_legacy': False,
+        })
+
+    attachments.sort(key=lambda item: item['created_at'] or timezone.now())
+    return attachments
+
+
 def create_task_attachments(task, files, uploaded_by):
     for uploaded_file in files:
         TaskAttachment.objects.create(
@@ -138,7 +169,7 @@ def build_assigned_task_item(user, task, usertasks, today):
         "reassign_needed": reassign_needed,
         "deadline_progress": deadline_progress,
         "completed_by": task.completed_by,
-        "attachment_files": build_task_attachment_list(task),
+        "attachment_files": build_task_creation_attachment_list(task),
     }
 
 
@@ -1154,7 +1185,12 @@ def reassign_task(request, task_id):
         task.user_tasks.exclude(assigned_to=request.user).values_list('assigned_to_id', flat=True)
     )
 
-    categories = Category.objects.filter(section=request.user.section).order_by('name')
+    categories = Category.objects.filter(
+        section=request.user.section,
+        created_by__isnull=True,
+        category_members__user__role='staff',
+        category_members__user__is_active=True,
+    ).distinct().order_by('name')
     selected_category_id = task.category_id
     selected_assigned_to_ids = current_assignee_ids[:]
     staff_users = User.objects.none()
@@ -1169,14 +1205,17 @@ def reassign_task(request, task_id):
 
     if request.method == 'POST':
         category_id = request.POST.get('category_id')
-        selected_user_ids = request.POST.getlist('assigned_to[]')
+        selected_user_ids = request.POST.getlist('assigned_to[]') or request.POST.getlist('assigned_to')
         selected_assigned_to_ids = [
             int(user_id) for user_id in selected_user_ids if user_id.isdigit()
         ]
 
         category = Category.objects.filter(
             id=category_id,
-            section=request.user.section
+            section=request.user.section,
+            created_by__isnull=True,
+            category_members__user__role='staff',
+            category_members__user__is_active=True,
         ).first()
 
         if not category:

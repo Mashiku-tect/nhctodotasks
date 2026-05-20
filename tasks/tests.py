@@ -1,15 +1,17 @@
 from datetime import timedelta
 
 from django.conf import settings
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.test import override_settings
 from django.urls import resolve, reverse
 from django.utils import timezone
 from datetime import timedelta
 from unittest.mock import ANY, patch
+import tempfile
 
 from accounts.models import User
-from tasks.models import Task, UserTask, DailyCheckIn, Category, CategoryMember, Notification, SubTask
+from tasks.models import Task, UserTask, DailyCheckIn, Category, CategoryMember, Notification, SubTask, TaskAttachment
 from tasks.notifications import send_notification_email
 
 
@@ -483,6 +485,31 @@ class TaskWorkspaceSelectionTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Completed")
+
+    @override_settings(MEDIA_ROOT=tempfile.gettempdir())
+    def test_assigned_tasks_attachment_column_excludes_completion_uploads(self):
+        TaskAttachment.objects.create(
+            task=self.assigned_task,
+            uploaded_by=self.manager,
+            file=SimpleUploadedFile("task-brief.pdf", b"brief", content_type="application/pdf"),
+        )
+        TaskAttachment.objects.create(
+            task=self.assigned_task,
+            uploaded_by=self.staff,
+            file=SimpleUploadedFile("completion-proof.pdf", b"proof", content_type="application/pdf"),
+        )
+
+        self.client.force_login(self.manager)
+        response = self.client.get(reverse("assigned_tasks"))
+
+        self.assertEqual(response.status_code, 200)
+        attachment_names = [
+            attachment["name"]
+            for item in response.context["task_list"].object_list
+            if item["task"].id == self.assigned_task.id
+            for attachment in item["attachment_files"]
+        ]
+        self.assertEqual(attachment_names, ["task-brief.pdf"])
 
 
 class PersonalTaskCategorySetupTests(TestCase):
@@ -1078,6 +1105,26 @@ class ReassignTaskCategoryTests(TestCase):
         self.assertEqual(response.status_code, 302)
         user_task = UserTask.objects.get(task=self.task, assigned_to=self.staff_two)
         self.assertIsNotNone(user_task.reassigned_at)
+
+    def test_reassign_page_shows_only_shared_categories_with_staff(self):
+        manager_only_category = Category.objects.create(
+            name="Manager Notes",
+            section="ict",
+            created_by=self.manager,
+        )
+        empty_shared_category = Category.objects.create(
+            name="Unused Shared",
+            section="ict",
+        )
+
+        self.client.force_login(self.manager)
+        response = self.client.get(reverse("reassign_task", args=[self.task.id]))
+
+        self.assertEqual(response.status_code, 200)
+        categories = list(response.context["categories"])
+        self.assertIn(self.category, categories)
+        self.assertNotIn(manager_only_category, categories)
+        self.assertNotIn(empty_shared_category, categories)
 
     def test_category_users_json_only_returns_staff_from_manager_section(self):
         self.client.force_login(self.manager)

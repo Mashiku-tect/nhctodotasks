@@ -4,10 +4,10 @@
     {% if item.waiting_reassignment and user.role == 'staff' %}title="This task is overdue. Wait for manager to reassign." data-bs-toggle="tooltip"{% endif %}>
     <td class="task-serial">{{ page_index }}</td>
     <td>
-        <strong style="white-space: normal; word-break: break-word;">{{ item.task.title }}</strong>
+        <span class="task-row-title">{{ item.task.title }}</span>
     </td>
     <td>
-        <small class="text-muted" style="white-space: pre-line; word-break: break-word;">{{ item.task.description|default:"-" }}</small>
+        <span class="task-row-description">{{ item.task.description|default:"-" }}</span>
     </td>
     <td>
         {% if item.usertasks|length > 1 %}

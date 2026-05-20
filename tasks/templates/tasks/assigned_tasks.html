@@ -21,6 +21,59 @@
 .task-row td {
     vertical-align: middle;
 }
+.assigned-task-table {
+    table-layout: fixed;
+    width: 100%;
+}
+.assigned-task-table th,
+.assigned-task-table td {
+    padding: .9rem .75rem;
+    white-space: normal;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+}
+.assigned-task-table th {
+    line-height: 1.35;
+}
+.assigned-task-table td:not(.text-center) {
+    line-height: 1.5;
+}
+.assigned-task-table th:nth-child(2),
+.assigned-task-table td:nth-child(2) {
+    width: 18%;
+}
+.assigned-task-table th:nth-child(3),
+.assigned-task-table td:nth-child(3) {
+    width: 22%;
+}
+.task-row-title {
+    display: block;
+    font-size: 1.08rem;
+    font-weight: 600;
+    line-height: 1.45;
+    color: #122033;
+    white-space: normal;
+    word-break: break-word;
+}
+.task-row-description {
+    display: block;
+    margin-top: .2rem;
+    font-size: 1rem;
+    line-height: 1.55;
+    color: #5f6f82;
+    white-space: pre-line;
+    word-break: break-word;
+}
+.assigned-task-table td:nth-child(4) .badge,
+.assigned-task-table td:nth-child(8) .badge,
+.assigned-task-table td:nth-child(11) .badge {
+    white-space: normal;
+    line-height: 1.35;
+}
+.assigned-task-table td:nth-child(9) a {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
 .task-row:hover {
     background: #f6fbff;
 }
@@ -218,6 +271,15 @@
     .task-drawer {
         width: 100vw;
     }
+    .assigned-task-table {
+        table-layout: auto;
+    }
+    .task-row-title {
+        font-size: 1rem;
+    }
+    .task-row-description {
+        font-size: .95rem;
+    }
     .task-focus-summary-grid,
     .task-focus-columns {
         grid-template-columns: 1fr;
@@ -293,7 +355,7 @@
 
     <section class="task-list-card">
         <div class="table-responsive">
-            <table class="table table-bordered align-middle mb-0">
+            <table class="table table-bordered align-middle mb-0 assigned-task-table">
                 <thead class="table-light">
                     <tr>
                         <th>S/N</th>
