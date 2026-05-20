@@ -7,7 +7,10 @@
         <span class="task-row-title">{{ item.task.title }}</span>
     </td>
     <td>
-        <span class="task-row-description">{{ item.task.description|default:"-" }}</span>
+        <div class="task-row-description task-row-description-toggle" data-description-toggle>
+            <span class="task-row-description-text">{{ item.task.description|default:"-" }}</span>
+            <button type="button" class="btn btn-link p-0 task-row-description-btn d-none" data-description-toggle-btn>Read more</button>
+        </div>
     </td>
     <td>
         {% if item.usertasks|length > 1 %}

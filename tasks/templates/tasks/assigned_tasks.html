@@ -61,8 +61,31 @@
     font-size: 1rem;
     line-height: 1.55;
     color: #5f6f82;
+}
+.task-row-description-toggle {
+    display: grid;
+    gap: .35rem;
+}
+.task-row-description-text {
     white-space: pre-line;
     word-break: break-word;
+}
+.task-row-description-toggle:not(.is-expanded) .task-row-description-text {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    overflow: hidden;
+}
+.task-row-description-btn {
+    justify-self: start;
+    font-size: .85rem;
+    font-weight: 600;
+    color: #0f766e;
+    text-decoration: none;
+}
+.task-row-description-btn:hover {
+    color: #0b5f59;
+    text-decoration: underline;
 }
 .assigned-task-table td:nth-child(4) .badge,
 .assigned-task-table td:nth-child(8) .badge,
@@ -505,6 +528,19 @@
 
 <script>
 document.addEventListener('click', function(event) {
+    const descriptionToggle = event.target.closest('[data-description-toggle-btn]');
+    if (descriptionToggle) {
+        event.preventDefault();
+        event.stopPropagation();
+        const container = descriptionToggle.closest('[data-description-toggle]');
+        if (!container) {
+            return;
+        }
+        const isExpanded = container.classList.toggle('is-expanded');
+        descriptionToggle.textContent = isExpanded ? 'Show less' : 'Read more';
+        return;
+    }
+
     const toggle = event.target.closest('.toggle-text');
     if (!toggle) {
         return;
@@ -562,6 +598,24 @@ document.addEventListener('click', function(event) {
     const categoryUsersUrl = "{% url 'category_users_json' %}";
     let selectedTaskId = null;
 
+    function initExpandableDescriptions(root = document) {
+        root.querySelectorAll('[data-description-toggle]').forEach((container) => {
+            const text = container.querySelector('.task-row-description-text');
+            const button = container.querySelector('[data-description-toggle-btn]');
+            if (!text || !button) {
+                return;
+            }
+
+            container.classList.remove('is-expanded');
+            button.textContent = 'Read more';
+            button.classList.add('d-none');
+
+            if (text.scrollHeight > text.clientHeight + 1) {
+                button.classList.remove('d-none');
+            }
+        });
+    }
+
     function getCsrfToken() {
         const tokenInput = document.querySelector('[name=csrfmiddlewaretoken]');
         return tokenInput ? tokenInput.value : '';
@@ -608,6 +662,7 @@ document.addEventListener('click', function(event) {
         assignedTaskTableBody.insertAdjacentHTML('afterbegin', rowHtml);
         refreshRowCache();
         renumberAssignedTaskRows();
+        initExpandableDescriptions(assignedTaskTableBody);
     }
 
     function showPageSuccessMessage(message) {
@@ -1300,6 +1355,7 @@ document.addEventListener('click', function(event) {
     }
 
     resetQuickTaskForm();
+    initExpandableDescriptions();
 })();
 </script>
 {% endblock %}

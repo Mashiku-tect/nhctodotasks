@@ -93,6 +93,56 @@
     color: #64748b;
     font-size: 0.86rem;
 }
+.staff-panel-description {
+    display: grid;
+    gap: 0.3rem;
+    min-width: 0;
+}
+
+.staff-panel-description-label {
+    font-weight: 600;
+    color: #475569;
+}
+
+.staff-panel-description-body {
+    white-space: normal;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    line-height: 1.55;
+    text-align: justify;
+    text-justify: inter-word;
+}
+
+.staff-panel-description-line {
+    display: block;
+}
+
+.staff-panel-description-line + .staff-panel-description-line {
+    margin-top: 0.18rem;
+}
+
+.staff-panel-description:not(.is-expanded) .staff-panel-description-body {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    overflow: hidden;
+}
+
+.staff-panel-description-btn {
+    justify-self: start;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: #0f766e;
+    font-size: 0.82rem;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.staff-panel-description-btn:hover {
+    color: #0b5f59;
+    text-decoration: underline;
+}
 
 .staff-panel-status {
     display: inline-block;
@@ -125,6 +175,12 @@
     max-height: 320px;
     overflow-y: auto;
     padding-right: 0.2rem;
+}
+
+@media (max-width: 575.98px) {
+    .staff-panel-task-head {
+        flex-direction: column;
+    }
 }
 </style>
 
@@ -187,7 +243,11 @@
                     </div>
                     <div class="staff-panel-task-meta">
                         {% if ut.task.description %}
-                        <div>Description: {{ ut.task.description }}</div>
+                        <div class="staff-panel-description" data-description-toggle>
+                            <div class="staff-panel-description-label">Description</div>
+                            <div class="staff-panel-description-body">{{ ut.task.description }}</div>
+                            <button type="button" class="staff-panel-description-btn d-none" data-description-toggle-btn>Read more</button>
+                        </div>
                         {% endif %}
                         <div>Assigned by: {{ ut.assigned_by.username }}</div>
                         <div>Due date: {{ ut.task.due_date|date:"d M Y" }}</div>
@@ -212,7 +272,11 @@
                     </div>
                     <div class="staff-panel-task-meta">
                         {% if ut.task.description %}
-                        <div>Description: {{ ut.task.description }}</div>
+                        <div class="staff-panel-description" data-description-toggle>
+                            <div class="staff-panel-description-label">Description</div>
+                            <div class="staff-panel-description-body">{{ ut.task.description }}</div>
+                            <button type="button" class="staff-panel-description-btn d-none" data-description-toggle-btn>Read more</button>
+                        </div>
                         {% endif %}
                         <div>Due date: {{ ut.task.due_date|date:"d M Y" }}</div>
                     </div>
@@ -224,3 +288,93 @@
         </div>
     </div>
 </div>
+
+<script>
+(function() {
+    function splitIntoSentences(text) {
+        const normalized = (text || '').replace(/\r\n/g, '\n').trim();
+        if (!normalized) {
+            return [];
+        }
+
+        const paragraphs = normalized.split('\n').map((part) => part.trim()).filter(Boolean);
+        const lines = [];
+
+        paragraphs.forEach((paragraph) => {
+            const sentences = paragraph.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [paragraph];
+            sentences
+                .map((sentence) => sentence.trim())
+                .filter(Boolean)
+                .forEach((sentence) => lines.push(sentence));
+        });
+
+        return lines;
+    }
+
+    function formatDescriptionLines(root = document) {
+        root.querySelectorAll('.staff-panel-description-body').forEach((container) => {
+            if (container.dataset.formatted === 'true') {
+                return;
+            }
+
+            const lines = splitIntoSentences(container.textContent);
+            if (!lines.length) {
+                return;
+            }
+
+            container.textContent = '';
+            lines.forEach((line) => {
+                const item = document.createElement('span');
+                item.className = 'staff-panel-description-line';
+                item.textContent = line;
+                container.appendChild(item);
+            });
+            container.dataset.formatted = 'true';
+        });
+    }
+
+    function initExpandableDescriptions(root = document) {
+        formatDescriptionLines(root);
+
+        root.querySelectorAll('[data-description-toggle]').forEach((container) => {
+            const text = container.querySelector('.staff-panel-description-body');
+            const button = container.querySelector('[data-description-toggle-btn]');
+            if (!text || !button) {
+                return;
+            }
+
+            container.classList.remove('is-expanded');
+            button.textContent = 'Read more';
+            button.classList.add('d-none');
+
+            if (text.scrollHeight > text.clientHeight + 1) {
+                button.classList.remove('d-none');
+            }
+        });
+    }
+
+    document.addEventListener('click', function(event) {
+        const button = event.target.closest('[data-description-toggle-btn]');
+        if (!button) {
+            return;
+        }
+
+        event.preventDefault();
+        const container = button.closest('[data-description-toggle]');
+        if (!container) {
+            return;
+        }
+
+        const isExpanded = container.classList.toggle('is-expanded');
+        button.textContent = isExpanded ? 'Show less' : 'Read more';
+    });
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function() {
+            initExpandableDescriptions();
+        }, { once: true });
+    } else {
+        initExpandableDescriptions();
+    }
+})();
+</script>
