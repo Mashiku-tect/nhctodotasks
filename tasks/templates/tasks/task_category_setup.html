@@ -60,17 +60,6 @@
     </div>
 </div>
 
-{% if messages %}
-<div id="messagesContainer" class="mb-4">
-    {% for message in messages %}
-    <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags|default:'info' }}{% endif %} alert-dismissible fade show" role="alert">
-        {{ message }}
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    </div>
-    {% endfor %}
-</div>
-{% endif %}
-
 <div class="setup-shell">
     <section class="setup-card">
         <div class="setup-card-header">

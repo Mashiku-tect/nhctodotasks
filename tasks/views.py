@@ -586,7 +586,7 @@ def create_task(request):
             redirect_url = return_to
 
         response_data = {
-            'message': 'success',
+            'message': 'My task created successfully!' if assigned_users == [user] else 'Task assigned successfully!',
             'redirect_url': redirect_url
         }
 
@@ -2786,7 +2786,7 @@ def create_task(request):
             redirect_url = return_to
 
         response_data = {
-            'message': 'success',
+            'message': 'Activity created successfully!' if assigned_users == [user] else 'Task assigned successfully!',
             'redirect_url': redirect_url,
         }
 

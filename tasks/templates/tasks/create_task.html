@@ -373,14 +373,23 @@ $(function () {
                 contentType: false
             });
 
-            Swal.fire({
-                icon: 'success',
-                title: response.message || 'Task created',
-                timer: 1500,
-                showConfirmButton: false
-            }).then(() => {
-                window.location.href = response.redirect_url;
-            });
+            if (typeof window.showAppToast === 'function') {
+                window.showAppToast(response.message || 'Task created successfully.', 'success', {
+                    timer: 1500
+                });
+                window.setTimeout(() => {
+                    window.location.href = response.redirect_url;
+                }, 1550);
+            } else {
+                Swal.fire({
+                    icon: 'success',
+                    title: response.message || 'Task created',
+                    timer: 1500,
+                    showConfirmButton: false
+                }).then(() => {
+                    window.location.href = response.redirect_url;
+                });
+            }
         } catch (err) {
             btn.prop('disabled', false);
             Swal.fire('Error', err.responseJSON?.error || 'Something went wrong', 'error');

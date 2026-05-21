@@ -292,29 +292,31 @@ body.assignment-locked #main {
     padding: 1.5rem;
 }
 
-.alert.alert-dismissible {
-    position: relative;
-    overflow: hidden;
+.swal2-popup.app-toast-popup {
+    width: min(360px, calc(100vw - 1.5rem));
+    border: 1px solid rgba(226, 232, 240, 0.95);
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.98);
+    box-shadow: 0 18px 45px rgba(15, 23, 42, 0.16);
+    padding: 0.8rem 1rem;
 }
 
-.alert-timebar {
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    height: 4px;
-    background: rgba(15, 23, 42, 0.12);
-    transform-origin: left center;
-    animation: alertCountdown 3s linear forwards;
+.swal2-popup.app-toast-popup.swal2-toast .swal2-title {
+    margin: 0;
+    font-size: 0.94rem;
+    font-weight: 700;
+    color: #0f172a;
 }
 
-@keyframes alertCountdown {
-    from {
-        transform: scaleX(1);
-    }
-    to {
-        transform: scaleX(0);
-    }
+.swal2-popup.app-toast-popup.swal2-toast .swal2-html-container {
+    margin: 0.2rem 0 0;
+    font-size: 0.82rem;
+    color: #475569;
+}
+
+.swal2-popup.app-toast-popup.swal2-toast .swal2-icon {
+    margin: 0 0.65rem 0 0;
+    transform: scale(0.78);
 }
 
 /* FOOTER */
@@ -691,6 +693,19 @@ footer {
 
 </div>
 
+{% if messages %}
+<script id="django-messages-data" type="application/json">
+[
+{% for message in messages %}
+    {
+        "message": "{{ message|escapejs }}",
+        "tags": "{{ message.tags|default:'info'|escapejs }}"
+    }{% if not forloop.last %},{% endif %}
+{% endfor %}
+]
+</script>
+{% endif %}
+
 {% if request.user.is_authenticated and request.user.needs_assignment %}
 <div class="assignment-overlay">
     <div class="assignment-overlay-card">
@@ -709,6 +724,8 @@ footer {
     </div>
 </div>
 {% endif %}
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
 <script>
 const sidebar = document.getElementById('sidebar');
@@ -729,22 +746,97 @@ document.querySelectorAll('.nav-link').forEach(link => {
     }
 });
 
-document.querySelectorAll('.alert.alert-dismissible').forEach(alertEl => {
-    if (!alertEl.querySelector('.alert-timebar')) {
-        const timebar = document.createElement('div');
-        timebar.className = 'alert-timebar';
-        alertEl.appendChild(timebar);
+function getToastIcon(level) {
+    const normalizedLevel = String(level || 'info').split(' ')[0].toLowerCase();
+    if (normalizedLevel === 'error' || normalizedLevel === 'danger') {
+        return 'error';
     }
+    if (['success', 'warning', 'info', 'question'].includes(normalizedLevel)) {
+        return normalizedLevel;
+    }
+    return 'info';
+}
 
-    window.setTimeout(() => {
-        if (!alertEl.isConnected) return;
-        const alertInstance = bootstrap.Alert.getOrCreateInstance(alertEl);
-        alertInstance.close();
-    }, 3000);
-});
+function isToastEligible(config) {
+    return Boolean(
+        config &&
+        typeof config === 'object' &&
+        !config.toast &&
+        !config.showCancelButton &&
+        !config.showDenyButton &&
+        !config.input &&
+        !config.preConfirm
+    );
+}
+
+if (window.Swal && typeof window.Swal.fire === 'function') {
+    const originalSwalFire = window.Swal.fire.bind(window.Swal);
+
+    window.showAppToast = function(message, level = 'success', options = {}) {
+        const toastOptions = {
+            toast: true,
+            position: 'top-end',
+            icon: getToastIcon(level),
+            title: message,
+            showConfirmButton: false,
+            timer: 2600,
+            timerProgressBar: true,
+            customClass: {
+                popup: 'app-toast-popup'
+            },
+            didOpen: (toast) => {
+                window.Swal.stopTimer();
+                window.Swal.resumeTimer();
+                toast.addEventListener('mouseenter', window.Swal.stopTimer);
+                toast.addEventListener('mouseleave', window.Swal.resumeTimer);
+                if (typeof options.didOpen === 'function') {
+                    options.didOpen(toast);
+                }
+            },
+            ...options,
+        };
+
+        return originalSwalFire(toastOptions);
+    };
+
+    window.Swal.fire = function(...args) {
+        const config = args.length === 1 && typeof args[0] === 'object'
+            ? { ...args[0] }
+            : null;
+
+        if (isToastEligible(config)) {
+            const { icon = 'info', title = '', text = '', html, showConfirmButton, timer, timerProgressBar, ...rest } = config;
+            return window.showAppToast(title || text || 'Done', icon, {
+                text: title && text && title !== text ? text : '',
+                html: html,
+                showConfirmButton: showConfirmButton ?? false,
+                timer: timer ?? 2600,
+                timerProgressBar: timerProgressBar ?? true,
+                ...rest,
+            });
+        }
+
+        return originalSwalFire(...args);
+    };
+}
+
+const messageScript = document.getElementById('django-messages-data');
+if (messageScript && window.showAppToast) {
+    try {
+        const initialMessages = JSON.parse(messageScript.textContent);
+        initialMessages.forEach((message, index) => {
+            window.setTimeout(() => {
+                const messageLevel = Array.isArray(message.tags)
+                    ? message.tags[0]
+                    : String(message.tags || '').split(' ')[0];
+                window.showAppToast(message.message, messageLevel || 'info');
+            }, index * 180);
+        });
+    } catch (error) {
+        console.error('Unable to display page notifications.', error);
+    }
+}
 </script>
-
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
 </body>
 </html>
