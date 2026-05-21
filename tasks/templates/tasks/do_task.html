@@ -187,8 +187,20 @@
         </div>
 
         <div class="modal-body">
-          <label class="form-label">Attachments (optional)</label>
+          <div class="mb-3">
+            <label class="form-label" for="completeTaskDescription">Completion Description</label>
+            <textarea
+              id="completeTaskDescription"
+              name="completion_description"
+              class="form-control"
+              rows="4"
+              placeholder="Describe what was completed and any notes for the manager."
+              required></textarea>
+            <div class="form-text">This description is required before you can submit the task.</div>
+          </div>
+          <label class="form-label">Supporting Documents</label>
           <input type="file" name="attachments" class="form-control mb-2" multiple>
+          <div class="form-text">You can attach more than one file.</div>
         </div>
 
         <div class="modal-footer">
@@ -361,6 +373,18 @@ $('#completeTaskForm').submit(function (e) {
     e.preventDefault();
 
     const formData = new FormData(this);
+    const completionDescription = ($('#completeTaskDescription').val() || '').trim();
+
+    if (!completionDescription) {
+        Swal.fire({
+            title: 'Description required',
+            text: 'Please enter the completion description before submitting the task.',
+            icon: 'warning'
+        }).then(() => {
+            $('#completeTaskDescription').trigger('focus');
+        });
+        return;
+    }
 
     $.ajax({
         url: "{% url 'complete_task' task.id %}",
@@ -371,17 +395,21 @@ $('#completeTaskForm').submit(function (e) {
         success: () => {
             Swal.fire({
                 title: 'Task Completed!',
-                html: 'Well done!<br>Attachments saved successfully.',
+                html: 'Well done!<br>Your completion description and documents were sent for manager review.',
                 icon: 'success',
                 timer: 2200,
                 showConfirmButton: false,
                 allowOutsideClick: false
             }).then(() => location.reload());
         },
-        error: () => {
+        error: (xhr) => {
+            let message = 'Something went wrong while completing the task.';
+            if (xhr.responseJSON && xhr.responseJSON.error) {
+                message = xhr.responseJSON.error;
+            }
             Swal.fire({
                 title: 'Oops...',
-                text: 'Something went wrong while completing the task.',
+                text: message,
                 icon: 'error'
             });
         }

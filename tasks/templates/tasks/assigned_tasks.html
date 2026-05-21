@@ -1114,37 +1114,22 @@ document.addEventListener('click', function(event) {
                 return;
             }
 
-            const uploadChoice = await Swal.fire({
-                title: 'Complete this task?',
-                text: 'Do you need to upload files before marking it as completed?',
-                icon: 'question',
-                showCancelButton: true,
-                showDenyButton: true,
-                confirmButtonText: 'Yes, upload files',
-                denyButtonText: 'No, complete now',
-                cancelButtonText: 'Cancel',
-                confirmButtonColor: '#198754',
-                denyButtonColor: '#0d6efd',
-                cancelButtonColor: '#6c757d',
-                reverseButtons: true
-            });
-
-            if (uploadChoice.isDismissed) {
-                return;
-            }
-
             const formData = new FormData();
             formData.append('csrfmiddlewaretoken', getCsrfToken());
-            let successText = 'The task has been marked as completed successfully.';
+            let successText = 'The task has been marked as completed and sent to the manager.';
 
-            if (uploadChoice.isConfirmed) {
-                const uploadResult = await Swal.fire({
-                    title: 'Upload completion files',
+            const uploadResult = await Swal.fire({
+                    title: 'Submit task for review',
                     html: `
                         <div class="text-start">
-                            <label for="completeTaskAttachmentsInput" class="form-label">Attachments</label>
+                            <div class="mb-3">
+                                <label for="completeTaskDescriptionInput" class="form-label">Completion Description</label>
+                                <textarea id="completeTaskDescriptionInput" class="form-control" rows="4" placeholder="Describe what was completed and any notes for the manager."></textarea>
+                                <div class="form-text">This description is required before you can submit the task.</div>
+                            </div>
+                            <label for="completeTaskAttachmentsInput" class="form-label">Supporting Documents</label>
                             <input id="completeTaskAttachmentsInput" type="file" class="form-control" multiple>
-                            <div class="form-text">You can upload up to 3 files.</div>
+                            <div class="form-text">You can attach more than one file.</div>
                         </div>
                     `,
                     focusConfirm: false,
@@ -1154,25 +1139,27 @@ document.addEventListener('click', function(event) {
                     confirmButtonColor: '#198754',
                     cancelButtonColor: '#6c757d',
                     preConfirm: () => {
+                        const descriptionInput = document.getElementById('completeTaskDescriptionInput');
                         const input = document.getElementById('completeTaskAttachmentsInput');
+                        const description = (descriptionInput?.value || '').trim();
                         const files = Array.from(input?.files || []);
-                        if (files.length > 3) {
-                            Swal.showValidationMessage('Maximum 3 attachments allowed.');
+                        if (!description) {
+                            Swal.showValidationMessage('Completion description is required.');
                             return false;
                         }
-                        return files;
+                        return { description, files };
                     }
                 });
 
-                if (!uploadResult.isConfirmed) {
-                    return;
-                }
-
-                (uploadResult.value || []).forEach((file) => {
-                    formData.append('attachments', file);
-                });
-                successText = 'The task has been marked as completed and files submitted successfully.';
+            if (!uploadResult.isConfirmed) {
+                return;
             }
+
+            formData.append('completion_description', uploadResult.value.description);
+            (uploadResult.value.files || []).forEach((file) => {
+                formData.append('attachments', file);
+            });
+            successText = 'The task has been marked as completed and sent to the manager with the description and files.';
 
             const response = await fetch(withId(completeTaskUrlTemplate, completeTaskBtn.dataset.taskId), {
                 method: 'POST',

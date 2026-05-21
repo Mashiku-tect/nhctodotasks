@@ -67,6 +67,29 @@
     padding: 1rem;
 }
 
+.report-owner-card {
+    display: grid;
+    gap: 0.45rem;
+    padding: 1rem 1.25rem;
+    border: 1px solid #d9eaf5;
+    border-radius: 18px;
+    background: #ffffff;
+}
+
+.report-owner-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 0.75rem 1rem;
+}
+
+.report-owner-item {
+    color: #334155;
+}
+
+.report-owner-item strong {
+    color: #184968;
+}
+
 .report-table-wrap {
     border: 1px solid #e1ebf3;
     border-radius: 18px;
@@ -223,21 +246,31 @@
     </div>
     {% endif %}
 
+    {% if show_report_owner_details %}
+    <div class="report-owner-card">
+        <div class="fw-bold text-primary">{{ report_owner_title|default:"Report Details" }}</div>
+        <div class="report-owner-grid">
+            <div class="report-owner-item"><strong>Name:</strong> {{ report_owner.get_full_name|default:report_owner.username }}</div>
+            <div class="report-owner-item"><strong>Email:</strong> {{ report_owner.email|default:"-" }}</div>
+            <div class="report-owner-item"><strong>Section:</strong> {{ report_section_name|default:"-" }}</div>
+            <div class="report-owner-item"><strong>Date Printed:</strong> {% now "Y-m-d H:i" %}</div>
+        </div>
+    </div>
+    {% endif %}
+
     {% if show_print_user_details %}
     <div class="print-header">
         <div class="print-brand">
             <img src="{% static 'images/nhclogo.png' %}" alt="NHC Todo Task Logo" class="print-logo">
             <div>
                 <h4 class="mb-1">NHC ICT To Do List Task</h4>
-                <p class="text-muted">User report details</p>
+                <p class="text-muted">{{ report_owner_title|default:"Report details" }}</p>
             </div>
         </div>
         <div class="print-meta">
             <p><strong>Name:</strong> {{ report_owner.get_full_name|default:report_owner.username }}</p>
-            {% if report_owner.staff_type %}
-            <p><strong>Staff Type:</strong> {{ report_owner.get_staff_type_display|default:report_owner.staff_type }}</p>
-            {% endif %}
             <p><strong>Email:</strong> {{ report_owner.email|default:"-" }}</p>
+            <p><strong>Section:</strong> {{ report_section_name|default:"-" }}</p>
             <p><strong>Printed:</strong> {% now "Y-m-d H:i" %}</p>
         </div>
     </div>
@@ -318,7 +351,11 @@
                         {% else %}
                         <th>Task</th>
                         {% endif %}
-                        {% if show_counterparty %}<th>{{ counterparty_label }}</th>{% endif %}
+                        {% if report_kind == 'assigned_manager' %}
+                        <th>Assigned To</th>
+                        {% elif show_counterparty %}
+                        <th>{{ counterparty_label }}</th>
+                        {% endif %}
                         <th>Priority</th>
                         {% if show_category and report_kind != 'my' %}<th>Category</th>{% endif %}
                         <th>Status</th>
@@ -345,18 +382,20 @@
                             {% endif %}
                         </td>
                         {% endif %}
-                        {% if show_counterparty %}
+                        {% if report_kind == 'assigned_manager' %}
                         <td>
-                            {% if report_kind == 'assigned_manager' %}
-                                <div class="report-assignee-list">
-                                    {% for assigned_staff in record.assigned_staff %}
-                                    <span class="report-assignee-badge {% if assigned_staff.has_submitted %}is-submitted{% endif %}">
-                                        <i class="bi {% if assigned_staff.has_submitted %}bi-check-circle-fill{% else %}bi-person-fill{% endif %}"></i>
-                                        {{ assigned_staff.username }}
-                                    </span>
-                                    {% endfor %}
-                                </div>
-                            {% elif report_kind == 'assigned_staff' %}
+                            <div class="report-assignee-list">
+                                {% for assigned_staff in record.assigned_staff %}
+                                <span class="report-assignee-badge {% if assigned_staff.has_submitted %}is-submitted{% endif %}">
+                                    <i class="bi {% if assigned_staff.has_submitted %}bi-check-circle-fill{% else %}bi-person-fill{% endif %}"></i>
+                                    {{ assigned_staff.username }}
+                                </span>
+                                {% endfor %}
+                            </div>
+                        </td>
+                        {% elif show_counterparty %}
+                        <td>
+                            {% if report_kind == 'assigned_staff' %}
                                 {{ record.assigned_by_username }}
                             {% endif %}
                         </td>

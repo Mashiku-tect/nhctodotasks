@@ -64,7 +64,54 @@
                         <div class="col-lg-7">
                             <div class="mb-4">
                                 <h5 class="fw-bold">{{ task.title }}</h5>
-                                <p class="text-muted mb-0">{{ task.description }}</p>
+                                <div class="text-muted mb-0">{{ task.description|default:"No task description provided." }}</div>
+                            </div>
+
+                            <div class="mb-4">
+                                <h6 class="fw-bold">Staff Submission</h6>
+                                {% if completion_submissions %}
+                                    {% for submission in completion_submissions %}
+                                        <div class="border rounded p-3 mb-3 bg-light-subtle">
+                                            <div class="d-flex justify-content-between align-items-start gap-3 mb-2">
+                                                <div>
+                                                    <strong>{{ submission.staff_user.username }}</strong>
+                                                    <div class="small text-muted">Submitted work for manager review</div>
+                                                </div>
+                                                <span class="badge {% if submission.user_task.review_status == 'accepted' %}bg-success{% elif submission.user_task.review_status == 'rejected' %}bg-danger{% else %}bg-secondary{% endif %}">
+                                                    {{ submission.user_task.review_status|capfirst }}
+                                                </span>
+                                            </div>
+                                            <div class="mb-2">
+                                                <div class="fw-semibold small text-uppercase text-muted">Completion Description</div>
+                                                <div>{{ submission.completion_description|default:"No completion description submitted." }}</div>
+                                            </div>
+                                            <div>
+                                                <div class="fw-semibold small text-uppercase text-muted">Submitted Documents</div>
+                                                {% if submission.attachments %}
+                                                    <ul class="list-group list-group-flush mt-2">
+                                                        {% for file in submission.attachments %}
+                                                            <li class="list-group-item px-0 d-flex justify-content-between align-items-center">
+                                                                <span>{{ file.name }}</span>
+                                                                <div class="d-flex gap-1">
+                                                                    <button type="button"
+                                                                            class="btn btn-sm btn-outline-secondary preview-file-btn"
+                                                                            data-file="{{ file.url }}">
+                                                                        Preview
+                                                                    </button>
+                                                                    <a href="{{ file.url }}" download class="btn btn-sm btn-outline-primary">Download</a>
+                                                                </div>
+                                                            </li>
+                                                        {% endfor %}
+                                                    </ul>
+                                                {% else %}
+                                                    <p class="text-muted mb-0 mt-2">No documents submitted.</p>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    {% endfor %}
+                                {% else %}
+                                    <p class="text-muted">No staff submission has been sent yet.</p>
+                                {% endif %}
                             </div>
 
                             <div class="mb-4">
@@ -129,7 +176,7 @@
 
                         <!-- RIGHT -->
                         <div class="col-lg-5">
-                            <h6 class="fw-bold mb-2">Attachments</h6>
+                            <h6 class="fw-bold mb-2">Original Task Attachments</h6>
 
                             {% if attachments %}
                                 <ul class="list-group mb-3">
@@ -161,7 +208,7 @@
                                     </div>
                                 </div>
                             {% else %}
-                                <p class="text-muted">No attachments.</p>
+                                <p class="text-muted">No original task attachments.</p>
                             {% endif %}
                         </div>
                     </div>

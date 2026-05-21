@@ -139,6 +139,28 @@ class StaffPerformanceReportTests(TestCase):
         self.assertContains(response, self.staff_two.username)
         self.assertNotContains(response, self.other_section_staff.username)
 
+    def test_assigned_task_report_shows_assigned_to_column_for_manager(self):
+        self.client.force_login(self.manager)
+
+        response = self.client.get(reverse("report_assigned_tasks"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "<th>Assigned To</th>", html=False)
+
+    def test_assigned_task_report_keeps_manager_print_header_hidden_on_screen(self):
+        self.client.force_login(self.manager)
+
+        response = self.client.get(reverse("report_assigned_tasks"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'class="print-header"', html=False)
+        self.assertContains(response, "Manager Report Details")
+        self.assertContains(response, self.manager.username)
+        self.assertContains(response, self.manager.email)
+        self.assertContains(response, self.manager.get_section_display())
+        self.assertNotContains(response, 'class="report-branding"', html=False)
+        self.assertNotContains(response, 'class="report-owner-card"', html=False)
+
     def test_dashboard_groups_staff_by_category(self):
         self.client.force_login(self.manager)
 
@@ -420,6 +442,7 @@ class TaskWorkspaceSelectionTests(TestCase):
             password="StrongPass123!",
             section="ict",
             role="staff",
+            staff_type="senior",
         )
 
         self.my_task = Task.objects.create(
@@ -468,6 +491,19 @@ class TaskWorkspaceSelectionTests(TestCase):
         self.assertEqual(response.context["selected_task_context"]["task"], self.assigned_task)
         self.assertContains(response, "Task Detail")
 
+    def test_staff_assigned_task_report_keeps_manager_deleted_tasks_by_default(self):
+        self.client.force_login(self.manager)
+        response = self.client.post(reverse("delete_task_cascade", args=[self.assigned_task.id]))
+        self.assertEqual(response.status_code, 200)
+
+        self.client.force_login(self.staff)
+        response = self.client.get(reverse("report_assigned_tasks"))
+
+        self.assertEqual(response.status_code, 200)
+        task_titles = [record.task_title for record in response.context["records"]]
+        self.assertIn(self.assigned_task.title, task_titles)
+        self.assertEqual(response.context["filters"]["deleted"], "")
+
     def test_task_detail_panel_endpoint_returns_partial_for_authorized_user(self):
         self.client.force_login(self.manager)
 
@@ -509,7 +545,243 @@ class TaskWorkspaceSelectionTests(TestCase):
             if item["task"].id == self.assigned_task.id
             for attachment in item["attachment_files"]
         ]
-        self.assertEqual(attachment_names, ["task-brief.pdf"])
+        self.assertEqual(len(attachment_names), 1)
+        self.assertTrue(attachment_names[0].startswith("task-brief"))
+
+    def test_assigned_task_completion_requires_description(self):
+        self.client.force_login(self.staff)
+
+        response = self.client.post(reverse("complete_task", args=[self.assigned_task.id]))
+
+        self.assertEqual(response.status_code, 400)
+        self.assertJSONEqual(
+            response.content,
+            {"error": "Completion description is required before submitting the task."}
+        )
+
+    @override_settings(MEDIA_ROOT=tempfile.gettempdir())
+    def test_manager_review_shows_staff_completion_description_and_documents(self):
+        self.client.force_login(self.staff)
+        response = self.client.post(
+            reverse("complete_task", args=[self.assigned_task.id]),
+            {
+                "completion_description": "Finished configuration, tested access, and attached proof.",
+                "attachments": SimpleUploadedFile(
+                    "completion-proof.pdf",
+                    b"proof",
+                    content_type="application/pdf"
+                ),
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        user_task = UserTask.objects.get(task=self.assigned_task, assigned_to=self.staff)
+        self.assertEqual(
+            user_task.completion_description,
+            "Finished configuration, tested access, and attached proof."
+        )
+
+        self.client.force_login(self.manager)
+        response = self.client.get(reverse("review_task", args=[self.assigned_task.id]))
+
+        self.assertEqual(response.status_code, 200)
+        submissions = response.context["completion_submissions"]
+        self.assertEqual(len(submissions), 1)
+        self.assertEqual(
+            submissions[0]["completion_description"],
+            "Finished configuration, tested access, and attached proof."
+        )
+        self.assertEqual(submissions[0]["staff_user"], self.staff)
+        self.assertEqual(len(submissions[0]["attachments"]), 1)
+        self.assertTrue(submissions[0]["attachments"][0]["name"].startswith("completion-proof"))
+        self.assertContains(response, "Finished configuration, tested access, and attached proof.")
+
+    @override_settings(MEDIA_ROOT=tempfile.gettempdir())
+    def test_reject_clears_completion_description_and_documents(self):
+        self.client.force_login(self.staff)
+        response = self.client.post(
+            reverse("complete_task", args=[self.assigned_task.id]),
+            {
+                "completion_description": "Completed the task and attached evidence.",
+                "attachments": SimpleUploadedFile(
+                    "reject-me.pdf",
+                    b"proof",
+                    content_type="application/pdf"
+                ),
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+
+        self.client.force_login(self.manager)
+        response = self.client.post(
+            reverse("review_task", args=[self.assigned_task.id]),
+            {"action": "reject", "reason": "Please correct the submission."},
+        )
+        self.assertEqual(response.status_code, 302)
+
+        user_task = UserTask.objects.get(task=self.assigned_task, assigned_to=self.staff)
+        self.assertEqual(user_task.completion_description, "")
+        self.assertEqual(user_task.status, "pending")
+        self.assertEqual(user_task.review_status, "rejected")
+        self.assertFalse(
+            TaskAttachment.objects.filter(
+                task=self.assigned_task,
+                uploaded_by=self.staff,
+            ).exists()
+        )
+
+    @override_settings(MEDIA_ROOT=tempfile.gettempdir())
+    def test_resubmitting_rejected_task_resets_review_status_to_pending(self):
+        self.client.force_login(self.staff)
+        response = self.client.post(
+            reverse("complete_task", args=[self.assigned_task.id]),
+            {
+                "completion_description": "First submission.",
+                "attachments": SimpleUploadedFile(
+                    "first-proof.pdf",
+                    b"proof",
+                    content_type="application/pdf"
+                ),
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+
+        self.client.force_login(self.manager)
+        response = self.client.post(
+            reverse("review_task", args=[self.assigned_task.id]),
+            {"action": "reject", "reason": "Please fix the issue."},
+        )
+        self.assertEqual(response.status_code, 302)
+
+        self.client.force_login(self.staff)
+        response = self.client.post(
+            reverse("complete_task", args=[self.assigned_task.id]),
+            {
+                "completion_description": "Second submission after fixes.",
+                "attachments": SimpleUploadedFile(
+                    "second-proof.pdf",
+                    b"proof",
+                    content_type="application/pdf"
+                ),
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+
+        user_task = UserTask.objects.get(task=self.assigned_task, assigned_to=self.staff)
+        self.assertEqual(user_task.status, "completed")
+        self.assertEqual(user_task.review_status, "pending")
+        self.assertEqual(user_task.completion_description, "Second submission after fixes.")
+
+    def test_staff_assigned_tasks_hides_overdue_items_waiting_for_reassignment(self):
+        overdue_task = Task.objects.create(
+            title="Expired assignment",
+            description="Should return to manager",
+            due_date=timezone.localdate() - timedelta(days=1),
+            priority="high",
+        )
+        UserTask.objects.create(
+            task=overdue_task,
+            assigned_by=self.manager,
+            assigned_to=self.staff,
+            status="pending",
+            review_status="pending",
+        )
+
+        self.client.force_login(self.staff)
+        response = self.client.get(reverse("assigned_tasks"))
+
+        self.assertEqual(response.status_code, 200)
+        visible_titles = [item["task"].title for item in response.context["task_list"].object_list]
+        self.assertIn(self.assigned_task.title, visible_titles)
+        self.assertNotIn(overdue_task.title, visible_titles)
+
+    def test_staff_assigned_tasks_keeps_reassigned_overdue_items_visible(self):
+        overdue_task = Task.objects.create(
+            title="Reassigned expired assignment",
+            description="Should stay visible after manager action",
+            due_date=timezone.localdate() - timedelta(days=1),
+            priority="high",
+        )
+        UserTask.objects.create(
+            task=overdue_task,
+            assigned_by=self.manager,
+            assigned_to=self.staff,
+            status="pending",
+            review_status="pending",
+            reassigned_at=timezone.now(),
+        )
+
+        self.client.force_login(self.staff)
+        response = self.client.get(reverse("assigned_tasks"))
+
+        self.assertEqual(response.status_code, 200)
+        visible_titles = [item["task"].title for item in response.context["task_list"].object_list]
+        self.assertIn(overdue_task.title, visible_titles)
+
+    def test_staff_task_detail_panel_forbids_overdue_item_waiting_for_reassignment(self):
+        overdue_task = Task.objects.create(
+            title="Locked overdue assignment",
+            description="",
+            due_date=timezone.localdate() - timedelta(days=1),
+            priority="normal",
+        )
+        UserTask.objects.create(
+            task=overdue_task,
+            assigned_by=self.manager,
+            assigned_to=self.staff,
+            status="in_progress",
+            review_status="pending",
+        )
+
+        self.client.force_login(self.staff)
+        response = self.client.get(reverse("task_detail_panel", args=[overdue_task.id]))
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_staff_cannot_start_overdue_item_waiting_for_reassignment(self):
+        overdue_task = Task.objects.create(
+            title="Cannot restart overdue assignment",
+            description="",
+            due_date=timezone.localdate() - timedelta(days=1),
+            priority="normal",
+        )
+        user_task = UserTask.objects.create(
+            task=overdue_task,
+            assigned_by=self.manager,
+            assigned_to=self.staff,
+            status="pending",
+            review_status="pending",
+        )
+
+        self.client.force_login(self.staff)
+        response = self.client.get(reverse("start_task", args=[user_task.id]))
+
+        self.assertEqual(response.status_code, 403)
+        user_task.refresh_from_db()
+        self.assertEqual(user_task.status, "pending")
+
+    def test_staff_cannot_complete_overdue_item_waiting_for_reassignment(self):
+        overdue_task = Task.objects.create(
+            title="Cannot complete overdue assignment",
+            description="",
+            due_date=timezone.localdate() - timedelta(days=1),
+            priority="normal",
+        )
+        user_task = UserTask.objects.create(
+            task=overdue_task,
+            assigned_by=self.manager,
+            assigned_to=self.staff,
+            status="in_progress",
+            review_status="pending",
+        )
+
+        self.client.force_login(self.staff)
+        response = self.client.post(reverse("complete_task", args=[overdue_task.id]))
+
+        self.assertEqual(response.status_code, 403)
+        user_task.refresh_from_db()
+        self.assertEqual(user_task.status, "in_progress")
 
 
 class PersonalTaskCategorySetupTests(TestCase):

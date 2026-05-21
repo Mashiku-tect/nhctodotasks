@@ -90,6 +90,76 @@ def build_task_creation_attachment_list(task):
     return attachments
 
 
+def build_task_completion_attachment_list(task, submitted_by_id=None):
+    attachments = []
+    creator_ids = set(
+        task.user_tasks.values_list('assigned_by_id', flat=True)
+    )
+
+    completion_attachments = task.attachments.select_related('uploaded_by').all()
+    for attachment in completion_attachments:
+        if attachment.uploaded_by_id in creator_ids:
+            continue
+        if submitted_by_id is not None and attachment.uploaded_by_id != submitted_by_id:
+            continue
+
+        attachments.append({
+            'name': os.path.basename(attachment.file.name),
+            'url': attachment.file.url,
+            'uploaded_by': attachment.uploaded_by,
+            'created_at': attachment.created_at,
+            'is_legacy': False,
+        })
+
+    attachments.sort(key=lambda item: item['created_at'] or timezone.now())
+    return attachments
+
+
+def build_task_completion_submissions(task):
+    submissions = []
+    reviewable_usertasks = (
+        task.user_tasks.select_related('assigned_to', 'assigned_by')
+        .exclude(assigned_to=F('assigned_by'))
+    )
+
+    for user_task in reviewable_usertasks:
+        completion_attachments = build_task_completion_attachment_list(
+            task,
+            submitted_by_id=user_task.assigned_to_id,
+        )
+        if (
+            user_task.completion_description
+            or completion_attachments
+            or user_task.status == 'completed'
+        ):
+            submissions.append({
+                'user_task': user_task,
+                'staff_user': user_task.assigned_to,
+                'completion_description': user_task.completion_description,
+                'attachments': completion_attachments,
+            })
+
+    return submissions
+
+
+def clear_task_completion_submissions(task, submitted_by_ids=None):
+    completion_attachments = task.attachments.select_related('uploaded_by').all()
+    creator_ids = set(task.user_tasks.values_list('assigned_by_id', flat=True))
+
+    if submitted_by_ids is not None:
+        submitted_by_ids = set(submitted_by_ids)
+
+    for attachment in completion_attachments:
+        if attachment.uploaded_by_id in creator_ids:
+            continue
+        if submitted_by_ids is not None and attachment.uploaded_by_id not in submitted_by_ids:
+            continue
+
+        if attachment.file:
+            attachment.file.delete(save=False)
+        attachment.delete()
+
+
 def create_task_attachments(task, files, uploaded_by):
     for uploaded_file in files:
         TaskAttachment.objects.create(
@@ -240,6 +310,13 @@ def build_task_detail_context(request, task):
 
     if is_manager_view and all_usertasks.filter(assigned_by=request.user).exists():
         can_view = True
+
+    if (
+        request.user.role == 'staff'
+        and own_usertask
+        and is_waiting_for_reassignment(own_usertask, today)
+    ):
+        return None
 
     if not can_view:
         return None
@@ -649,6 +726,7 @@ def assigned_tasks(request):
     review_filter = request.GET.get('review')
     due_filter    = request.GET.get('due')
     search_query  = request.GET.get('q', '').strip()
+    today = get_local_today()
 
     # Base queryset – tasks visible to current user
     if user.role == 'staff':
@@ -656,6 +734,10 @@ def assigned_tasks(request):
             assigned_to=user
         ).exclude(
             assigned_by=user          # exclude self-created tasks
+        ).exclude(
+            task__due_date__lt=today,
+            status__in=['pending', 'in_progress'],
+            reassigned_at__isnull=True,
         ).select_related('task', 'assigned_by', 'assigned_to')
     else:  # manager
         visible_qs = UserTask.objects.filter(
@@ -1163,8 +1245,10 @@ def assigned_task_report(request):
         'show_counterparty': True,
         'show_category': True,
         'show_review': True,
-        'show_print_user_details': report_kind == 'assigned_staff',
-        'report_owner': request.user if report_kind == 'assigned_staff' else None,
+        'show_print_user_details': True,
+        'show_report_owner_details': False,
+        'report_owner': request.user,
+        'report_owner_title': 'Manager Report Details' if report_kind == 'assigned_manager' else 'User Report Details',
         'show_report_branding': False,
         'report_section_name': request.user.get_section_display() or request.user.section,
         'category_options': [],
@@ -1514,6 +1598,9 @@ def do_task(request, task_id):
     if request.user.role == 'manager':
         return HttpResponseForbidden("Managers should use task_detail or review_task.")
 
+    if is_waiting_for_reassignment(user_task, get_local_today()):
+        return HttpResponseForbidden("This overdue task has returned to the manager for reassignment.")
+
     # Only allow assigned staff to "do" the task
     if not user_task:
         return HttpResponseForbidden("You are not assigned to this task.")
@@ -1588,6 +1675,9 @@ def subtask_json(request, subtask_id):
 @login_required
 def start_task(request, usertask_id):
     ut = get_object_or_404(UserTask, id=usertask_id, assigned_to=request.user)
+    if is_waiting_for_reassignment(ut, get_local_today()):
+        return HttpResponseForbidden("This overdue task has returned to the manager for reassignment.")
+
     ut.status = 'in_progress'
     ut.review_status = 'pending'   # reset review status
     ut.save()
@@ -1631,6 +1721,11 @@ def complete_task(request, task_id):
         task=task,
         assigned_to=request.user
     )
+    if is_waiting_for_reassignment(user_task, get_local_today()):
+        return JsonResponse(
+            {'error': 'This overdue task has returned to the manager for reassignment.'},
+            status=403
+        )
 
     # ❗ Validate subtasks first
     if task.subtasks.exclude(status='completed').exists():
@@ -1643,13 +1738,17 @@ def complete_task(request, task_id):
         user_task.assigned_to == request.user and
         user_task.assigned_by != request.user
     )
+    completion_description = request.POST.get('completion_description', '').strip()
 
     # ✅ Handle attachments ONLY for assigned tasks
     if is_assigned_task:
-        files = request.FILES.getlist('attachments')
+        if not completion_description:
+            return JsonResponse(
+                {'error': 'Completion description is required before submitting the task.'},
+                status=400
+            )
 
-        if len(files) > 3:
-            return JsonResponse({'error': 'Maximum 3 attachments allowed.'}, status=400)
+        files = request.FILES.getlist('attachments')
 
         for f in files:
             TaskAttachment.objects.create(
@@ -1658,11 +1757,15 @@ def complete_task(request, task_id):
                 file=f
             )
 
+        user_task.completion_description = completion_description
+        user_task.save(update_fields=['completion_description'])
+
     # For manager-assigned tasks, completing once should reflect as completed
     # for both the assigned staff view and the manager view.
     if is_assigned_task:
         UserTask.objects.filter(task=task).update(
             status='completed',
+            review_status='pending',
             completed_at=timezone.now()
         )
         sync_task_report_records(task=task)
@@ -1966,8 +2069,9 @@ def review_task(request, task_id):
         else:
             review_lock_message = 'This task is not ready for review yet.'
 
-    # Attachments uploaded for this task
-    attachments = build_task_attachment_list(task)
+    # Separate original task attachments from staff completion submissions
+    attachments = build_task_creation_attachment_list(task)
+    completion_submissions = build_task_completion_submissions(task)
 
     # Fetch all major comments for this task (parent is None)
     major_comments = Comment.objects.filter(task=task, parent=None).order_by('-created_at')
@@ -2001,14 +2105,32 @@ def review_task(request, task_id):
             messages.success(request, "Task accepted successfully.")
 
         elif action == 'reject':
-            UserTask.objects.filter(task=task, assigned_by=request.user).update(review_status='rejected', status='pending')
+            rejected_usertasks = list(
+                task.user_tasks.select_related('assigned_to')
+                .filter(assigned_by=request.user)
+                .exclude(assigned_to=request.user)
+            )
+            rejected_user_ids = [user_task.assigned_to_id for user_task in rejected_usertasks]
+
+            task.user_tasks.filter(
+                assigned_by=request.user
+            ).update(
+                review_status='rejected',
+                status='pending',
+                completed_at=None,
+                completion_description='',
+            )
+            clear_task_completion_submissions(task, submitted_by_ids=rejected_user_ids)
+            task.completed_by = None
+            task.completed_at = None
+            task.save(update_fields=['completed_by', 'completed_at'])
             sync_task_report_records(task=task)
             Comment.objects.create(
                 user=request.user,
                 task=task,
                 comment=reason
             )
-            for user_task in task.user_tasks.select_related('assigned_to').exclude(assigned_to=request.user):
+            for user_task in rejected_usertasks:
                 create_notification(
                     user=user_task.assigned_to,
                     title='Task rejected',
@@ -2025,6 +2147,7 @@ def review_task(request, task_id):
         'task': task,
         'assigned_staff': assigned_staff,
         'attachments': attachments,
+        'completion_submissions': completion_submissions,
         'major_comments': major_comments,
         'pending_review_exists': pending_review_exists,
         'review_lock_message': review_lock_message,
@@ -2706,6 +2829,7 @@ def my_tasks(request):
     review_filter = request.GET.get('review')
     due_filter = request.GET.get('due')
     category_filter = request.GET.get('category', '').strip()
+    today = date.today()
 
     qs = UserTask.objects.filter(
         assigned_by=user,
@@ -2715,7 +2839,6 @@ def my_tasks(request):
     if category_filter:
         qs = qs.filter(task__category_id=category_filter, task__category__created_by=user)
 
-    today = date.today()
     if due_filter == 'today':
         qs = qs.filter(task__due_date=today)
     elif due_filter == 'overdue':
