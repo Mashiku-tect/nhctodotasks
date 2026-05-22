@@ -1,6 +1,8 @@
 <tr class="task-row {% if selected_task_id == item.task.id %}is-active{% endif %} {% if item.waiting_reassignment and user.role == 'staff' %}text-muted opacity-50{% endif %}"
     data-task-id="{{ item.task.id }}"
     data-panel-url="{% url 'task_detail_panel' item.task.id %}"
+    data-should-prompt-start="{% if user.role == 'staff' and item.own_usertask and item.own_usertask.status == 'pending' %}true{% else %}false{% endif %}"
+    data-start-toast-message="{% if user.role == 'staff' and item.own_usertask and item.own_usertask.status == 'pending' %}Click Start Task first to begin working on this task.{% endif %}"
     {% if item.waiting_reassignment and user.role == 'staff' %}title="This task is overdue. Wait for manager to reassign." data-bs-toggle="tooltip"{% endif %}>
     <td class="task-serial">{{ page_index }}</td>
     <td>
@@ -99,12 +101,12 @@
             {% else %}
                 {% with ut=item.own_usertask %}
                     {% if ut.status == 'pending' and ut.review_status == 'pending' %}
-                    <a href="{% url 'start_task' ut.id %}" class="btn btn-sm btn-primary">Start</a>
+                    <a href="{% url 'start_task' ut.id %}" class="btn btn-sm btn-primary task-start-action-btn">Start</a>
                     {% elif ut.status == 'completed' %}
                     <span class="btn btn-sm btn-success disabled" aria-disabled="true">Done</span>
                     {% endif %}
                     {% if ut.status == 'pending' and ut.review_status == 'rejected' %}
-                    <a href="{% url 'start_task' ut.id %}" class="btn btn-sm btn-outline-primary">Start Again</a>
+                    <a href="{% url 'start_task' ut.id %}" class="btn btn-sm btn-outline-primary task-start-action-btn">Start Again</a>
                     {% endif %}
                 {% endwith %}
             {% endif %}

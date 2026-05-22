@@ -386,6 +386,12 @@ def build_task_detail_context(request, task):
             (request.user.role == 'manager' and is_my_own_task)
         )
     )
+    prompt_start_usertask = own_usertask or manager_own_ut
+    should_prompt_start = bool(
+        prompt_start_usertask
+        and prompt_start_usertask.status == 'pending'
+    )
+    start_button_label = 'Start Again' if own_usertask and own_usertask.review_status == 'rejected' else 'Start Task'
 
     return {
         'task': task,
@@ -410,6 +416,8 @@ def build_task_detail_context(request, task):
         'back_url': back_url,
         'reassign_needed': reassign_needed,
         'can_manage_subtasks': can_manage_subtasks,
+        'should_prompt_start': should_prompt_start,
+        'start_button_label': start_button_label,
     }
 
 
@@ -429,7 +437,14 @@ def get_selected_task_context(request, task_ids):
     if not selected_task:
         return None, None
 
-    return selected_task_id, build_task_detail_context(request, selected_task)
+    selected_task_context = build_task_detail_context(request, selected_task)
+    if not selected_task_context:
+        return None, None
+
+    if selected_task_context.get('should_prompt_start'):
+        return None, None
+
+    return selected_task_id, selected_task_context
 
 
 from django.urls import reverse
@@ -1190,6 +1205,21 @@ def build_assigned_report_rows(records):
     return grouped_rows
 
 
+def get_report_category_options(user, report_kind):
+    if report_kind == 'my':
+        return list(
+            get_activity_categories(user).values_list('name', flat=True)
+        )
+
+    shared_category_names = list(
+        get_shared_section_categories(user).values_list('name', flat=True)
+    )
+    activity_category_names = list(
+        get_activity_categories(user).values_list('name', flat=True)
+    )
+    return sorted(set(shared_category_names + activity_category_names))
+
+
 @login_required
 def my_task_report(request):
     records = TaskReportRecord.objects.filter(
@@ -1197,10 +1227,7 @@ def my_task_report(request):
         assigned_to=request.user,
     )
     records, filters = filter_task_report_records(records, request)
-    category_options = list(
-        get_activity_categories(request.user)
-        .values_list('name', flat=True)
-    )
+    category_options = get_report_category_options(request.user, 'my')
 
     return render(request, 'reports/task_history_report.html', {
         'report_title': 'My Task Report',
@@ -1274,7 +1301,7 @@ def assigned_task_report(request):
         'report_owner_title': 'Manager Report Details' if report_kind == 'assigned_manager' else 'User Report Details',
         'show_report_branding': False,
         'report_section_name': request.user.get_section_display() or request.user.section,
-        'category_options': [],
+        'category_options': get_report_category_options(request.user, 'assigned'),
         'table_colspan': 10 if report_kind == 'assigned_manager' else 9,
     })
 

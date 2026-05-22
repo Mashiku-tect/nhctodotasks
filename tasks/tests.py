@@ -448,12 +448,25 @@ class TaskWorkspaceSelectionTests(TestCase):
             name="Network Support",
             section="ict",
         )
+        self.extra_activity_category = ActivityCategory.objects.create(
+            name="Reporting",
+            section="ict",
+        )
+        self.assigned_category = Category.objects.create(
+            name="Infrastructure",
+            section="ict",
+        )
+        self.extra_assigned_category = Category.objects.create(
+            name="Operations",
+            section="ict",
+        )
 
         self.my_task = Task.objects.create(
             title="My own task",
             description="Own description",
             due_date=timezone.localdate() + timedelta(days=2),
             priority="normal",
+            activity_category=self.activity_category,
         )
         UserTask.objects.create(
             task=self.my_task,
@@ -467,6 +480,7 @@ class TaskWorkspaceSelectionTests(TestCase):
             description="Assigned description",
             due_date=timezone.localdate() + timedelta(days=3),
             priority="normal",
+            category=self.assigned_category,
         )
         UserTask.objects.create(
             task=self.assigned_task,
@@ -477,6 +491,7 @@ class TaskWorkspaceSelectionTests(TestCase):
 
     def test_my_tasks_page_loads_selected_task_panel_context(self):
         self.client.force_login(self.manager)
+        UserTask.objects.filter(task=self.my_task).update(status="in_progress")
 
         response = self.client.get(reverse("my_tasks"), {"selected": self.my_task.id})
 
@@ -484,6 +499,25 @@ class TaskWorkspaceSelectionTests(TestCase):
         self.assertEqual(response.context["selected_task_id"], self.my_task.id)
         self.assertEqual(response.context["selected_task_context"]["task"], self.my_task)
         self.assertContains(response, "Task Detail")
+
+    def test_my_tasks_page_marks_pending_task_for_start_toast_guidance(self):
+        self.client.force_login(self.manager)
+
+        response = self.client.get(reverse("my_tasks"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'data-should-prompt-start="true"', html=False)
+        self.assertContains(response, 'task-start-action-btn', html=False)
+        self.assertContains(response, 'Click Start Task first to begin working on this task.', html=False)
+
+    def test_my_tasks_page_does_not_preload_sidebar_for_pending_task(self):
+        self.client.force_login(self.manager)
+
+        response = self.client.get(reverse("my_tasks"), {"selected": self.my_task.id})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.context["selected_task_id"])
+        self.assertIsNone(response.context["selected_task_context"])
 
     def test_assigned_tasks_page_loads_selected_task_panel_context(self):
         self.client.force_login(self.manager)
@@ -508,6 +542,26 @@ class TaskWorkspaceSelectionTests(TestCase):
         self.assertIn(self.assigned_task.title, task_titles)
         self.assertEqual(response.context["filters"]["deleted"], "")
 
+    def test_my_task_report_category_filter_options_come_from_activity_category_table(self):
+        self.client.force_login(self.manager)
+
+        response = self.client.get(reverse("report_my_tasks"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(self.activity_category.name, response.context["category_options"])
+        self.assertIn(self.extra_activity_category.name, response.context["category_options"])
+
+    def test_assigned_task_report_category_filter_options_include_category_and_activity_category_tables(self):
+        self.client.force_login(self.manager)
+
+        response = self.client.get(reverse("report_assigned_tasks"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(self.assigned_category.name, response.context["category_options"])
+        self.assertIn(self.extra_assigned_category.name, response.context["category_options"])
+        self.assertIn(self.activity_category.name, response.context["category_options"])
+        self.assertIn(self.extra_activity_category.name, response.context["category_options"])
+
     def test_task_detail_panel_endpoint_returns_partial_for_authorized_user(self):
         self.client.force_login(self.manager)
 
@@ -516,6 +570,25 @@ class TaskWorkspaceSelectionTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, self.assigned_task.title)
         self.assertContains(response, "Task Detail")
+
+    def test_assigned_tasks_page_marks_pending_staff_task_for_start_toast_guidance(self):
+        self.client.force_login(self.staff)
+
+        response = self.client.get(reverse("assigned_tasks"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'data-should-prompt-start="true"', html=False)
+        self.assertContains(response, 'task-start-action-btn', html=False)
+        self.assertContains(response, 'Click Start Task first to begin working on this task.', html=False)
+
+    def test_assigned_tasks_page_does_not_preload_sidebar_for_pending_staff_task(self):
+        self.client.force_login(self.staff)
+
+        response = self.client.get(reverse("assigned_tasks"), {"selected": self.assigned_task.id})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.context["selected_task_id"])
+        self.assertIsNone(response.context["selected_task_context"])
 
     def test_task_detail_panel_shows_completed_delivery_for_manager_view(self):
         UserTask.objects.filter(task=self.assigned_task).update(status="completed")
