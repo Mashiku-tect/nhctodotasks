@@ -675,6 +675,18 @@ document.addEventListener('click', function(event) {
         }, 3600);
     }
 
+    async function readJsonResponse(response) {
+        const rawText = await response.text();
+        if (!rawText) {
+            return {};
+        }
+        try {
+            return JSON.parse(rawText);
+        } catch (error) {
+            return {};
+        }
+    }
+
     function openDrawer() {
         drawer.classList.add('is-open');
         drawer.setAttribute('aria-hidden', 'false');
@@ -1069,6 +1081,16 @@ document.addEventListener('click', function(event) {
         quickTaskForm.addEventListener('submit', async function(event) {
             event.preventDefault();
 
+            if (!quickTaskCategoryInput || !quickTaskCategoryInput.value) {
+                await Swal.fire({
+                    title: 'Activity category required',
+                    text: 'Please select the activity category before saving the activity.',
+                    icon: 'warning',
+                    confirmButtonColor: '#dc3545'
+                });
+                return;
+            }
+
             const formData = new FormData(quickTaskForm);
             formData.set('return_to', window.location.pathname + window.location.search);
             quickTaskSubmitBtn.disabled = true;
@@ -1081,10 +1103,10 @@ document.addEventListener('click', function(event) {
                     },
                     body: formData
                 });
-                const data = await response.json();
+                const data = await readJsonResponse(response);
 
                 if (!response.ok) {
-                    throw new Error(data.error || 'Something went wrong.');
+                    throw new Error(data.error || 'Please select the activity category and try again.');
                 }
 
                 const quickTaskModal = getBootstrapModal(quickTaskModalEl);

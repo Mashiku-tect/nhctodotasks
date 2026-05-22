@@ -509,6 +509,7 @@ class TaskWorkspaceSelectionTests(TestCase):
         self.assertContains(response, 'data-should-prompt-start="true"', html=False)
         self.assertContains(response, 'task-start-action-btn', html=False)
         self.assertContains(response, 'Click Start Task first to begin working on this task.', html=False)
+        self.assertContains(response, 'Please select the activity category before saving the activity.', html=False)
 
     def test_my_tasks_page_does_not_preload_sidebar_for_pending_task(self):
         self.client.force_login(self.manager)
