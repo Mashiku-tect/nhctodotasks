@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 
 {% block content %}
+{{ activity_categories_json|json_script:"assigned-task-activity-categories" }}
 <style>
 .task-shell {
     position: relative;
@@ -584,7 +585,21 @@ document.addEventListener('click', function(event) {
     const completeTaskUrlTemplate = "{% url 'complete_task' 0 %}";
     const createTaskUrl = "{% url 'create_task' %}";
     const categoryUsersUrl = "{% url 'category_users_json' %}";
+    const activityCategories = JSON.parse(
+        document.getElementById('assigned-task-activity-categories')?.textContent || '[]'
+    );
     let selectedTaskId = null;
+
+    function buildActivityCategoryOptions() {
+        if (!activityCategories.length) {
+            return '<option value="">No activity categories available</option>';
+        }
+
+        return [
+            '<option value="">-- Select Activity Category --</option>',
+            ...activityCategories.map((category) => `<option value="${category.id}">${category.name}</option>`),
+        ].join('');
+    }
 
     function initExpandableDescriptions(root = document) {
         root.querySelectorAll('[data-description-toggle]').forEach((container) => {
@@ -1087,6 +1102,13 @@ document.addEventListener('click', function(event) {
                     html: `
                         <div class="text-start">
                             <div class="mb-3">
+                                <label for="completeTaskCategoryInput" class="form-label">Task Category</label>
+                                <select id="completeTaskCategoryInput" class="form-select">
+                                    ${buildActivityCategoryOptions()}
+                                </select>
+                                <div class="form-text">Select the activity category for this completed work.</div>
+                            </div>
+                            <div class="mb-3">
                                 <label for="completeTaskDescriptionInput" class="form-label">Completion Description</label>
                                 <textarea id="completeTaskDescriptionInput" class="form-control" rows="4" placeholder="Describe what was completed and any notes for the manager."></textarea>
                                 <div class="form-text">This description is required before you can submit the task.</div>
@@ -1103,15 +1125,21 @@ document.addEventListener('click', function(event) {
                     confirmButtonColor: '#198754',
                     cancelButtonColor: '#6c757d',
                     preConfirm: () => {
+                        const categoryInput = document.getElementById('completeTaskCategoryInput');
                         const descriptionInput = document.getElementById('completeTaskDescriptionInput');
                         const input = document.getElementById('completeTaskAttachmentsInput');
+                        const activityCategoryId = (categoryInput?.value || '').trim();
                         const description = (descriptionInput?.value || '').trim();
                         const files = Array.from(input?.files || []);
+                        if (!activityCategoryId) {
+                            Swal.showValidationMessage('Task category is required.');
+                            return false;
+                        }
                         if (!description) {
                             Swal.showValidationMessage('Completion description is required.');
                             return false;
                         }
-                        return { description, files };
+                        return { activityCategoryId, description, files };
                     }
                 });
 
@@ -1119,6 +1147,7 @@ document.addEventListener('click', function(event) {
                 return;
             }
 
+            formData.append('activity_category_id', uploadResult.value.activityCategoryId);
             formData.append('completion_description', uploadResult.value.description);
             (uploadResult.value.files || []).forEach((file) => {
                 formData.append('attachments', file);

@@ -264,6 +264,23 @@ textarea.form-control {
                                 <small class="text-muted">Select one or more staff members</small>
                             </div>
                         </div>
+                        {% else %}
+                        <div class="panel-box">
+                            <div class="section-title">Activity Category</div>
+
+                            <div class="mb-0">
+                                <label class="form-label" for="activityCategorySelect">Select Category</label>
+                                <select name="category_id" id="activityCategorySelect" class="form-select" required>
+                                    <option value="">-- Select Activity Category --</option>
+                                    {% for cat in activity_categories %}
+                                    <option value="{{ cat.id }}">{{ cat.name }}</option>
+                                    {% endfor %}
+                                </select>
+                                {% if not activity_categories %}
+                                <small class="text-muted d-block mt-2">No shared activity categories are available yet. Ask the administrator to add them in the admin panel.</small>
+                                {% endif %}
+                            </div>
+                        </div>
                         {% endif %}
                     </div>
 
@@ -313,7 +330,7 @@ textarea.form-control {
                             <div class="section-title">Quick Tips</div>
                             <ul class="helper-list">
                                 <li>Use a short title so the task is easy to scan later.</li>
-                                <li>Pick the category first to load the correct staff list.</li>
+                                <li>{% if request.user.role == "manager" %}Pick the category first to load the correct staff list.{% else %}Choose one of the shared activity categories set up by the administrator.{% endif %}</li>
                                 <li>You can attach multiple supporting files when they help complete the task.</li>
                             </ul>
                         </div>

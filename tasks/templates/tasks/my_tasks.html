@@ -328,7 +328,7 @@
                         data-panel-url="{% url 'task_detail_panel' task.id %}">
                         <td>{{ tasks.start_index|add:forloop.counter0 }}</td>
                         <td style="max-width:200px;">
-                            <div style="white-space: normal; word-break: break-word;">{{ task.category.name|default:"-" }}</div>
+                            <div style="white-space: normal; word-break: break-word;">{{ task.activity_category.name|default:"-" }}</div>
                         </td>
                         <td style="max-width:250px;">
                             <div class="task-row-description-toggle" data-description-toggle>
@@ -466,7 +466,7 @@
             <div class="modal-header">
                 <div>
                     <h5 class="modal-title" id="quickTaskModalLabel">Add Activity</h5>
-                    <div class="quick-task-note">Pick one of your setup categories first, then capture the activity details.</div>
+                    <div class="quick-task-note">Choose one of the shared categories, then capture the activity details.</div>
                 </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
@@ -482,7 +482,7 @@
                         </select>
                         {% if not activity_categories %}
                         <div class="quick-task-note mt-2">
-                            No activity categories yet. Add them in <a href="{% url 'task_category_setup' %}">Setup</a> first.
+                            No shared activity categories are available yet. Ask the administrator to add them in the admin panel.
                         </div>
                         {% endif %}
                     </div>

@@ -81,6 +81,9 @@
                         <option value="{{ cat.id }}" {% if selected_category_id == cat.id %}selected{% endif %}>{{ cat.name }}</option>
                         {% endfor %}
                     </select>
+                    {% if not activity_categories %}
+                    <small class="text-muted d-block mt-2">No shared activity categories are available yet. Ask the administrator to add them in the admin panel.</small>
+                    {% endif %}
                 </div>
                 {% endif %}
 

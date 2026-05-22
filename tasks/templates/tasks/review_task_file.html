@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-4">
+        <div>
+            <a href="{{ back_url }}" class="btn btn-outline-secondary btn-sm mb-3">
+                <i class="bi bi-arrow-left"></i> Back to Review
+            </a>
+            <h2 class="mb-1">Review File</h2>
+            <div class="text-muted">{{ task.title }}</div>
+            <div class="small text-muted mt-1">
+                {% if uploaded_by %}
+                Uploaded by {{ uploaded_by.username }}
+                {% else %}
+                Original task attachment
+                {% endif %}
+            </div>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+            <a href="{{ file_url }}" class="btn btn-outline-primary" download>Download</a>
+            <button type="button" class="btn btn-success" onclick="window.print()">Print</button>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <h5 class="fw-bold mb-3">{{ file_name }}</h5>
+
+            {% if preview_kind == 'pdf' %}
+            <object data="{{ file_url }}" type="application/pdf" width="100%" height="760">
+                <p class="text-muted mb-0">
+                    PDF preview is not available in this browser.
+                    <a href="{{ file_url }}" target="_blank" rel="noopener">Open the file</a>.
+                </p>
+            </object>
+            {% elif preview_kind == 'image' %}
+            <div class="text-center">
+                <img src="{{ file_url }}" alt="{{ file_name }}" class="img-fluid rounded border">
+            </div>
+            {% else %}
+            <div class="alert alert-secondary mb-0">
+                Preview is not available for this file type. Use the download button, then print from the file viewer if needed.
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

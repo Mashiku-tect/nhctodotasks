@@ -49,6 +49,22 @@ class CategoryMember(models.Model):
     def __str__(self):
         return f"{self.category.name} → {self.user.email}"
     
+class ActivityCategory(models.Model):
+    name = models.CharField(max_length=100)
+    section = models.CharField(
+        max_length=100,
+        choices=User.SECTION_CHOICES
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['name']
+        unique_together = ('name', 'section')
+
+    def __str__(self):
+        return f"{self.name} ({self.section})"
+
+
 class Task(models.Model):
     PRIORITY_CHOICES = [
         ('normal', 'Normal'),
@@ -56,6 +72,13 @@ class Task(models.Model):
     ]
     category = models.ForeignKey(
         Category,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='tasks'
+    )
+    activity_category = models.ForeignKey(
+        ActivityCategory,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,

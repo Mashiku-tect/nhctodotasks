@@ -4,11 +4,11 @@ from django.shortcuts import render, redirect,get_object_or_404
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.template.loader import render_to_string
-from .models import Task, UserTask, SubTask, Comment, TaskAttachment, Category, Notification, TaskReportRecord, DailyCheckIn
+from .models import Task, UserTask, SubTask, Comment, TaskAttachment, Category, Notification, TaskReportRecord, DailyCheckIn, ActivityCategory
 from .notifications import create_notification
 from django.utils import timezone
 from django.http import HttpResponseForbidden,JsonResponse
-from django.db.models import F, Q, Count
+from django.db.models import Exists, F, OuterRef, Q, Count
 from collections import defaultdict
 from django.views.decorators.http import require_POST
 from django.utils.http import url_has_allowed_host_and_scheme
@@ -26,8 +26,10 @@ today = timezone.now().astimezone(tanzania_tz).date()
 User = get_user_model()
 
 
-def get_personal_task_categories(user):
-    return Category.objects.filter(created_by=user).order_by('name')
+def get_activity_categories(user):
+    return ActivityCategory.objects.filter(
+        section=user.section,
+    ).order_by('name')
 
 
 def get_shared_section_categories(user):
@@ -41,6 +43,7 @@ def build_task_attachment_list(task):
         attachments.append({
             'name': os.path.basename(task.attachment.name),
             'url': task.attachment.url,
+            'attachment_id': None,
             'uploaded_by': None,
             'created_at': task.created_at,
             'is_legacy': True,
@@ -50,6 +53,7 @@ def build_task_attachment_list(task):
         attachments.append({
             'name': os.path.basename(attachment.file.name),
             'url': attachment.file.url,
+            'attachment_id': attachment.id,
             'uploaded_by': attachment.uploaded_by,
             'created_at': attachment.created_at,
             'is_legacy': False,
@@ -69,6 +73,7 @@ def build_task_creation_attachment_list(task):
         attachments.append({
             'name': os.path.basename(task.attachment.name),
             'url': task.attachment.url,
+            'attachment_id': None,
             'uploaded_by': None,
             'created_at': task.created_at,
             'is_legacy': True,
@@ -81,6 +86,7 @@ def build_task_creation_attachment_list(task):
         attachments.append({
             'name': os.path.basename(attachment.file.name),
             'url': attachment.file.url,
+            'attachment_id': attachment.id,
             'uploaded_by': attachment.uploaded_by,
             'created_at': attachment.created_at,
             'is_legacy': False,
@@ -106,6 +112,7 @@ def build_task_completion_attachment_list(task, submitted_by_id=None):
         attachments.append({
             'name': os.path.basename(attachment.file.name),
             'url': attachment.file.url,
+            'attachment_id': attachment.id,
             'uploaded_by': attachment.uploaded_by,
             'created_at': attachment.created_at,
             'is_legacy': False,
@@ -447,7 +454,11 @@ def sync_task_report_records(task=None, usertasks=None, mark_deleted=False):
                 'source_task_id': task_obj.id,
                 'task_title': task_obj.title,
                 'task_description': task_obj.description or '',
-                'category_name': task_obj.category.name if task_obj.category else '',
+                'category_name': (
+                    task_obj.activity_category.name
+                    if task_obj.activity_category
+                    else (task_obj.category.name if task_obj.category else '')
+                ),
                 'section': getattr(assigned_to, 'section', '') or getattr(assigned_by, 'section', ''),
                 'priority': task_obj.priority,
                 'due_date': task_obj.due_date,
@@ -471,6 +482,16 @@ def assigned_by_id_equals(assigned_by, assigned_to):
     if not assigned_by or not assigned_to:
         return False
     return assigned_by.id == assigned_to.id
+
+
+def exclude_deleted_dashboard_usertasks(queryset):
+    deleted_report_rows = TaskReportRecord.objects.filter(
+        source_usertask_id=OuterRef('pk'),
+        deleted_at__isnull=False,
+    )
+    return queryset.annotate(
+        is_deleted_in_report=Exists(deleted_report_rows)
+    ).filter(is_deleted_in_report=False)
 
 @login_required
 def create_task(request):
@@ -805,6 +826,9 @@ def assigned_tasks(request):
         'selected_task_id': selected_task_id,
         'selected_task_context': selected_task_context,
         'categories': get_shared_section_categories(user) if user.role == 'manager' else [],
+        'activity_categories_json': list(
+            get_activity_categories(user).values('id', 'name')
+        ) if user.role == 'staff' else [],
         'PRIORITY_CHOICES': Task.PRIORITY_CHOICES,
         'current_filters': {
             'status': status_filter,
@@ -1174,8 +1198,7 @@ def my_task_report(request):
     )
     records, filters = filter_task_report_records(records, request)
     category_options = list(
-        Category.objects.filter(created_by=request.user)
-        .order_by('name')
+        get_activity_categories(request.user)
         .values_list('name', flat=True)
     )
 
@@ -1448,6 +1471,8 @@ def dashboard(request):
         active_staff_count = None
         scope_label = 'My work overview'
         headline = 'Overview of your tasks and updates'
+
+    visible_tasks = exclude_deleted_dashboard_usertasks(visible_tasks)
 
     task_counts = visible_tasks.aggregate(
         total_tasks=Count('id'),
@@ -1739,12 +1764,24 @@ def complete_task(request, task_id):
         user_task.assigned_by != request.user
     )
     completion_description = request.POST.get('completion_description', '').strip()
+    activity_category_id = request.POST.get('activity_category_id', '').strip()
 
     # ✅ Handle attachments ONLY for assigned tasks
     if is_assigned_task:
         if not completion_description:
             return JsonResponse(
                 {'error': 'Completion description is required before submitting the task.'},
+                status=400
+            )
+        activity_category = None
+        if activity_category_id.isdigit():
+            activity_category = ActivityCategory.objects.filter(
+                id=int(activity_category_id),
+                section=request.user.section,
+            ).first()
+        if not activity_category:
+            return JsonResponse(
+                {'error': 'Please select a valid activity category before submitting the task.'},
                 status=400
             )
 
@@ -1759,6 +1796,8 @@ def complete_task(request, task_id):
 
         user_task.completion_description = completion_description
         user_task.save(update_fields=['completion_description'])
+        task.activity_category = activity_category
+        task.save(update_fields=['activity_category', 'updated_at'])
 
     # For manager-assigned tasks, completing once should reflect as completed
     # for both the assigned staff view and the manager view.
@@ -2151,6 +2190,54 @@ def review_task(request, task_id):
         'major_comments': major_comments,
         'pending_review_exists': pending_review_exists,
         'review_lock_message': review_lock_message,
+    })
+
+
+@login_required
+def review_task_file(request, task_id):
+    task = get_object_or_404(Task, id=task_id)
+
+    if not UserTask.objects.filter(task=task, assigned_by=request.user).exists():
+        return HttpResponseForbidden("You cannot review files for this task.")
+
+    attachment_id = request.GET.get('attachment_id', '').strip()
+    is_legacy = request.GET.get('legacy') == '1'
+
+    file_name = ''
+    file_url = ''
+    uploaded_by = None
+
+    if is_legacy:
+        if not task.attachment:
+            return HttpResponseForbidden("This file is no longer available.")
+        file_name = os.path.basename(task.attachment.name)
+        file_url = task.attachment.url
+    else:
+        if not attachment_id.isdigit():
+            return HttpResponseForbidden("Invalid file selected.")
+        attachment = get_object_or_404(
+            TaskAttachment.objects.select_related('uploaded_by', 'task'),
+            id=int(attachment_id),
+            task=task,
+        )
+        file_name = os.path.basename(attachment.file.name)
+        file_url = attachment.file.url
+        uploaded_by = attachment.uploaded_by
+
+    lower_name = file_name.lower()
+    preview_kind = 'other'
+    if lower_name.endswith('.pdf'):
+        preview_kind = 'pdf'
+    elif lower_name.endswith(('.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg')):
+        preview_kind = 'image'
+
+    return render(request, 'tasks/review_task_file.html', {
+        'task': task,
+        'file_name': file_name,
+        'file_url': file_url,
+        'uploaded_by': uploaded_by,
+        'preview_kind': preview_kind,
+        'back_url': reverse('review_task', args=[task.id]),
     })
 
 
@@ -2621,56 +2708,22 @@ def staff_task_detail(request, staff_id):
 
 @login_required
 def task_category_setup(request):
-    if request.method == 'POST':
-        name = request.POST.get('name', '').strip()
-        if not name:
-            messages.error(request, 'Task category name is required.')
-        elif Category.objects.filter(created_by=request.user, name__iexact=name).exists():
-            messages.error(request, 'You already have a task category with that name.')
-        else:
-            Category.objects.create(
-                name=name,
-                section=request.user.section,
-                created_by=request.user,
-            )
-            messages.success(request, 'Task category saved successfully.')
-        return redirect('task_category_setup')
-
-    return render(
-        request,
-        'tasks/task_category_setup.html',
-        {'task_categories': get_personal_task_categories(request.user)},
-    )
+    messages.info(request, 'Task categories are now managed in the admin panel and shared by all staff in your section.')
+    return redirect('dashboard')
 
 
 @login_required
 @require_POST
 def edit_task_category(request, category_id):
-    category = get_object_or_404(Category, id=category_id, created_by=request.user)
-    name = request.POST.get('name', '').strip()
-
-    if not name:
-        messages.error(request, 'Task category name is required.')
-    elif Category.objects.filter(created_by=request.user, name__iexact=name).exclude(id=category.id).exists():
-        messages.error(request, 'You already have a task category with that name.')
-    else:
-        category.name = name
-        category.save(update_fields=['name'])
-        messages.success(request, 'Task category updated successfully.')
-
-    return redirect('task_category_setup')
+    messages.info(request, 'Task categories are now managed in the admin panel and shared by all staff in your section.')
+    return redirect('dashboard')
 
 
 @login_required
 @require_POST
 def delete_task_category(request, category_id):
-    category = get_object_or_404(Category, id=category_id, created_by=request.user)
-    if Task.objects.filter(category=category, user_tasks__assigned_by=request.user, user_tasks__assigned_to=request.user).exists():
-        messages.error(request, 'This category is already used in your activities and cannot be deleted.')
-    else:
-        category.delete()
-        messages.success(request, 'Task category deleted successfully.')
-    return redirect('task_category_setup')
+    messages.info(request, 'Task categories are now managed in the admin panel and shared by all staff in your section.')
+    return redirect('dashboard')
 
 
 @login_required
@@ -2678,8 +2731,9 @@ def create_task(request):
     user = request.user
     subordinates = []
     categories = []
-    activity_categories = get_personal_task_categories(user)
+    activity_categories = get_activity_categories(user)
     category = None
+    activity_category = None
 
     if user.role == 'manager':
         categories = get_shared_section_categories(user)
@@ -2725,9 +2779,13 @@ def create_task(request):
 
             redirect_url = reverse('assigned_tasks')
         else:
-            category = Category.objects.filter(id=category_id, created_by=user).first()
-            if not category:
+            activity_category = ActivityCategory.objects.filter(
+                id=category_id,
+                section=user.section,
+            ).first()
+            if not activity_category:
                 return JsonResponse({'error': 'Please select a valid activity category.'}, status=400)
+            category = None
 
         parsed_due_date = parse_date(due_date) if due_date else None
         if not parsed_due_date:
@@ -2737,14 +2795,15 @@ def create_task(request):
             if not title:
                 return JsonResponse({'error': 'Title and due date are required.'}, status=400)
         else:
-            title = description[:255] if description else category.name
+            title = description[:255] if description else activity_category.name
 
         task = Task.objects.create(
             title=title,
             description=description,
             due_date=parsed_due_date,
             priority=priority,
-            category=category
+            category=category,
+            activity_category=activity_category if not is_manager_assignment else None,
         )
         create_task_attachments(task, attachments, user)
 
@@ -2834,10 +2893,13 @@ def my_tasks(request):
     qs = UserTask.objects.filter(
         assigned_by=user,
         assigned_to=user
-    ).select_related('task', 'task__category')
+    ).select_related('task', 'task__category', 'task__activity_category')
 
     if category_filter:
-        qs = qs.filter(task__category_id=category_filter, task__category__created_by=user)
+        qs = qs.filter(
+            task__activity_category_id=category_filter,
+            task__activity_category__section=user.section,
+        )
 
     if due_filter == 'today':
         qs = qs.filter(task__due_date=today)
@@ -2878,7 +2940,7 @@ def my_tasks(request):
         'tasks': page_obj,
         'selected_task_id': selected_task_id,
         'selected_task_context': selected_task_context,
-        'activity_categories': get_personal_task_categories(user),
+        'activity_categories': get_activity_categories(user),
         'PRIORITY_CHOICES': Task.PRIORITY_CHOICES,
         'current_filters': {
             'status': status_filter,
@@ -2910,9 +2972,9 @@ def edit_task(request, id):
         return HttpResponseForbidden("You cannot edit this task.")
 
     categories = Category.objects.none()
-    activity_categories = get_personal_task_categories(request.user)
+    activity_categories = get_activity_categories(request.user)
     assigned_staff_ids = []
-    selected_category_id = task.category_id
+    selected_category_id = task.activity_category_id if is_my_task else task.category_id
 
     if is_assigned_task:
         categories = get_shared_section_categories(request.user)
@@ -2956,13 +3018,18 @@ def edit_task(request, id):
                 return JsonResponse({"error": "Select at least one staff member."}, status=400)
 
             task.category = category
+            task.activity_category = None
             redirect_url = reverse("assigned_tasks")
         else:
             category_id = request.POST.get("category_id")
-            category = Category.objects.filter(id=category_id, created_by=request.user).first()
-            if not category:
+            activity_category = ActivityCategory.objects.filter(
+                id=category_id,
+                section=request.user.section,
+            ).first()
+            if not activity_category:
                 return JsonResponse({"error": "Please select a valid activity category."}, status=400)
-            task.category = category
+            task.category = None
+            task.activity_category = activity_category
             selected_users = [request.user]
 
         if not due_date:
@@ -2972,7 +3039,7 @@ def edit_task(request, id):
             if not title:
                 return JsonResponse({"error": "Title and due date are required."}, status=400)
         else:
-            title = description[:255] if description else task.category.name
+            title = description[:255] if description else task.activity_category.name
 
         task.title = title
         task.description = description

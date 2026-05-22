@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import create_task, staff_detail, category_users_json, staff_task_detail, manager_task_detail, due_soon_report, do_task, my_tasks, assigned_tasks, overdue_tasks_report, reassign_task, staff_performance_report, task_detail, task_detail_panel, start_task, complete_subtask, complete_task, edit_task, delete_task, delete_subtask, review_task, reply_comment, ajax_save_subtask, subtask_json, delete_task_cascade, notification_redirect, mark_all_notifications_read, my_task_report, assigned_task_report, reports_home, daily_accountability_board, daily_digest, daily_checkin_detail, dashboard, notifications_list, task_category_setup, edit_task_category, delete_task_category
+from .views import create_task, staff_detail, category_users_json, staff_task_detail, manager_task_detail, due_soon_report, do_task, my_tasks, assigned_tasks, overdue_tasks_report, reassign_task, staff_performance_report, task_detail, task_detail_panel, start_task, complete_subtask, complete_task, edit_task, delete_task, delete_subtask, review_task, review_task_file, reply_comment, ajax_save_subtask, subtask_json, delete_task_cascade, notification_redirect, mark_all_notifications_read, my_task_report, assigned_task_report, reports_home, daily_accountability_board, daily_digest, daily_checkin_detail, dashboard, notifications_list, task_category_setup, edit_task_category, delete_task_category
 from django.conf import settings
 from django.conf.urls.static import static
 
@@ -29,10 +29,15 @@ path('tasks/<int:id>/edit/', edit_task, name='edit_task'),
 path('tasks/<int:task_id>/delete/', delete_task, name='delete_task'),
 #path('subtasks/<int:subtask_id>/edit/', edit_subtask, name='edit_subtask'),
 #path('subtasks/<int:subtask_id>/delete/', delete_subtask, name='delete_subtask'),
- path(
+    path(
         'tasks/<int:task_id>/review/',
         review_task,
         name='review_task'
+    ),
+    path(
+        'tasks/<int:task_id>/review/file/',
+        review_task_file,
+        name='review_task_file'
     ),
        # Add a major comment (manager only)
     path('tasks/<int:comment_id>/reply-comment/', reply_comment, name='reply_comment'),

@@ -11,7 +11,7 @@ from unittest.mock import ANY, patch
 import tempfile
 
 from accounts.models import User
-from tasks.models import Task, UserTask, DailyCheckIn, Category, CategoryMember, Notification, SubTask, TaskAttachment
+from tasks.models import Task, UserTask, DailyCheckIn, Category, CategoryMember, Notification, SubTask, TaskAttachment, TaskReportRecord, ActivityCategory
 from tasks.notifications import send_notification_email
 
 
@@ -444,6 +444,10 @@ class TaskWorkspaceSelectionTests(TestCase):
             role="staff",
             staff_type="senior",
         )
+        self.activity_category = ActivityCategory.objects.create(
+            name="Network Support",
+            section="ict",
+        )
 
         self.my_task = Task.objects.create(
             title="My own task",
@@ -559,12 +563,27 @@ class TaskWorkspaceSelectionTests(TestCase):
             {"error": "Completion description is required before submitting the task."}
         )
 
+    def test_assigned_task_completion_requires_activity_category(self):
+        self.client.force_login(self.staff)
+
+        response = self.client.post(
+            reverse("complete_task", args=[self.assigned_task.id]),
+            {"completion_description": "Finished the assigned work."},
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertJSONEqual(
+            response.content,
+            {"error": "Please select a valid activity category before submitting the task."}
+        )
+
     @override_settings(MEDIA_ROOT=tempfile.gettempdir())
     def test_manager_review_shows_staff_completion_description_and_documents(self):
         self.client.force_login(self.staff)
         response = self.client.post(
             reverse("complete_task", args=[self.assigned_task.id]),
             {
+                "activity_category_id": self.activity_category.id,
                 "completion_description": "Finished configuration, tested access, and attached proof.",
                 "attachments": SimpleUploadedFile(
                     "completion-proof.pdf",
@@ -577,6 +596,8 @@ class TaskWorkspaceSelectionTests(TestCase):
         self.assertEqual(response.status_code, 200)
 
         user_task = UserTask.objects.get(task=self.assigned_task, assigned_to=self.staff)
+        self.assigned_task.refresh_from_db()
+        self.assertEqual(self.assigned_task.activity_category, self.activity_category)
         self.assertEqual(
             user_task.completion_description,
             "Finished configuration, tested access, and attached proof."
@@ -586,6 +607,8 @@ class TaskWorkspaceSelectionTests(TestCase):
         response = self.client.get(reverse("review_task", args=[self.assigned_task.id]))
 
         self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Task Category")
+        self.assertContains(response, self.activity_category.name)
         submissions = response.context["completion_submissions"]
         self.assertEqual(len(submissions), 1)
         self.assertEqual(
@@ -598,11 +621,45 @@ class TaskWorkspaceSelectionTests(TestCase):
         self.assertContains(response, "Finished configuration, tested access, and attached proof.")
 
     @override_settings(MEDIA_ROOT=tempfile.gettempdir())
+    def test_manager_can_open_dedicated_review_file_page(self):
+        self.client.force_login(self.staff)
+        self.client.post(
+            reverse("complete_task", args=[self.assigned_task.id]),
+            {
+                "activity_category_id": self.activity_category.id,
+                "completion_description": "Finished and attached proof.",
+                "attachments": SimpleUploadedFile(
+                    "completion-proof.pdf",
+                    b"proof",
+                    content_type="application/pdf"
+                ),
+            },
+        )
+
+        attachment = TaskAttachment.objects.filter(
+            task=self.assigned_task,
+            uploaded_by=self.staff,
+        ).latest("id")
+
+        self.client.force_login(self.manager)
+        response = self.client.get(
+            reverse("review_task_file", args=[self.assigned_task.id]),
+            {"attachment_id": attachment.id},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Review File")
+        self.assertContains(response, "Download")
+        self.assertContains(response, "Print")
+        self.assertContains(response, "completion-proof")
+
+    @override_settings(MEDIA_ROOT=tempfile.gettempdir())
     def test_reject_clears_completion_description_and_documents(self):
         self.client.force_login(self.staff)
         response = self.client.post(
             reverse("complete_task", args=[self.assigned_task.id]),
             {
+                "activity_category_id": self.activity_category.id,
                 "completion_description": "Completed the task and attached evidence.",
                 "attachments": SimpleUploadedFile(
                     "reject-me.pdf",
@@ -637,6 +694,7 @@ class TaskWorkspaceSelectionTests(TestCase):
         response = self.client.post(
             reverse("complete_task", args=[self.assigned_task.id]),
             {
+                "activity_category_id": self.activity_category.id,
                 "completion_description": "First submission.",
                 "attachments": SimpleUploadedFile(
                     "first-proof.pdf",
@@ -658,6 +716,7 @@ class TaskWorkspaceSelectionTests(TestCase):
         response = self.client.post(
             reverse("complete_task", args=[self.assigned_task.id]),
             {
+                "activity_category_id": self.activity_category.id,
                 "completion_description": "Second submission after fixes.",
                 "attachments": SimpleUploadedFile(
                     "second-proof.pdf",
@@ -784,7 +843,7 @@ class TaskWorkspaceSelectionTests(TestCase):
         self.assertEqual(user_task.status, "in_progress")
 
 
-class PersonalTaskCategorySetupTests(TestCase):
+class SharedTaskCategoryAccessTests(TestCase):
     def setUp(self):
         self.staff = User.objects.create_user(
             username="activity_owner",
@@ -792,40 +851,45 @@ class PersonalTaskCategorySetupTests(TestCase):
             password="StrongPass123!",
             section="ict",
             role="staff",
+            staff_type="senior",
         )
 
-    def test_user_can_create_personal_task_category_from_setup_page(self):
+    def test_task_category_setup_redirects_users_to_dashboard(self):
         self.client.force_login(self.staff)
 
-        response = self.client.post(reverse("task_category_setup"), {"name": "Correspondence"}, follow=True)
+        response = self.client.get(reverse("task_category_setup"), follow=True)
 
         self.assertEqual(response.status_code, 200)
-        category = Category.objects.get(name="Correspondence")
-        self.assertEqual(category.created_by, self.staff)
-        self.assertContains(response, "Task category saved successfully")
+        self.assertContains(response, "Task categories are now managed in the admin panel")
 
-    def test_my_tasks_page_shows_only_current_users_personal_categories(self):
-        own_category = Category.objects.create(name="Reports", section="ict", created_by=self.staff)
+    def test_my_tasks_page_shows_only_shared_section_categories(self):
+        own_category = ActivityCategory.objects.create(name="Reports", section="ict")
+        staffed_category = Category.objects.create(name="Assigned Work", section="ict")
         other_user = User.objects.create_user(
             username="other_owner",
             email="other_owner@nhc.co.tz",
             password="StrongPass123!",
             section="ict",
             role="staff",
+            staff_type="senior",
         )
-        Category.objects.create(name="Travel", section="ict", created_by=other_user)
+        CategoryMember.objects.create(category=staffed_category, user=other_user)
+        ActivityCategory.objects.create(name="Travel", section="ict")
+        ActivityCategory.objects.create(name="Finance", section="finance_accounting")
 
         self.client.force_login(self.staff)
         response = self.client.get(reverse("my_tasks"))
 
         self.assertEqual(response.status_code, 200)
         categories = list(response.context["activity_categories"])
-        self.assertEqual(categories, [own_category])
+        self.assertEqual(categories, [own_category, ActivityCategory.objects.get(name="Travel", section="ict")])
         self.assertContains(response, "Reports")
-        self.assertNotContains(response, "Travel")
+        self.assertContains(response, "Travel")
+        self.assertNotContains(response, "Assigned Work")
+        self.assertNotContains(response, "Finance")
 
 
-class CreateActivityWithPersonalCategoryTests(TestCase):
+class CreateActivityWithSharedCategoryTests(TestCase):
     def setUp(self):
         self.staff = User.objects.create_user(
             username="activity_staff",
@@ -833,14 +897,14 @@ class CreateActivityWithPersonalCategoryTests(TestCase):
             password="StrongPass123!",
             section="ict",
             role="staff",
+            staff_type="senior",
         )
-        self.personal_category = Category.objects.create(
+        self.shared_category = ActivityCategory.objects.create(
             name="Meetings",
             section="ict",
-            created_by=self.staff,
         )
 
-    def test_self_activity_creation_requires_personal_category(self):
+    def test_self_activity_creation_requires_shared_category(self):
         self.client.force_login(self.staff)
 
         response = self.client.post(
@@ -856,7 +920,7 @@ class CreateActivityWithPersonalCategoryTests(TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertJSONEqual(response.content, {"error": "Please select a valid activity category."})
 
-    def test_self_activity_creation_uses_users_personal_category(self):
+    def test_self_activity_creation_uses_shared_category(self):
         self.client.force_login(self.staff)
 
         response = self.client.post(
@@ -865,14 +929,15 @@ class CreateActivityWithPersonalCategoryTests(TestCase):
                 "description": "Weekly planning session",
                 "due_date": timezone.localdate().isoformat(),
                 "priority": "normal",
-                "category_id": str(self.personal_category.id),
+                "category_id": str(self.shared_category.id),
             },
             HTTP_X_REQUESTED_WITH="XMLHttpRequest",
         )
 
         self.assertEqual(response.status_code, 200)
         created_task = Task.objects.get(description="Weekly planning session")
-        self.assertEqual(created_task.category, self.personal_category)
+        self.assertEqual(created_task.activity_category, self.shared_category)
+        self.assertIsNone(created_task.category)
         self.assertEqual(created_task.title, "Weekly planning session")
         self.assertTrue(
             UserTask.objects.filter(
@@ -881,6 +946,24 @@ class CreateActivityWithPersonalCategoryTests(TestCase):
                 assigned_to=self.staff,
             ).exists()
         )
+
+    def test_self_activity_creation_rejects_assignment_category_from_old_table(self):
+        assignment_category = Category.objects.create(name="Assigned Work", section="ict")
+        self.client.force_login(self.staff)
+
+        response = self.client.post(
+            reverse("create_task"),
+            {
+                "description": "Weekly planning session",
+                "due_date": timezone.localdate().isoformat(),
+                "priority": "normal",
+                "category_id": str(assignment_category.id),
+            },
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertJSONEqual(response.content, {"error": "Please select a valid activity category."})
 
 
 class NotificationTests(TestCase):
@@ -1105,6 +1188,50 @@ class DashboardRecentTasksTests(TestCase):
         self.assertEqual(recent_item["display_status_label"], user_task.get_status_display())
         self.assertFalse(recent_item["waiting_reassignment"])
         self.assertNotContains(response, "Returned to Manager")
+
+    def test_dashboard_excludes_tasks_marked_deleted_in_report_history(self):
+        task = Task.objects.create(
+            title="Deleted dashboard task",
+            description="",
+            due_date=timezone.localdate() + timedelta(days=1),
+            priority="normal",
+        )
+        user_task = UserTask.objects.create(
+            task=task,
+            assigned_by=self.manager,
+            assigned_to=self.staff,
+            status="pending",
+            review_status="pending",
+        )
+        TaskReportRecord.objects.create(
+            source_usertask_id=user_task.id,
+            source_task_id=task.id,
+            task_title=task.title,
+            task_description=task.description,
+            category_name="",
+            section=self.staff.section,
+            priority=task.priority,
+            due_date=task.due_date,
+            assigned_by=self.manager,
+            assigned_to=self.staff,
+            assigned_by_username=self.manager.username,
+            assigned_to_username=self.staff.username,
+            status=user_task.status,
+            review_status=user_task.review_status,
+            is_self_task=False,
+            task_created_at=task.created_at,
+            task_updated_at=task.updated_at,
+            deleted_at=timezone.now(),
+        )
+
+        self.client.force_login(self.staff)
+        response = self.client.get(reverse("dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["recent_tasks"], [])
+        cards = {card["label"]: card["value"] for card in response.context["stat_cards"]}
+        self.assertEqual(cards["Total Tasks"], 0)
+        self.assertEqual(cards["Pending"], 0)
 
 
 @override_settings(

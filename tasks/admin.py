@@ -1,6 +1,6 @@
 # tasks/admin.py
 from django.contrib import admin
-from .models import Task, UserTask, SubTask, TaskAttachment, Comment, Category, CategoryMember, Notification, DailyCheckIn
+from .models import Task, UserTask, SubTask, TaskAttachment, Comment, Category, CategoryMember, Notification, DailyCheckIn, ActivityCategory
 
 
 @admin.register(Task)
@@ -27,9 +27,10 @@ class CategoryMemberInline(admin.TabularInline):
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
 class CategoryAdmin(admin.ModelAdmin):
-    list_display = ('name', 'section', 'created_by', 'created_at')
+    list_display = ('name', 'section', 'created_at')
     inlines = [CategoryMemberInline]
     readonly_fields = ('created_at',)
+    exclude = ('created_by',)
 
     def get_form(self, request, obj=None, **kwargs):
         form = super().get_form(request, obj, **kwargs)
@@ -37,7 +38,20 @@ class CategoryAdmin(admin.ModelAdmin):
         CategoryMemberInline.parent_obj = obj
         return form
 
+    def save_model(self, request, obj, form, change):
+        obj.created_by = None
+        super().save_model(request, obj, form, change)
+
 admin.site.register(Category, CategoryAdmin)
+
+
+@admin.register(ActivityCategory)
+class ActivityCategoryAdmin(admin.ModelAdmin):
+    list_display = ('name', 'section', 'created_at')
+    list_filter = ('section',)
+    search_fields = ('name',)
+    readonly_fields = ('created_at',)
+    ordering = ('section', 'name')
 
 @admin.register(UserTask)
 class UserTaskAdmin(admin.ModelAdmin):
