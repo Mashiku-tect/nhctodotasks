@@ -304,7 +304,7 @@
                 <small class="text-muted">Activities you created and assigned to yourself</small>
             </div>
             <button type="button" class="btn btn-primary" id="openQuickTaskModalBtn">
-                <i class="bi bi-plus-circle me-1"></i>Add Activity
+                <i class="bi bi-plus-circle me-1"></i>Add Tasks
             </button>
         </div>
 
@@ -370,8 +370,8 @@
                 <thead class="table-light">
                     <tr>
                         <th>S/N</th>
-                        <th>Task Category</th>
-                        <th>Activity Description</th>
+                        <th>Activity Selection</th>
+                        <th>Tasks Description</th>
                         <th>Priority</th>
                         <th>Due Date</th>
                         <th>Days Left</th>
@@ -526,7 +526,7 @@
             <input type="hidden" name="return_to" id="quickTaskReturnTo" value="">
             <div class="modal-header">
                 <div>
-                    <h5 class="modal-title" id="quickTaskModalLabel">Add Activity</h5>
+                    <h5 class="modal-title" id="quickTaskModalLabel">Add Tasks</h5>
                     <div class="quick-task-note">Choose one of the shared categories, then capture the activity details.</div>
                 </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -534,7 +534,7 @@
             <div class="modal-body">
                 <div class="row g-3">
                     <div class="col-12">
-                        <label class="form-label" for="quickTaskCategoryInput">Activity Category</label>
+                        <label class="form-label" for="quickTaskCategoryInput">Select Activity</label>
                         <div class="quick-task-category-field" id="quickTaskCategoryField">
                             <input
                                 id="quickTaskCategoryInput"
@@ -559,7 +559,7 @@
                         {% endif %}
                     </div>
                     <div class="col-12">
-                        <label class="form-label" for="quickTaskDescription">Activity Description</label>
+                        <label class="form-label" for="quickTaskDescription">Task Description based on selected activity</label>
                         <textarea id="quickTaskDescription" name="description" class="form-control" rows="4"></textarea>
                     </div>
                     <div class="col-md-6">
