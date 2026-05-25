@@ -1238,6 +1238,9 @@ document.addEventListener('click', function(event) {
         quickTaskCategoryTextInput.addEventListener('focus', function() {
             openSearchableCategoryDropdown(quickTaskCategoryConfig);
         });
+        quickTaskCategoryTextInput.addEventListener('click', function() {
+            openSearchableCategoryDropdown(quickTaskCategoryConfig);
+        });
     }
 
     if (quickTaskCategoryConfig) {

@@ -728,6 +728,9 @@ document.addEventListener('click', function(event) {
         textInput.addEventListener('focus', function() {
             openDropdown();
         });
+        textInput.addEventListener('click', function() {
+            openDropdown();
+        });
 
         options.forEach((option) => {
             option.element.addEventListener('click', function() {
