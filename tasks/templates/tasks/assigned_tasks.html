@@ -285,6 +285,58 @@
     font-size: .92rem;
     color: #5f6f82;
 }
+.quick-task-category-select {
+    width: 100%;
+    min-height: 3rem;
+    background-color: #ffffff !important;
+    background-image: var(--bs-form-select-bg-img, none);
+    border-color: #cfd9e6;
+}
+.quick-task-category-field {
+    position: relative;
+}
+.quick-task-category-dropdown {
+    position: absolute;
+    top: calc(100% + .35rem);
+    left: 0;
+    right: 0;
+    z-index: 30;
+    display: none;
+    max-height: 240px;
+    overflow-y: auto;
+    background: #ffffff;
+    border: 1px solid #cfd9e6;
+    border-radius: 14px;
+    box-shadow: 0 16px 30px rgba(15, 23, 42, 0.12);
+}
+.quick-task-category-dropdown.is-open {
+    display: block;
+}
+.quick-task-category-option,
+.quick-task-category-empty {
+    width: 100%;
+    padding: .75rem .9rem;
+    text-align: left;
+    background: #ffffff;
+}
+.quick-task-category-option {
+    border: 0;
+    color: #122033;
+}
+.quick-task-category-option:hover,
+.quick-task-category-option:focus {
+    background: #f3f8ff;
+    outline: 0;
+}
+.quick-task-category-empty {
+    color: #5f6f82;
+}
+.quick-task-modal-dialog {
+    max-width: min(880px, calc(100vw - 2rem));
+}
+.swal2-popup.quick-task-category-popup {
+    width: min(44rem, calc(100vw - 2rem));
+}
 .quick-task-staff-list {
     min-height: 168px;
     max-height: 220px;
@@ -459,7 +511,7 @@
 
 {% if user.role == 'manager' %}
 <div class="modal fade" id="quickTaskModal" tabindex="-1" aria-labelledby="quickTaskModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable quick-task-modal-dialog">
         <form id="quickTaskForm" class="modal-content" enctype="multipart/form-data" novalidate>
             {% csrf_token %}
             <input type="hidden" name="return_to" id="quickTaskReturnTo" value="">
@@ -598,17 +650,118 @@ document.addEventListener('click', function(event) {
     const activityCategories = JSON.parse(
         document.getElementById('assigned-task-activity-categories')?.textContent || '[]'
     );
+    const categoryFieldClassName = 'form-select quick-task-category-select';
     let selectedTaskId = null;
 
-    function buildActivityCategoryOptions() {
+    function buildActivityCategoryDropdownOptions() {
         if (!activityCategories.length) {
-            return '<option value="">No activity categories available</option>';
+            return '';
         }
 
-        return [
-            '<option value="">-- Select Activity Category --</option>',
-            ...activityCategories.map((category) => `<option value="${category.id}">${category.name}</option>`),
-        ].join('');
+        return activityCategories.map((category) => (
+            `<button type="button" class="quick-task-category-option" data-id="${category.id}" data-label="${category.name.toLowerCase()}">${category.name}</button>`
+        )).join('');
+    }
+
+    function initActivityCategoryField(fieldId, textInputId, hiddenInputId, dropdownId, emptyId, selectedId = '') {
+        const fieldElement = document.getElementById(fieldId);
+        const textInput = document.getElementById(textInputId);
+        const hiddenInput = document.getElementById(hiddenInputId);
+        const dropdown = document.getElementById(dropdownId);
+        const emptyState = document.getElementById(emptyId);
+        if (!fieldElement || !textInput || !hiddenInput || !dropdown || !emptyState) {
+            return;
+        }
+
+        const options = Array.from(dropdown.querySelectorAll('.quick-task-category-option'))
+            .map((option) => ({
+                id: String(option.dataset.id),
+                label: option.textContent.trim(),
+                searchLabel: option.dataset.label || option.textContent.trim().toLowerCase(),
+                element: option
+            }));
+        const optionsById = new Map(options.map((option) => [option.id, option.label]));
+
+        const filterOptions = () => {
+            const typedValue = (textInput.value || '').trim().toLowerCase();
+            let visibleCount = 0;
+            options.forEach((option) => {
+                const isVisible = !typedValue || option.searchLabel.includes(typedValue);
+                option.element.classList.toggle('d-none', !isVisible);
+                if (isVisible) {
+                    visibleCount += 1;
+                }
+            });
+            emptyState.classList.toggle('d-none', visibleCount > 0);
+        };
+
+        const openDropdown = () => {
+            filterOptions();
+            dropdown.classList.add('is-open');
+        };
+
+        const closeDropdown = () => {
+            dropdown.classList.remove('is-open');
+        };
+
+        const syncValue = (preferredId = '') => {
+            if (preferredId) {
+                hiddenInput.value = String(preferredId);
+                textInput.value = optionsById.get(String(preferredId)) || '';
+                return;
+            }
+
+            const typedValue = (textInput.value || '').trim().toLowerCase();
+            const matchedOption = options.find((option) => option.searchLabel === typedValue);
+            hiddenInput.value = matchedOption ? matchedOption.id : '';
+        };
+
+        syncValue(selectedId);
+        filterOptions();
+        textInput.addEventListener('input', function() {
+            syncValue();
+            openDropdown();
+        });
+        textInput.addEventListener('change', function() {
+            syncValue();
+        });
+        textInput.addEventListener('focus', function() {
+            openDropdown();
+        });
+
+        options.forEach((option) => {
+            option.element.addEventListener('click', function() {
+                textInput.value = option.label;
+                hiddenInput.value = option.id;
+                closeDropdown();
+            });
+        });
+
+        document.addEventListener('click', function(event) {
+            if (!fieldElement.contains(event.target)) {
+                closeDropdown();
+            }
+        });
+    }
+
+    function buildActivityCategoryFieldHtml() {
+        if (!activityCategories.length) {
+            return `
+                <input id="completeTaskCategoryInput" type="text" class="${categoryFieldClassName}" placeholder="No activity categories available" disabled>
+                <input id="completeTaskCategoryIdInput" type="hidden">
+            `;
+        }
+
+        return `
+            <div id="completeTaskCategoryField" class="quick-task-category-field">
+                <input id="completeTaskCategoryInput" type="text" class="${categoryFieldClassName}" placeholder="Search or select task category" autocomplete="off">
+                <input id="completeTaskCategoryIdInput" type="hidden">
+                <div id="completeTaskCategoryDropdown" class="quick-task-category-dropdown" role="listbox">
+                    ${buildActivityCategoryDropdownOptions()}
+                    <div id="completeTaskCategoryEmpty" class="quick-task-category-empty d-none">No task categories match your search.</div>
+                </div>
+            </div>
+        `;
     }
 
     function initExpandableDescriptions(root = document) {
@@ -1142,9 +1295,7 @@ document.addEventListener('click', function(event) {
                         <div class="text-start">
                             <div class="mb-3">
                                 <label for="completeTaskCategoryInput" class="form-label">Task Category</label>
-                                <select id="completeTaskCategoryInput" class="form-select">
-                                    ${buildActivityCategoryOptions()}
-                                </select>
+                                ${buildActivityCategoryFieldHtml()}
                                 <div class="form-text">Select the activity category for this completed work.</div>
                             </div>
                             <div class="mb-3">
@@ -1163,11 +1314,23 @@ document.addEventListener('click', function(event) {
                     cancelButtonText: 'Cancel',
                     confirmButtonColor: '#198754',
                     cancelButtonColor: '#6c757d',
+                    customClass: {
+                        popup: 'quick-task-category-popup'
+                    },
+                    didOpen: () => {
+                        initActivityCategoryField(
+                            'completeTaskCategoryField',
+                            'completeTaskCategoryInput',
+                            'completeTaskCategoryIdInput',
+                            'completeTaskCategoryDropdown',
+                            'completeTaskCategoryEmpty'
+                        );
+                    },
                     preConfirm: () => {
-                        const categoryInput = document.getElementById('completeTaskCategoryInput');
+                        const categoryIdInput = document.getElementById('completeTaskCategoryIdInput');
                         const descriptionInput = document.getElementById('completeTaskDescriptionInput');
                         const input = document.getElementById('completeTaskAttachmentsInput');
-                        const activityCategoryId = (categoryInput?.value || '').trim();
+                        const activityCategoryId = (categoryIdInput?.value || '').trim();
                         const description = (descriptionInput?.value || '').trim();
                         const files = Array.from(input?.files || []);
                         if (!activityCategoryId) {

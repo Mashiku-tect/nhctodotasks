@@ -511,6 +511,15 @@ class TaskWorkspaceSelectionTests(TestCase):
         self.assertContains(response, 'Click Start Task first to begin working on this task.', html=False)
         self.assertContains(response, 'Please select the activity category before saving the activity.', html=False)
 
+    def test_my_tasks_page_includes_single_activity_category_search_field(self):
+        self.client.force_login(self.manager)
+
+        response = self.client.get(reverse("my_tasks"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'id="quickTaskCategoryInput"', html=False)
+        self.assertContains(response, 'Search or select activity category')
+
     def test_my_tasks_page_does_not_preload_sidebar_for_pending_task(self):
         self.client.force_login(self.manager)
 
@@ -581,6 +590,15 @@ class TaskWorkspaceSelectionTests(TestCase):
         self.assertContains(response, 'data-should-prompt-start="true"', html=False)
         self.assertContains(response, 'task-start-action-btn', html=False)
         self.assertContains(response, 'Click Start Task first to begin working on this task.', html=False)
+
+    def test_assigned_tasks_page_includes_single_completion_category_search_field(self):
+        self.client.force_login(self.staff)
+
+        response = self.client.get(reverse("assigned_tasks"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'completeTaskCategoryInput', html=False)
+        self.assertContains(response, 'Search or select task category')
 
     def test_assigned_tasks_page_does_not_preload_sidebar_for_pending_staff_task(self):
         self.client.force_login(self.staff)

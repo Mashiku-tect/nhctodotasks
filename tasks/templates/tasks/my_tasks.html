@@ -236,6 +236,55 @@
     font-size: .92rem;
     color: #5f6f82;
 }
+.quick-task-category-select {
+    width: 100%;
+    min-height: 3rem;
+    background-color: #ffffff !important;
+    background-image: var(--bs-form-select-bg-img, none);
+    border-color: #cfd9e6;
+}
+.quick-task-category-field {
+    position: relative;
+}
+.quick-task-category-dropdown {
+    position: absolute;
+    top: calc(100% + .35rem);
+    left: 0;
+    right: 0;
+    z-index: 30;
+    display: none;
+    max-height: 240px;
+    overflow-y: auto;
+    background: #ffffff;
+    border: 1px solid #cfd9e6;
+    border-radius: 14px;
+    box-shadow: 0 16px 30px rgba(15, 23, 42, 0.12);
+}
+.quick-task-category-dropdown.is-open {
+    display: block;
+}
+.quick-task-category-option,
+.quick-task-category-empty {
+    width: 100%;
+    padding: .75rem .9rem;
+    text-align: left;
+    background: #ffffff;
+}
+.quick-task-category-option {
+    border: 0;
+    color: #122033;
+}
+.quick-task-category-option:hover,
+.quick-task-category-option:focus {
+    background: #f3f8ff;
+    outline: 0;
+}
+.quick-task-category-empty {
+    color: #5f6f82;
+}
+.quick-task-modal-dialog {
+    max-width: min(880px, calc(100vw - 2rem));
+}
 @media (max-width: 767.98px) {
     .task-drawer {
         width: 100vw;
@@ -471,7 +520,7 @@
 </div>
 
 <div class="modal fade" id="quickTaskModal" tabindex="-1" aria-labelledby="quickTaskModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable quick-task-modal-dialog">
         <form id="quickTaskForm" class="modal-content" enctype="multipart/form-data" novalidate>
             {% csrf_token %}
             <input type="hidden" name="return_to" id="quickTaskReturnTo" value="">
@@ -485,13 +534,24 @@
             <div class="modal-body">
                 <div class="row g-3">
                     <div class="col-12">
-                        <label class="form-label" for="quickTaskCategory">Activity Category</label>
-                        <select id="quickTaskCategory" name="category_id" class="form-select" required>
-                            <option value="">-- Select Activity Category --</option>
-                            {% for category in activity_categories %}
-                            <option value="{{ category.id }}">{{ category.name }}</option>
-                            {% endfor %}
-                        </select>
+                        <label class="form-label" for="quickTaskCategoryInput">Activity Category</label>
+                        <div class="quick-task-category-field" id="quickTaskCategoryField">
+                            <input
+                                id="quickTaskCategoryInput"
+                                type="text"
+                                class="form-select quick-task-category-select"
+                                placeholder="Search or select activity category"
+                                autocomplete="off">
+                            <input id="quickTaskCategory" type="hidden" name="category_id" required>
+                            <div id="quickTaskCategoryDropdown" class="quick-task-category-dropdown" role="listbox">
+                                {% for category in activity_categories %}
+                                <button type="button" class="quick-task-category-option" data-id="{{ category.id }}" data-label="{{ category.name|lower }}">
+                                    {{ category.name }}
+                                </button>
+                                {% endfor %}
+                                <div id="quickTaskCategoryEmpty" class="quick-task-category-empty d-none">No activity categories match your search.</div>
+                            </div>
+                        </div>
                         {% if not activity_categories %}
                         <div class="quick-task-note mt-2">
                             No shared activity categories are available yet. Ask the administrator to add them in the admin panel.
@@ -595,6 +655,7 @@ document.addEventListener('click', function(event) {
     const quickTaskOpenBtn = document.getElementById('openQuickTaskModalBtn');
     const quickTaskSubmitBtn = document.getElementById('quickTaskSubmitBtn');
     const quickTaskCategoryInput = document.getElementById('quickTaskCategory');
+    const quickTaskCategoryTextInput = document.getElementById('quickTaskCategoryInput');
     const quickTaskDescriptionInput = document.getElementById('quickTaskDescription');
     const quickTaskDueDateInput = document.getElementById('quickTaskDueDate');
     const quickTaskPriorityInput = document.getElementById('quickTaskPriority');
@@ -635,6 +696,87 @@ document.addEventListener('click', function(event) {
     function todayString() {
         return new Date().toISOString().split('T')[0];
     }
+
+    function createSearchableCategoryConfig(fieldElement, textInputElement, hiddenInputElement, dropdownElement, emptyElement) {
+        if (!fieldElement || !textInputElement || !hiddenInputElement || !dropdownElement || !emptyElement) {
+            return null;
+        }
+
+        const optionButtons = Array.from(dropdownElement.querySelectorAll('.quick-task-category-option'));
+        const options = optionButtons.map((option) => ({
+                id: option.dataset.id,
+                label: option.textContent.trim(),
+                searchLabel: option.dataset.label || option.textContent.trim().toLowerCase(),
+                element: option
+            }));
+
+        return {
+            fieldElement,
+            textInputElement,
+            hiddenInputElement,
+            dropdownElement,
+            emptyElement,
+            optionButtons,
+            options,
+            optionsById: new Map(options.map((option) => [String(option.id), option.label]))
+        };
+    }
+
+    function filterSearchableCategoryOptions(config) {
+        if (!config) {
+            return;
+        }
+
+        const searchTerm = (config.textInputElement.value || '').trim().toLowerCase();
+        let visibleCount = 0;
+        config.options.forEach((option) => {
+            const isVisible = !searchTerm || option.searchLabel.includes(searchTerm);
+            option.element.classList.toggle('d-none', !isVisible);
+            if (isVisible) {
+                visibleCount += 1;
+            }
+        });
+        config.emptyElement.classList.toggle('d-none', visibleCount > 0);
+    }
+
+    function openSearchableCategoryDropdown(config) {
+        if (!config) {
+            return;
+        }
+        filterSearchableCategoryOptions(config);
+        config.dropdownElement.classList.add('is-open');
+    }
+
+    function closeSearchableCategoryDropdown(config) {
+        if (!config) {
+            return;
+        }
+        config.dropdownElement.classList.remove('is-open');
+    }
+
+    function syncSearchableCategoryValue(config, preferredId = '') {
+        if (!config) {
+            return;
+        }
+
+        if (preferredId) {
+            config.hiddenInputElement.value = String(preferredId);
+            config.textInputElement.value = config.optionsById.get(String(preferredId)) || '';
+            return;
+        }
+
+        const typedValue = (config.textInputElement.value || '').trim().toLowerCase();
+        const matchedOption = config.options.find((option) => option.searchLabel === typedValue);
+        config.hiddenInputElement.value = matchedOption ? String(matchedOption.id) : '';
+    }
+
+    const quickTaskCategoryConfig = createSearchableCategoryConfig(
+        document.getElementById('quickTaskCategoryField'),
+        quickTaskCategoryTextInput,
+        quickTaskCategoryInput,
+        document.getElementById('quickTaskCategoryDropdown'),
+        document.getElementById('quickTaskCategoryEmpty')
+    );
 
     function setActiveRow(taskId) {
         rows.forEach((row) => {
@@ -775,6 +917,14 @@ document.addEventListener('click', function(event) {
         }
 
         quickTaskForm.reset();
+        if (quickTaskCategoryTextInput) {
+            quickTaskCategoryTextInput.value = '';
+        }
+        if (quickTaskCategoryInput) {
+            quickTaskCategoryInput.value = '';
+        }
+        closeSearchableCategoryDropdown(quickTaskCategoryConfig);
+        filterSearchableCategoryOptions(quickTaskCategoryConfig);
         quickTaskDueDateInput.value = todayString();
         quickTaskDueDateInput.min = todayString();
         if (quickTaskReturnToInput) {
@@ -790,7 +940,7 @@ document.addEventListener('click', function(event) {
 
         resetQuickTaskForm();
         if (quickTaskCategoryInput) {
-            quickTaskCategoryInput.value = prefill.categoryId || '';
+            syncSearchableCategoryValue(quickTaskCategoryConfig, prefill.categoryId || '');
         }
         quickTaskDescriptionInput.value = prefill.description || '';
         quickTaskDueDateInput.value = prefill.dueDate || todayString();
@@ -1074,6 +1224,35 @@ document.addEventListener('click', function(event) {
     if (quickTaskOpenBtn) {
         quickTaskOpenBtn.addEventListener('click', function() {
             openQuickTaskModal();
+        });
+    }
+
+    if (quickTaskCategoryTextInput && quickTaskCategoryInput) {
+        quickTaskCategoryTextInput.addEventListener('input', function() {
+            syncSearchableCategoryValue(quickTaskCategoryConfig);
+            openSearchableCategoryDropdown(quickTaskCategoryConfig);
+        });
+        quickTaskCategoryTextInput.addEventListener('change', function() {
+            syncSearchableCategoryValue(quickTaskCategoryConfig);
+        });
+        quickTaskCategoryTextInput.addEventListener('focus', function() {
+            openSearchableCategoryDropdown(quickTaskCategoryConfig);
+        });
+    }
+
+    if (quickTaskCategoryConfig) {
+        quickTaskCategoryConfig.optionButtons.forEach((button) => {
+            button.addEventListener('click', function() {
+                quickTaskCategoryTextInput.value = this.textContent.trim();
+                quickTaskCategoryInput.value = this.dataset.id || '';
+                closeSearchableCategoryDropdown(quickTaskCategoryConfig);
+            });
+        });
+
+        document.addEventListener('click', function(event) {
+            if (!quickTaskCategoryConfig.fieldElement.contains(event.target)) {
+                closeSearchableCategoryDropdown(quickTaskCategoryConfig);
+            }
         });
     }
 
